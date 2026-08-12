@@ -48,9 +48,10 @@ Version one must include:
 * Events published on behalf of organizations.
 * The whole site, both public and non-public should work both on mobile and desktop.
 
-The following are not required for the initial launch unless needed as enabling infrastructure:
+The following are not required for the initial launch unless needed as enabling infrastructure, they are out of scope:
 
 * Event RSVP'ing. 
+* Calendar REST API
 * Signal event message ingestion (that will be part of a followup project)
 * Integrations with external event websites such as animalrightscalendar.com.
 * Scraping.
@@ -58,20 +59,22 @@ The following are not required for the initial launch unless needed as enabling 
 * Native mobile applications, although the website should be mobile-first.
 * Ticket sales or payment processing.
 * Online-only events.
+* Recurring events.
+* Flagging spam events
 
 The architecture should nevertheless leave clean extension points for such possible future features.
 
 ## Current site migration
 
-The current veganactivists.nl website contains only two pages (in English and in Dutch) which explain how to get on to the Signal groups. We wish to extend this with the new calendar function. However, we do not wish to necessarily retain any use of technology. It was built with Next.js and Tailwind. You can keep tailwind, but definitely ditch Next.js and use the technology stack that is described in this spec.
+The current veganactivists.nl website contains only two pages (in English and in Dutch) which explain how to get on to the Signal groups. We wish to extend this with the new calendar function. However, we do not wish to necessarily retain any use of technology. It was built with Next.js and Tailwind. You can keep tailwind, but definitely ditch Next.js and use the technology stack that is described in this spec. Keep the path based locale.
 
-## Event data
+## Event date
 
 Every event must contain:
 
 * Short title.
 * Long description.
-* Start date and time (in `Europe/Amsterdam` timezone)
+* Start date and time (in `Europe/Amsterdam` timezone) (start time necessary also for multi-day events)
 * Location address or description (must include at the very least the Dutch city the event starts in).
 * Publisher identity:
   * an individual user (may or may not be visible to users); or
@@ -101,16 +104,16 @@ Define validation rules for end times, URLs, image types, image sizes, and requi
 
 ## Event URL
 
-Each event has a unique URL slug that shall never change. This URL shall not be the primary key of the event in the database, since that may change during migration. The slug of the shall be large enough to always be unique and small enough to make the URL not too large and ugly.
+Each event has a unique URL slug that shall never change. This URL shall not be the primary key of the event in the database, since that may change during migration. We shall use a human-readable slug derived from title + short random suffix (e.g. veganistische-mars-utrecht-4f8k)
 
 ## Geographic model
 
 The public interface must support filtering upcoming events by (one or more):
 
-* city;
+* woonplaats;
 * province.
 
-Use a canonical representation for Dutch provinces and preferably for municipalities or cities, while preserving the publisher’s human-readable location text.
+Use woonplaats (place) as the canonical geographic unit for events, each linked to its municipality and province via the official CBS/PDOK dataset. At event creation, the publisher selects a city from this canonical list (autocomplete); this drives all city/province filtering. The publisher's free-text address or meeting-point description is stored separately for display and is never used for filtering or inferred from.
 
 Do not infer a city or province unreliably from arbitrary text. If geocoding is introduced, it must be treated as an explicit, fallible process.
 
@@ -120,20 +123,29 @@ The system is initially limited to events relevant to the Netherlands only. Even
 
 Unauthenticated visitors may browse all public events.
 
-Authenticated users signin via Signal. To login a user provides their account name and a Signal message is sent to them with a 4 digit code. They get 3 attempts to type in this code to authenticate themselves.
+### Signup
 
-To create an account a user must find the Signal user called VeganActivistsNL-Bot and send it a message to request an account. Clear instruction will be provided to the user. Once that message is received by the bot, they get a URL (pretty much immediately) to the website where they can set up their account. In that URL the Signal users's ACI is encoded with a private key only known to the bot. Once the website receives that URL is can decrypt the key with the public key, so that we know the Signal bot has sent the message and that the user truly is the owner of that ACI. Only one user can be associated with one ACI (must be enforced). 
+To create an account a user must manually find the Signal user called VeganActivistsNL-Bot in the Signal App and send it a message to request an account, for example "signup". Clear instruction will be provided to the user. Once that message is received by the bot, they receive a URL (pretty much immediately) by the bot via a Signal message back to the website where they can set up their account. In that URL the Signal users's ACI is encoded. Once the website receives that URL it should check that it was signed by the bot, so that we know the Signal bot has sent the message and that the user truly is the owner of that ACI. Also the link shall only be valid for 1 hour. Only one user can be associated with one ACI (must be enforced). 
 
 Part of this project is to modify the bot to implement this account request feature.
 
 Once they click on the URL sent by the bot they can then provide their user details:
 
-* account name (user for logging in and should thus be regarded as the primary key to the users' profile)
+* unique account name (citext)
 * email address (will not be verified)
 * display name
 * information about their affiliations (not published)
+* password
 
 Authentication must use secure, HTTP-only cookies or another clearly justified browser-session design. Do not store long-lived tokens in the browser local storage. A user can be logged in for 24 hours and the account name can be remembered indefinitely for easy login. The website is running on HTTPS of course.
+
+### Login
+
+A user gets three login attempts every 12h.
+
+## Password reset
+
+To reset a user's password they can send a message to the bot with the request "password reset". A link will then be send to them where they can reset their password.
 
 ## Authorization model
 
@@ -185,6 +197,8 @@ There must always be at least one organization administrator.
 
 Deleting an organization requires a site admin.
 
+When an organization or user is deleted a question is asked to the admin, whether they want to cascade this delete and also delete all events associated with this organization or user. Deletes do not automatically cascade. If the events are not deleted (so no cascade) then the organization / user will be listed publically as "deleted". In the database the organization is not actually deleted, but a tombstone will be put.
+
 ### Site admin
 
 A site admin has god mode and can thus do everything everyone combined can, plus:
@@ -200,7 +214,7 @@ Model global roles separately from organization-scoped memberships. Avoid encodi
 
 An organization should contain at least:
 
-* name; Must be unique.
+* name; Must be unique. (citext)
 * slug; Must be unique and once set, can not change. Perhaps later we will provide multiple slugs.
 * description;
 * optional website URL;
@@ -217,7 +231,7 @@ Membership should be represented explicitly, with a scoped role such as `org_edi
 
 An event must have exactly one publishing identity:
 
-* an individual; and/or
+* an individual or
 * an organization.
 
 Also retain the user who created and most recently changed it.
@@ -256,7 +270,7 @@ Past events should normally be excluded from the default view but may remain rea
 
 Site admins may mark events as featured. They do this at their own discretion, by taking the event slug and entering it into a featured events admin page only visible to site admins.
 
-Featured events appear prominently on the front page as long as they are set in the future. Once they are happening or set in the past they stop being featured. Featured events show up in a random order on each reload.
+Featured events appear prominently on the front page as long as they are set in the future. Once they are happening or set in the past they stop being featured. 
 
 For the MVP, featuring should be editorial rather than algorithmic.
 
@@ -264,7 +278,7 @@ For the MVP, featuring should be editorial rather than algorithmic.
 
 An editor with edit rights over an event can set the status of event:
 
- - Hidden - It will then not be shown on the calendar anymore or be accessible via its URL. 
+ - Hidden - It will then not be shown on the calendar anymore or be accessible via its URL (404 shall be given).
  - Visible- At any time an editor can set a hiddent event to visible.  
  - Cancelled - The event will still be accessible through the event URL, but will not anymore show up on the calendar. Once a user goes to event page then it will be clearly shown as cancelled and a reason for such cancellation will be often be visible too.
 
@@ -275,11 +289,21 @@ When an editor sets an event's status to cancelled then a cancel reason can opti
 Before a user deletes an event they need to be prompted whether they are really sure. We also will tell them that they can also set the event to cancelled if the event was cancelled. They may not be aware of the distinction. Deleting an event makes sense when nobody has seen the event and was quitly cancelled or the event was duplicated, but if the event was truly cancelled then the event should be set to cancelled instead of being deleted.
 
 
+##  Account deletion
+
+A logged-in user may request deletion of their own account. Site admins may also delete a user account.
+
+Deleting an account anonymizes the user's profile — email, display name, and affiliation info are erased; the account row is retained as a tombstone so created_by/updated_by/publisher references on existing events remain valid (shown publicly as "deleted user" where the individual was the publisher). Events the user published are not deleted, since they may be a public record of past or upcoming organizing that other people still rely on.
+
+ The Signal ACI link is removed on deletion; the person may request a new account later, but this does not restore the old profile or its history.
+
+ A user cannot delete their own account while they are the sole org_admin of an organization — they must first promote another member or transfer the org, consistent with the rule that every organization always has at least one admin.
+
 ## Images and uploads
 
 Event flyers and organization logos are optional. The user should be told what requirements we have of images (file size and ideal dimensions).
 
-We can store the images in the database initially, so that backup becomes easy.
+We can store the images in the database initially, so that backup becomes easy. This is MVP only and we may change this lateron.
 
 Do not trust file extensions alone. An image file should be vetted and if the image is not given in the right resolution, then the resolution should be automatically adjusted. 
 
@@ -299,10 +323,6 @@ The bot needs only one extra feature (see `bot_feature.py`): the ability to send
 ## Stack
 
 Use SolidJs and SolidStart for frontend and backend. Use tailwind for styling. Run on Bun. The database shall be Postgres. 
-
-The website does not need to expose a REST API as of yet.
-
-The website shall communicate with the Signal bot via a REST API.
 
 The website shall be hosted somewhere in the cloud on a Linux-based VPS (a distro like Ubuntu) and we shall use Cloudflare as a CDN / reverse proxy.
 
@@ -337,7 +357,7 @@ I want all config in a single TOML. Secrets shall be passed via environment vari
  - Avoid duplicating business rules between the frontend and backend. The backend remains authoritative for validation and authorization.
  - All code shall be auto-formatted with a formatter
   - Use a repository pattern (from domain driven design) whereby all database calls are hidden by repositories that give access to certain parts of the database without really exposing that the database is a Postgres database or a database at all really. 
- - Interact with the Postgres database through SQL. Do not use an abstraction or library to generate SQL. 
+ - Interact with the Postgres database using hand-written, parameterized SQL — do not use an ORM or a fluent query-builder that constructs SQL through method chaining (e.g. no Prisma, Drizzle, Kysely). Every repository function must still return a precisely typed result: validate or map each row into its declared TypeScript type at the query boundary, so callers never see any or a raw driver result type.i
  - Use a TypeScript formatter to auto-format code.
 
  ## Use of libraries
