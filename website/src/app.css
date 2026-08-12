@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 220, 221, 216;
+  --background-end-rgb: 255, 255, 255;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(to bottom, transparent, rgb(var(--background-end-rgb)))
+    rgb(var(--background-start-rgb));
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+p + p {
+  margin-top: 1rem;
+}
+
+a {
+  text-decoration: underline;
+}
