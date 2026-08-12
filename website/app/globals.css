@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 220, 221, 216;
+  --background-end-rgb: 255, 255, 255;
+}
+
+html, body {
+  min-height: 100%;
+  margin: 0; /* Ensure no default margin that could cause overflow */
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+    padding-left: 2px;
+    padding-right: 2px;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+p + p {
+  @apply mt-4;
+}
+
+a {
+  @apply underline;
+}

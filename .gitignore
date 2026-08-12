@@ -1,0 +1,38 @@
+# Ignore everything except directories
+*
+!*/
+
+# Ignore dot-prefixed directories at every level
+.*/
+
+# Directories to blacklist
+bot/run/
+bot/tmp/
+bot/data
+website/node_modules
+website/out
+**/__pycache__
+
+# Specific files to whitelist
+!/.gitignore
+!LICENSE
+
+# Allow file formats
+!*.nix
+!*.md
+!*.lock
+!*.py
+!*.tsx
+!*.json
+!*.mjs
+!*.ts
+!*.js
+!*.css
+!*.nu
+!*.png
+!*.jpg
+!*.gif
+!*.ico
+!*.toml
+!*.manifest
+!*.ics
