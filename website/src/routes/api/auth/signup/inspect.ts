@@ -1,5 +1,5 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { inspectSignupToken } from "~/domain/auth/service";
+import { authService } from "~/domain/auth/auth_service";
 
 export async function GET(event: APIEvent): Promise<Response> {
   const token = new URL(event.request.url).searchParams.get("token");
@@ -7,7 +7,7 @@ export async function GET(event: APIEvent): Promise<Response> {
     return Response.json({ error: "invalid" }, { status: 400 });
   }
 
-  const result = await inspectSignupToken(token);
+  const result = await authService.inspectSignupToken(token);
   if ("error" in result) {
     return Response.json(result, { status: 400 });
   }

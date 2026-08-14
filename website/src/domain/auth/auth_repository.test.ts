@@ -1,21 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { sql } from "~/lib/db";
-import {
-  createUserFromSignup,
-  decrementLoginChallengeAttempts,
-  ensureGlobalRole,
-  findActiveSessionByTokenHash,
-  findLatestActiveLoginChallenge,
-  findUserByAccountName,
-  findUserById,
-  findUserBySignalAci,
-  insertLoginChallenge,
-  insertSession,
-  isSignupNonceUsed,
-  isSiteAdmin,
-  revokeSessionByTokenHash,
-} from "./repository";
+import { AuthRepository } from "./auth_repository";
 import { parseAccountName, parseSignalAci, type User } from "./types";
+
+const repository = new AuthRepository(sql);
 
 async function makeUser(
   overrides: Partial<{ aci: string; accountName: string }> = {},
@@ -24,7 +12,7 @@ async function makeUser(
   const accountName = parseAccountName(
     overrides.accountName ?? `user${Math.random().toString(36).slice(2, 8)}`,
   );
-  const result = await createUserFromSignup(
+  const result = await repository.createUserFromSignup(
     {
       signalAci: aci,
       accountName,
@@ -53,7 +41,7 @@ describe("createUserFromSignup", () => {
     const aci = parseSignalAci(crypto.randomUUID());
     const nonce = crypto.randomUUID();
 
-    const result = await createUserFromSignup(
+    const result = await repository.createUserFromSignup(
       {
         signalAci: aci,
         accountName: parseAccountName("alice"),
@@ -69,12 +57,12 @@ describe("createUserFromSignup", () => {
     }
     expect(result.accountName).toBe("alice");
     expect(result.signalAci).toBe(aci);
-    expect(await isSignupNonceUsed(nonce)).toBe(true);
+    expect(await repository.isSignupNonceUsed(nonce)).toBe(true);
   });
 
   it("refuses to create a second account from the same nonce", async () => {
     const nonce = crypto.randomUUID();
-    const first = await createUserFromSignup(
+    const first = await repository.createUserFromSignup(
       {
         signalAci: parseSignalAci(crypto.randomUUID()),
         accountName: parseAccountName("bob"),
@@ -86,7 +74,7 @@ describe("createUserFromSignup", () => {
     );
     expect(first).not.toBe("nonce_already_used");
 
-    const second = await createUserFromSignup(
+    const second = await repository.createUserFromSignup(
       {
         signalAci: parseSignalAci(crypto.randomUUID()),
         accountName: parseAccountName("bob-again"),
@@ -102,7 +90,7 @@ describe("createUserFromSignup", () => {
 
   it("enforces one account per Signal ACI at the database layer", async () => {
     const aci = parseSignalAci(crypto.randomUUID());
-    await createUserFromSignup(
+    await repository.createUserFromSignup(
       {
         signalAci: aci,
         accountName: parseAccountName("carol"),
@@ -114,7 +102,7 @@ describe("createUserFromSignup", () => {
     );
 
     await expect(
-      createUserFromSignup(
+      repository.createUserFromSignup(
         {
           signalAci: aci,
           accountName: parseAccountName("carol-two"),
@@ -132,25 +120,25 @@ describe("user lookups", () => {
   it("finds a user by account name, id, and Signal ACI", async () => {
     const user = await makeUser({ accountName: "dana" });
 
-    expect((await findUserByAccountName("dana"))?.id).toBe(user.id);
-    expect((await findUserById(user.id))?.accountName).toBe("dana");
-    expect((await findUserBySignalAci(user.signalAci))?.id).toBe(user.id);
+    expect((await repository.findUserByAccountName("dana"))?.id).toBe(user.id);
+    expect((await repository.findUserById(user.id))?.accountName).toBe("dana");
+    expect((await repository.findUserBySignalAci(user.signalAci))?.id).toBe(user.id);
   });
 
   it("returns null for an account name that does not exist", async () => {
-    expect(await findUserByAccountName("nobody-with-this-name")).toBeNull();
+    expect(await repository.findUserByAccountName("nobody-with-this-name")).toBeNull();
   });
 });
 
 describe("global roles", () => {
   it("is idempotent and reflects in isSiteAdmin", async () => {
     const user = await makeUser();
-    expect(await isSiteAdmin(user.id)).toBe(false);
+    expect(await repository.isSiteAdmin(user.id)).toBe(false);
 
-    await ensureGlobalRole(user.id, "site_admin");
-    await ensureGlobalRole(user.id, "site_admin"); // must not throw on repeat
+    await repository.ensureGlobalRole(user.id, "site_admin");
+    await repository.ensureGlobalRole(user.id, "site_admin"); // must not throw on repeat
 
-    expect(await isSiteAdmin(user.id)).toBe(true);
+    expect(await repository.isSiteAdmin(user.id)).toBe(true);
   });
 });
 
@@ -158,65 +146,65 @@ describe("sessions", () => {
   it("is only active before expiry and while unrevoked", async () => {
     const user = await makeUser();
     const tokenHash = "hash-1";
-    await insertSession({
+    await repository.insertSession({
       userId: user.id,
       tokenHash,
       expiresAt: new Date(Date.now() + 60_000),
     });
 
-    expect((await findActiveSessionByTokenHash(tokenHash))?.userId).toBe(user.id);
+    expect((await repository.findActiveSessionByTokenHash(tokenHash))?.userId).toBe(user.id);
 
-    await revokeSessionByTokenHash(tokenHash);
+    await repository.revokeSessionByTokenHash(tokenHash);
 
-    expect(await findActiveSessionByTokenHash(tokenHash)).toBeNull();
+    expect(await repository.findActiveSessionByTokenHash(tokenHash)).toBeNull();
   });
 
   it("treats an expired session as inactive", async () => {
     const user = await makeUser();
     const tokenHash = "hash-expired";
-    await insertSession({
+    await repository.insertSession({
       userId: user.id,
       tokenHash,
       expiresAt: new Date(Date.now() - 1_000),
     });
 
-    expect(await findActiveSessionByTokenHash(tokenHash)).toBeNull();
+    expect(await repository.findActiveSessionByTokenHash(tokenHash)).toBeNull();
   });
 });
 
 describe("login challenges", () => {
   it("decrements attempts and expires after the configured attempt count", async () => {
     const user = await makeUser();
-    const id = await insertLoginChallenge({
+    const id = await repository.insertLoginChallenge({
       userId: user.id,
       codeHash: "code-hash",
       expiresAt: new Date(Date.now() + 60_000),
     });
 
-    expect((await findLatestActiveLoginChallenge(user.id))?.attemptsRemaining).toBe(3);
+    expect((await repository.findLatestActiveLoginChallenge(user.id))?.attemptsRemaining).toBe(3);
 
-    expect(await decrementLoginChallengeAttempts(id)).toBe(2);
-    expect(await decrementLoginChallengeAttempts(id)).toBe(1);
-    expect(await decrementLoginChallengeAttempts(id)).toBe(0);
+    expect(await repository.decrementLoginChallengeAttempts(id)).toBe(2);
+    expect(await repository.decrementLoginChallengeAttempts(id)).toBe(1);
+    expect(await repository.decrementLoginChallengeAttempts(id)).toBe(0);
 
     // 0 attempts remaining -> no longer "active"
-    expect(await findLatestActiveLoginChallenge(user.id)).toBeNull();
+    expect(await repository.findLatestActiveLoginChallenge(user.id)).toBeNull();
   });
 
   it("returns the most recently created challenge when several exist", async () => {
     const user = await makeUser();
-    await insertLoginChallenge({
+    await repository.insertLoginChallenge({
       userId: user.id,
       codeHash: "old",
       expiresAt: new Date(Date.now() + 60_000),
     });
     await new Promise((resolve) => setTimeout(resolve, 10));
-    await insertLoginChallenge({
+    await repository.insertLoginChallenge({
       userId: user.id,
       codeHash: "new",
       expiresAt: new Date(Date.now() + 60_000),
     });
 
-    expect((await findLatestActiveLoginChallenge(user.id))?.codeHash).toBe("new");
+    expect((await repository.findLatestActiveLoginChallenge(user.id))?.codeHash).toBe("new");
   });
 });

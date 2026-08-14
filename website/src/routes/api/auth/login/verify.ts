@@ -1,6 +1,6 @@
 import type { APIEvent } from "@solidjs/start/server";
 import { z } from "zod";
-import { verifyLogin } from "~/domain/auth/service";
+import { authService } from "~/domain/auth/auth_service";
 import { parseJsonBody } from "~/lib/http";
 
 const RequestSchema = z.object({
@@ -21,7 +21,7 @@ export async function POST(event: APIEvent): Promise<Response> {
     return Response.json({ error: "validation" }, { status: 400 });
   }
 
-  const result = await verifyLogin(parsed.data.accountName, parsed.data.code);
+  const result = await authService.verifyLogin(parsed.data.accountName, parsed.data.code);
   if ("error" in result) {
     return Response.json({ error: result.error }, { status: ERROR_STATUS[result.error] });
   }

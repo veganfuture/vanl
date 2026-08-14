@@ -1,6 +1,6 @@
 import type { APIEvent } from "@solidjs/start/server";
 import { z } from "zod";
-import { completeSignup } from "~/domain/auth/service";
+import { authService } from "~/domain/auth/auth_service";
 import { parseJsonBody } from "~/lib/http";
 import { logger } from "~/lib/logger";
 
@@ -25,7 +25,7 @@ export async function POST(event: APIEvent): Promise<Response> {
     return Response.json({ error: "validation" }, { status: 400 });
   }
 
-  const result = await completeSignup({
+  const result = await authService.completeSignup({
     token: parsed.data.token,
     accountName: parsed.data.accountName,
     email: parsed.data.email,

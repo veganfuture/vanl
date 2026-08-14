@@ -1,8 +1,8 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { logout } from "~/domain/auth/service";
+import { authService } from "~/domain/auth/auth_service";
 
 export async function POST(event: APIEvent): Promise<Response> {
-  const setCookieHeaders = await logout(event.request.headers.get("cookie"));
+  const setCookieHeaders = await authService.logout(event.request.headers.get("cookie"));
   const headers = new Headers();
   for (const cookie of setCookieHeaders) {
     headers.append("set-cookie", cookie);

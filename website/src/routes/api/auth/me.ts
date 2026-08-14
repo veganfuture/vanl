@@ -1,8 +1,8 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { getSessionUser } from "~/domain/auth/service";
+import { authService } from "~/domain/auth/auth_service";
 
 export async function GET(event: APIEvent): Promise<Response> {
-  const user = await getSessionUser(event.request.headers.get("cookie"));
+  const user = await authService.getSessionUser(event.request.headers.get("cookie"));
   if (!user) {
     return Response.json({ user: null });
   }
