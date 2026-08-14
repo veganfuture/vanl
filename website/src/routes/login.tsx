@@ -5,12 +5,12 @@ import {
   LoginStartResponseSchema,
   type LoginStartRequest,
   type LoginStartResponse,
-} from "~/routes/api/auth/login/start";
+} from "~/routes/api/auth/login/start.schema";
 import {
   LoginVerifyResponseSchema,
   type LoginVerifyRequest,
   type LoginVerifyResponse,
-} from "~/routes/api/auth/login/verify";
+} from "~/routes/api/auth/login/verify.schema";
 
 type Step = "account" | "code";
 

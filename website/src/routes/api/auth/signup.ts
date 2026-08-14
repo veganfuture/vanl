@@ -1,31 +1,15 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { z } from "zod";
 import { authService } from "~/domain/auth/auth_service";
 import { parseJsonBody } from "~/lib/http";
 import { logger } from "~/lib/logger";
-
-export const SignupRequestSchema = z.object({
-  token: z.string().min(1),
-  accountName: z.string().min(1),
-  email: z.string().min(1),
-  displayName: z.string().min(1),
-  affiliationsNote: z.string().nullable().optional(),
-});
-export type SignupRequest = z.infer<typeof SignupRequestSchema>;
-
-export const SignupResponseSchema = z.union([
-  z.object({ accountName: z.string() }),
-  z.object({
-    error: z.enum(["invalid_token", "already_used", "account_name_taken", "validation"]),
-  }),
-]);
-export type SignupResponse = z.infer<typeof SignupResponseSchema>;
+import { SignupRequestSchema, type SignupResponse } from "./signup.schema";
 
 const ERROR_STATUS: Record<string, number> = {
   invalid_token: 400,
   already_used: 409,
   account_name_taken: 409,
   validation: 400,
+  internal_error: 500,
 };
 
 export async function POST(event: APIEvent): Promise<Response> {
@@ -42,17 +26,16 @@ export async function POST(event: APIEvent): Promise<Response> {
     affiliationsNote: parsed.data.affiliationsNote ?? null,
   });
 
-  if ("error" in result) {
-    return Response.json({ error: result.error } satisfies SignupResponse, {
-      status: ERROR_STATUS[result.error],
-    });
-  }
-
-  logger.info({ accountName: result.user.accountName }, "account created via signup");
-  const headers = new Headers({ "content-type": "application/json" });
-  for (const cookie of result.setCookieHeaders) {
-    headers.append("set-cookie", cookie);
-  }
-  const body: SignupResponse = { accountName: result.user.accountName.value };
-  return new Response(JSON.stringify(body), { status: 201, headers });
+  return result.match(
+    ({ user, setCookieHeaders }) => {
+      logger.info({ accountName: user.accountName }, "account created via signup");
+      const headers = new Headers({ "content-type": "application/json" });
+      for (const cookie of setCookieHeaders) {
+        headers.append("set-cookie", cookie);
+      }
+      const body: SignupResponse = { accountName: user.accountName.value };
+      return new Response(JSON.stringify(body), { status: 201, headers });
+    },
+    (error) => Response.json({ error } satisfies SignupResponse, { status: ERROR_STATUS[error] }),
+  );
 }

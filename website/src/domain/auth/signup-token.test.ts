@@ -35,8 +35,9 @@ describe.skipIf(!botAvailable)(
     it("accepts a token actually signed by the Python bot", async () => {
       const { token, publicKeyB64 } = signWithBot("11111111-1111-1111-1111-111111111111");
 
-      const payload = await verifySignupToken(publicKeyB64, token, 1_000);
+      const result = await verifySignupToken(publicKeyB64, token, 1_000);
 
+      const payload = result._unsafeUnwrap();
       expect(payload.aci).toBe("11111111-1111-1111-1111-111111111111");
       expect(payload.issuedAt).toBe(1_000);
       expect(payload.expiresAt).toBe(1_000 + 15 * 60);
@@ -45,16 +46,17 @@ describe.skipIf(!botAvailable)(
     it("rejects that same token once it has expired", async () => {
       const { token, publicKeyB64 } = signWithBot("11111111-1111-1111-1111-111111111111");
 
-      await expect(verifySignupToken(publicKeyB64, token, 1_000 + 15 * 60 + 1)).rejects.toThrow(
-        /expired/,
-      );
+      const result = await verifySignupToken(publicKeyB64, token, 1_000 + 15 * 60 + 1);
+
+      expect(result._unsafeUnwrapErr().message).toMatch(/expired/);
     });
   },
 );
 
 describe("verifySignupToken (format handling)", () => {
   it("rejects a token with no separator", async () => {
-    await expect(verifySignupToken("anything", "not-a-token", 0)).rejects.toThrow(/Malformed/);
+    const result = await verifySignupToken("anything", "not-a-token", 0);
+    expect(result._unsafeUnwrapErr().message).toMatch(/Malformed/);
   });
 
   it("rejects a token with the wrong signature", async () => {
@@ -74,9 +76,9 @@ describe("verifySignupToken (format handling)", () => {
     const publicKeyRaw = new Uint8Array(await crypto.subtle.exportKey("raw", keyPair.publicKey));
     const token = `${toB64Url(payloadBytes)}.${toB64Url(new Uint8Array(signature))}`;
 
-    await expect(verifySignupToken(toB64Url(publicKeyRaw), token, 0)).rejects.toThrow(
-      /Invalid signup token signature/,
-    );
+    const result = await verifySignupToken(toB64Url(publicKeyRaw), token, 0);
+
+    expect(result._unsafeUnwrapErr().message).toMatch(/Invalid signup token signature/);
   });
 });
 

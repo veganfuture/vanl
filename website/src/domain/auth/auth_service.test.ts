@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
+import { okAsync } from "neverthrow";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadConfig } from "~/lib/config";
 import { sql } from "~/lib/db";
@@ -27,7 +28,7 @@ print(build_signup_token(private_key, "${aci}"))
 }
 
 vi.mock("./bot-client", () => ({
-  sendOtpViaBot: vi.fn().mockResolvedValue(undefined),
+  sendOtpViaBot: vi.fn(() => okAsync(undefined)),
 }));
 
 const { sendOtpViaBot } = await import("./bot-client");
@@ -59,12 +60,12 @@ describe("inspectSignupToken", () => {
 
     const result = await service.inspectSignupToken(token);
 
-    if ("error" in result) throw new Error(`expected success, got ${JSON.stringify(result)}`);
-    expect(result.aci.value).toBe(aci);
+    expect(result._unsafeUnwrap().value).toBe(aci);
   });
 
   it("rejects a malformed token", async () => {
-    expect(await service.inspectSignupToken("garbage")).toEqual({ error: "invalid" });
+    const result = await service.inspectSignupToken("garbage");
+    expect(result._unsafeUnwrapErr()).toBe("invalid");
   });
 });
 
@@ -81,11 +82,11 @@ describe("completeSignup", () => {
       affiliationsNote: null,
     });
 
-    if (!("user" in result)) throw new Error(`expected success, got ${JSON.stringify(result)}`);
-    expect(result.user.accountName.value).toBe("erin");
-    const cookieToken = extractCookieValue(result.setCookieHeaders[0], SESSION_COOKIE_NAME);
+    const { user, setCookieHeaders } = result._unsafeUnwrap();
+    expect(user.accountName.value).toBe("erin");
+    const cookieToken = extractCookieValue(setCookieHeaders[0], SESSION_COOKIE_NAME);
     const sessionUser = await service.getSessionUser(`${SESSION_COOKIE_NAME}=${cookieToken}`);
-    expect(sessionUser?.accountName.value).toBe("erin");
+    expect(sessionUser._unsafeUnwrap()?.accountName.value).toBe("erin");
   });
 
   it("grants site_admin when the account name is in the bootstrap list", async () => {
@@ -100,19 +101,21 @@ describe("completeSignup", () => {
       affiliationsNote: null,
     });
 
-    if (!("user" in result)) throw new Error(`expected success, got ${JSON.stringify(result)}`);
-    expect(await repository.isSiteAdmin(result.user.id)).toBe(true);
+    const { user } = result._unsafeUnwrap();
+    expect((await repository.isSiteAdmin(user.id))._unsafeUnwrap()).toBe(true);
   });
 
   it("rejects reusing the same signup link twice", async () => {
     const token = signWithDevKey("55555555-5555-5555-5555-555555555555");
-    await service.completeSignup({
-      token,
-      accountName: "frank",
-      email: "frank@example.com",
-      displayName: "Frank",
-      affiliationsNote: null,
-    });
+    (
+      await service.completeSignup({
+        token,
+        accountName: "frank",
+        email: "frank@example.com",
+        displayName: "Frank",
+        affiliationsNote: null,
+      })
+    )._unsafeUnwrap();
 
     const second = await service.completeSignup({
       token,
@@ -122,17 +125,19 @@ describe("completeSignup", () => {
       affiliationsNote: null,
     });
 
-    expect(second).toEqual({ error: "already_used" });
+    expect(second._unsafeUnwrapErr()).toBe("already_used");
   });
 
   it("rejects a taken account name", async () => {
-    await service.completeSignup({
-      token: signWithDevKey("66666666-6666-6666-6666-666666666666"),
-      accountName: "grace",
-      email: "grace@example.com",
-      displayName: "Grace",
-      affiliationsNote: null,
-    });
+    (
+      await service.completeSignup({
+        token: signWithDevKey("66666666-6666-6666-6666-666666666666"),
+        accountName: "grace",
+        email: "grace@example.com",
+        displayName: "Grace",
+        affiliationsNote: null,
+      })
+    )._unsafeUnwrap();
 
     const result = await service.completeSignup({
       token: signWithDevKey("77777777-7777-7777-7777-777777777777"),
@@ -142,48 +147,54 @@ describe("completeSignup", () => {
       affiliationsNote: null,
     });
 
-    expect(result).toEqual({ error: "account_name_taken" });
+    expect(result._unsafeUnwrapErr()).toBe("account_name_taken");
   });
 });
 
 describe("login", () => {
   it("sends an OTP, then verifies it and starts a session", async () => {
     const token = signWithDevKey("88888888-8888-8888-8888-888888888888");
-    await service.completeSignup({
-      token,
-      accountName: "heidi",
-      email: "heidi@example.com",
-      displayName: "Heidi",
-      affiliationsNote: null,
-    });
+    (
+      await service.completeSignup({
+        token,
+        accountName: "heidi",
+        email: "heidi@example.com",
+        displayName: "Heidi",
+        affiliationsNote: null,
+      })
+    )._unsafeUnwrap();
 
-    expect(await service.startLogin("heidi")).toEqual({ ok: true });
+    (await service.startLogin("heidi"))._unsafeUnwrap();
     const sentCode = vi.mocked(sendOtpViaBot).mock.calls[0][1];
 
     const result = await service.verifyLogin("heidi", sentCode);
 
-    if (!("user" in result)) throw new Error(`expected success, got ${JSON.stringify(result)}`);
-    expect(result.user.accountName.value).toBe("heidi");
+    expect(result._unsafeUnwrap().user.accountName.value).toBe("heidi");
   });
 
   it("rejects an unknown account", async () => {
-    expect(await service.startLogin("nobody")).toEqual({ error: "account_not_found" });
+    const result = await service.startLogin("nobody");
+    expect(result._unsafeUnwrapErr()).toBe("account_not_found");
   });
 
   it("exhausts attempts after three wrong codes", async () => {
     const token = signWithDevKey("99999999-9999-9999-9999-999999999999");
-    await service.completeSignup({
-      token,
-      accountName: "ivan",
-      email: "ivan@example.com",
-      displayName: "Ivan",
-      affiliationsNote: null,
-    });
-    await service.startLogin("ivan");
+    (
+      await service.completeSignup({
+        token,
+        accountName: "ivan",
+        email: "ivan@example.com",
+        displayName: "Ivan",
+        affiliationsNote: null,
+      })
+    )._unsafeUnwrap();
+    (await service.startLogin("ivan"))._unsafeUnwrap();
 
-    expect(await service.verifyLogin("ivan", "0000")).toEqual({ error: "wrong_code" });
-    expect(await service.verifyLogin("ivan", "0000")).toEqual({ error: "wrong_code" });
-    expect(await service.verifyLogin("ivan", "0000")).toEqual({ error: "attempts_exhausted" });
+    expect((await service.verifyLogin("ivan", "0000"))._unsafeUnwrapErr()).toBe("wrong_code");
+    expect((await service.verifyLogin("ivan", "0000"))._unsafeUnwrapErr()).toBe("wrong_code");
+    expect((await service.verifyLogin("ivan", "0000"))._unsafeUnwrapErr()).toBe(
+      "attempts_exhausted",
+    );
   });
 });
 
@@ -197,15 +208,15 @@ describe("session lifecycle", () => {
       displayName: "Judy",
       affiliationsNote: null,
     });
-    if (!("user" in signupResult)) throw new Error("expected success");
-    const cookieHeader = `${SESSION_COOKIE_NAME}=${extractCookieValue(signupResult.setCookieHeaders[0], SESSION_COOKIE_NAME)}`;
+    const { setCookieHeaders } = signupResult._unsafeUnwrap();
+    const cookieHeader = `${SESSION_COOKIE_NAME}=${extractCookieValue(setCookieHeaders[0], SESSION_COOKIE_NAME)}`;
 
-    expect(await service.getSessionUser(cookieHeader)).not.toBeNull();
-    await service.logout(cookieHeader);
-    expect(await service.getSessionUser(cookieHeader)).toBeNull();
+    expect((await service.getSessionUser(cookieHeader))._unsafeUnwrap()).not.toBeNull();
+    (await service.logout(cookieHeader))._unsafeUnwrap();
+    expect((await service.getSessionUser(cookieHeader))._unsafeUnwrap()).toBeNull();
   });
 
   it("getSessionUser returns null with no cookie", async () => {
-    expect(await service.getSessionUser(null)).toBeNull();
+    expect((await service.getSessionUser(null))._unsafeUnwrap()).toBeNull();
   });
 });

@@ -1,9 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
+import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { loadConfig, type AppConfig } from "~/lib/config";
 import { sql } from "~/lib/db";
 import { logger } from "~/lib/logger";
 import { AccountName } from "./account_name";
-import { AuthRepository } from "./auth_repository";
+import { AuthRepository, type ActiveLoginChallenge, type DbError } from "./auth_repository";
 import { sendOtpViaBot } from "./bot-client";
 import {
   buildDeleteCookie,
@@ -29,15 +30,21 @@ export type CompleteSignupInput = {
   affiliationsNote: string | null;
 };
 
-export type CompleteSignupResult =
-  | { user: User; setCookieHeaders: string[] }
-  | { error: "invalid_token" | "already_used" | "account_name_taken" | "validation" };
+export type CompleteSignupSuccess = { user: User; setCookieHeaders: string[] };
+export type CompleteSignupError =
+  "invalid_token" | "already_used" | "account_name_taken" | "validation" | "internal_error";
 
-export type StartLoginResult = { ok: true } | { error: "account_not_found" };
+export type StartLoginError = "account_not_found" | "internal_error";
 
-export type VerifyLoginResult =
-  | { user: User; setCookieHeaders: string[] }
-  | { error: "account_not_found" | "no_active_challenge" | "wrong_code" | "attempts_exhausted" };
+export type VerifyLoginSuccess = { user: User; setCookieHeaders: string[] };
+export type VerifyLoginError =
+  | "account_not_found"
+  | "no_active_challenge"
+  | "wrong_code"
+  | "attempts_exhausted"
+  | "internal_error";
+
+export type InspectSignupTokenError = "invalid" | "already_used" | "internal_error";
 
 // Browsers (Chrome since 2023) cap Set-Cookie Max-Age at 400 days regardless
 // of what's requested — this is as close to "remembered indefinitely" as a
@@ -51,169 +58,234 @@ export class AuthService {
   ) {}
 
   /** GET-time check before showing the signup form — does not consume the nonce. */
-  async inspectSignupToken(
-    token: string,
-  ): Promise<{ aci: SignalAci } | { error: "invalid" | "already_used" }> {
-    let payload;
-    try {
-      payload = await verifySignupToken(this.config.signup_public_key, token);
-    } catch (cause) {
-      logger.warn({ err: cause }, "rejected signup token at inspect time");
-      return { error: "invalid" };
-    }
+  inspectSignupToken(token: string): ResultAsync<SignalAci, InspectSignupTokenError> {
+    return verifySignupToken(this.config.signup_public_key, token)
+      .mapErr((cause): InspectSignupTokenError => {
+        logger.warn({ err: cause }, "rejected signup token at inspect time");
+        return "invalid";
+      })
+      .andThen((payload) => {
+        const aciResult = SignalAci.from_string(payload.aci);
+        if (aciResult.isErr()) {
+          // A validly-signed token should always carry a real UUID — the bot
+          // only ever signs envelope.source_uuid. Reaching here means bot and
+          // website have drifted out of agreement on the payload format, not
+          // user error.
+          logger.error({ err: aciResult.error }, "well-signed signup token had a non-UUID aci");
+          return errAsync<SignalAci, InspectSignupTokenError>("invalid");
+        }
 
-    const aci = SignalAci.from_string(payload.aci);
-    if (!(aci instanceof SignalAci)) {
-      // A validly-signed token should always carry a real UUID — the bot only
-      // ever signs envelope.source_uuid. Reaching here means bot and website
-      // have drifted out of agreement on the payload format, not user error.
-      logger.error({ err: aci.message }, "well-signed signup token had a non-UUID aci");
-      return { error: "invalid" };
-    }
-
-    if (await this.repository.isSignupNonceUsed(payload.nonce)) {
-      return { error: "already_used" };
-    }
-
-    return { aci };
+        return this.repository
+          .isSignupNonceUsed(payload.nonce)
+          .mapErr((dbError): InspectSignupTokenError => {
+            logger.error({ err: dbError }, "failed to check signup nonce usage");
+            return "internal_error";
+          })
+          .andThen((used): ResultAsync<SignalAci, InspectSignupTokenError> =>
+            used ? errAsync("already_used") : okAsync(aciResult.value),
+          );
+      });
   }
 
-  async completeSignup(input: CompleteSignupInput): Promise<CompleteSignupResult> {
-    let payload;
-    try {
-      payload = await verifySignupToken(this.config.signup_public_key, input.token);
-    } catch (cause) {
-      logger.warn({ err: cause }, "rejected signup token at completion time");
-      return { error: "invalid_token" };
-    }
+  completeSignup(
+    input: CompleteSignupInput,
+  ): ResultAsync<CompleteSignupSuccess, CompleteSignupError> {
+    return verifySignupToken(this.config.signup_public_key, input.token)
+      .mapErr((cause): CompleteSignupError => {
+        logger.warn({ err: cause }, "rejected signup token at completion time");
+        return "invalid_token";
+      })
+      .andThen((payload) => {
+        const aciResult = SignalAci.from_string(payload.aci);
+        if (aciResult.isErr()) {
+          // Same reasoning as inspectSignupToken: a well-signed token with a
+          // non-UUID aci means bot/website have drifted, not a user mistake.
+          logger.error({ err: aciResult.error }, "well-signed signup token had a non-UUID aci");
+          return errAsync<never, CompleteSignupError>("invalid_token");
+        }
 
-    const aci = SignalAci.from_string(payload.aci);
-    if (!(aci instanceof SignalAci)) {
-      // Same reasoning as inspectSignupToken: a well-signed token with a
-      // non-UUID aci means bot/website have drifted, not a user mistake.
-      logger.error({ err: aci.message }, "well-signed signup token had a non-UUID aci");
-      return { error: "invalid_token" };
-    }
+        const accountNameResult = AccountName.from_string(input.accountName);
+        if (accountNameResult.isErr()) {
+          logger.warn({ err: accountNameResult.error }, "signup rejected: invalid account name");
+          return errAsync<never, CompleteSignupError>("validation");
+        }
 
-    const accountName = AccountName.from_string(input.accountName);
-    if (!(accountName instanceof AccountName)) {
-      logger.warn({ err: accountName.message }, "signup rejected: invalid account name");
-      return { error: "validation" };
-    }
+        if (!input.email.trim() || !input.displayName.trim()) {
+          return errAsync<never, CompleteSignupError>("validation");
+        }
 
-    if (!input.email.trim() || !input.displayName.trim()) {
-      return { error: "validation" };
-    }
+        const aci = aciResult.value;
+        const accountName = accountNameResult.value;
 
-    let result;
-    try {
-      result = await this.repository.createUserFromSignup(
-        {
-          signalAci: aci,
-          accountName,
-          email: input.email.trim(),
-          displayName: input.displayName.trim(),
-          affiliationsNote: input.affiliationsNote?.trim() || null,
-        },
-        payload.nonce,
-      );
-    } catch (cause) {
-      if (isUniqueViolation(cause)) {
-        logger.warn(
-          { accountName: accountName.value, err: cause },
-          "signup rejected: account name already taken",
-        );
-        return { error: "account_name_taken" };
-      }
-      throw cause;
-    }
-
-    if (result === "nonce_already_used") {
-      return { error: "already_used" };
-    }
-
-    await this.ensureBootstrapAdminRole(result);
-    const setCookieHeaders = await this.startSession(result.id, result.accountName);
-    return { user: result, setCookieHeaders };
+        return this.repository
+          .createUserFromSignup(
+            {
+              signalAci: aci,
+              accountName,
+              email: input.email.trim(),
+              displayName: input.displayName.trim(),
+              affiliationsNote: input.affiliationsNote?.trim() || null,
+            },
+            payload.nonce,
+          )
+          .mapErr((dbError): CompleteSignupError => {
+            if (isUniqueViolation(dbError.cause)) {
+              logger.warn(
+                { accountName: accountName.value, err: dbError },
+                "signup rejected: account name already taken",
+              );
+              return "account_name_taken";
+            }
+            logger.error({ err: dbError }, "failed to create user from signup");
+            return "internal_error";
+          })
+          .andThen((created): ResultAsync<User, CompleteSignupError> =>
+            created === "nonce_already_used" ? errAsync("already_used") : okAsync(created),
+          )
+          .andThen((user) =>
+            this.ensureBootstrapAdminRole(user)
+              .andThen(() => this.startSession(user.id, user.accountName))
+              .mapErr((dbError): CompleteSignupError => {
+                logger.error({ err: dbError }, "failed to finish signup after creating user");
+                return "internal_error";
+              })
+              .map((setCookieHeaders) => ({ user, setCookieHeaders })),
+          );
+      });
   }
 
-  async startLogin(accountNameRaw: string): Promise<StartLoginResult> {
-    const user = await this.repository.findUserByAccountName(accountNameRaw.trim());
-    if (!user) {
-      return { error: "account_not_found" };
-    }
-
-    const code = generateOtpCode();
-    await this.repository.insertLoginChallenge({
-      userId: user.id,
-      codeHash: hashOtpCode(code),
-      expiresAt: new Date(Date.now() + OTP_CHALLENGE_TTL_SECONDS * 1000),
-    });
-    await sendOtpViaBot(user.signalAci.value, code);
-    return { ok: true };
+  startLogin(accountNameRaw: string): ResultAsync<void, StartLoginError> {
+    return this.repository
+      .findUserByAccountName(accountNameRaw.trim())
+      .mapErr((dbError): StartLoginError => {
+        logger.error({ err: dbError }, "failed to look up user for login start");
+        return "internal_error";
+      })
+      .andThen((user): ResultAsync<User, StartLoginError> =>
+        user ? okAsync(user) : errAsync("account_not_found"),
+      )
+      .andThen((user) => {
+        const code = generateOtpCode();
+        return this.repository
+          .insertLoginChallenge({
+            userId: user.id,
+            codeHash: hashOtpCode(code),
+            expiresAt: new Date(Date.now() + OTP_CHALLENGE_TTL_SECONDS * 1000),
+          })
+          .mapErr((dbError): StartLoginError => {
+            logger.error({ err: dbError }, "failed to insert login challenge");
+            return "internal_error";
+          })
+          .andThen(() =>
+            sendOtpViaBot(user.signalAci.value, code).mapErr((sendError): StartLoginError => {
+              logger.error({ err: sendError }, "failed to send OTP via bot");
+              return "internal_error";
+            }),
+          );
+      });
   }
 
-  async verifyLogin(accountNameRaw: string, code: string): Promise<VerifyLoginResult> {
-    const user = await this.repository.findUserByAccountName(accountNameRaw.trim());
-    if (!user) {
-      return { error: "account_not_found" };
-    }
-
-    const challenge = await this.repository.findLatestActiveLoginChallenge(user.id);
-    if (!challenge) {
-      return { error: "no_active_challenge" };
-    }
-
-    if (!hashesEqual(hashOtpCode(code), challenge.codeHash)) {
-      const remaining = await this.repository.decrementLoginChallengeAttempts(challenge.id);
-      return remaining <= 0 ? { error: "attempts_exhausted" } : { error: "wrong_code" };
-    }
-
-    await this.ensureBootstrapAdminRole(user);
-    const setCookieHeaders = await this.startSession(user.id, user.accountName);
-    return { user, setCookieHeaders };
+  verifyLogin(
+    accountNameRaw: string,
+    code: string,
+  ): ResultAsync<VerifyLoginSuccess, VerifyLoginError> {
+    return this.repository
+      .findUserByAccountName(accountNameRaw.trim())
+      .mapErr((dbError): VerifyLoginError => {
+        logger.error({ err: dbError }, "failed to look up user for login verify");
+        return "internal_error";
+      })
+      .andThen((user): ResultAsync<User, VerifyLoginError> =>
+        user ? okAsync(user) : errAsync("account_not_found"),
+      )
+      .andThen((user) =>
+        this.repository
+          .findLatestActiveLoginChallenge(user.id)
+          .mapErr((dbError): VerifyLoginError => {
+            logger.error({ err: dbError }, "failed to look up login challenge");
+            return "internal_error";
+          })
+          .andThen(
+            (
+              challenge,
+            ): ResultAsync<{ user: User; challenge: ActiveLoginChallenge }, VerifyLoginError> =>
+              challenge ? okAsync({ user, challenge }) : errAsync("no_active_challenge"),
+          ),
+      )
+      .andThen(({ user, challenge }) => {
+        if (hashesEqual(hashOtpCode(code), challenge.codeHash)) {
+          return this.ensureBootstrapAdminRole(user)
+            .andThen(() => this.startSession(user.id, user.accountName))
+            .mapErr((dbError): VerifyLoginError => {
+              logger.error({ err: dbError }, "failed to finish login after verifying code");
+              return "internal_error";
+            })
+            .map((setCookieHeaders) => ({ user, setCookieHeaders }));
+        }
+        return this.repository
+          .decrementLoginChallengeAttempts(challenge.id)
+          .mapErr((dbError): VerifyLoginError => {
+            logger.error({ err: dbError }, "failed to decrement login challenge attempts");
+            return "internal_error";
+          })
+          .andThen((remaining): ResultAsync<VerifyLoginSuccess, VerifyLoginError> =>
+            errAsync(remaining <= 0 ? "attempts_exhausted" : "wrong_code"),
+          );
+      });
   }
 
-  async getSessionUser(cookieHeader: string | null): Promise<User | null> {
+  getSessionUser(cookieHeader: string | null): ResultAsync<User | null, never> {
     const token = parseCookies(cookieHeader)[SESSION_COOKIE_NAME];
     if (!token) {
-      return null;
+      return okAsync(null);
     }
-    const session = await this.repository.findActiveSessionByTokenHash(hashSessionToken(token));
-    if (!session) {
-      return null;
-    }
-    return this.repository.findUserById(session.userId);
+    return this.repository
+      .findActiveSessionByTokenHash(hashSessionToken(token))
+      .andThen((session): ResultAsync<User | null, DbError> =>
+        session ? this.repository.findUserById(session.userId) : okAsync(null),
+      )
+      .orElse((dbError) => {
+        logger.error({ err: dbError }, "failed to look up session user");
+        return okAsync(null);
+      });
   }
 
-  async logout(cookieHeader: string | null): Promise<string[]> {
+  logout(cookieHeader: string | null): ResultAsync<string[], never> {
     const token = parseCookies(cookieHeader)[SESSION_COOKIE_NAME];
-    if (token) {
-      await this.repository.revokeSessionByTokenHash(hashSessionToken(token));
+    if (!token) {
+      return okAsync([buildDeleteCookie(SESSION_COOKIE_NAME)]);
     }
-    return [buildDeleteCookie(SESSION_COOKIE_NAME)];
+    return this.repository
+      .revokeSessionByTokenHash(hashSessionToken(token))
+      .map(() => [buildDeleteCookie(SESSION_COOKIE_NAME)])
+      .orElse((dbError) => {
+        logger.error({ err: dbError }, "failed to revoke session during logout");
+        return okAsync([buildDeleteCookie(SESSION_COOKIE_NAME)]);
+      });
   }
 
-  private async startSession(userId: UserId, accountName: AccountName): Promise<string[]> {
+  private startSession(userId: UserId, accountName: AccountName): ResultAsync<string[], DbError> {
     const token = generateSessionToken();
-    await this.repository.insertSession({
-      userId,
-      tokenHash: hashSessionToken(token),
-      expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000),
-    });
-    return [
-      buildSetCookie(SESSION_COOKIE_NAME, token, { maxAgeSeconds: SESSION_TTL_SECONDS }),
-      buildSetCookie(REMEMBERED_ACCOUNT_COOKIE_NAME, accountName.value, {
-        maxAgeSeconds: REMEMBERED_ACCOUNT_TTL_SECONDS,
-        httpOnly: false,
-      }),
-    ];
+    return this.repository
+      .insertSession({
+        userId,
+        tokenHash: hashSessionToken(token),
+        expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000),
+      })
+      .map(() => [
+        buildSetCookie(SESSION_COOKIE_NAME, token, { maxAgeSeconds: SESSION_TTL_SECONDS }),
+        buildSetCookie(REMEMBERED_ACCOUNT_COOKIE_NAME, accountName.value, {
+          maxAgeSeconds: REMEMBERED_ACCOUNT_TTL_SECONDS,
+          httpOnly: false,
+        }),
+      ]);
   }
 
-  private async ensureBootstrapAdminRole(user: User): Promise<void> {
+  private ensureBootstrapAdminRole(user: User): ResultAsync<void, DbError> {
     if (this.config.site_admin_account_names.includes(user.accountName.value)) {
-      await this.repository.ensureGlobalRole(user.id, "site_admin");
+      return this.repository.ensureGlobalRole(user.id, "site_admin");
     }
+    return okAsync(undefined);
   }
 }
 

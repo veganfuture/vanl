@@ -1,12 +1,12 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { z } from "zod";
 import { authService } from "~/domain/auth/auth_service";
+import { SignupInspectResponseSchema, type SignupInspectResponse } from "./inspect.schema";
 
-export const SignupInspectResponseSchema = z.union([
-  z.object({ aci: z.string() }),
-  z.object({ error: z.enum(["invalid", "already_used"]) }),
-]);
-export type SignupInspectResponse = z.infer<typeof SignupInspectResponseSchema>;
+const ERROR_STATUS: Record<string, number> = {
+  invalid: 400,
+  already_used: 400,
+  internal_error: 500,
+};
 
 export async function GET(event: APIEvent): Promise<Response> {
   const token = new URL(event.request.url).searchParams.get("token");
@@ -15,10 +15,9 @@ export async function GET(event: APIEvent): Promise<Response> {
   }
 
   const result = await authService.inspectSignupToken(token);
-  if ("error" in result) {
-    return Response.json({ error: result.error } satisfies SignupInspectResponse, {
-      status: 400,
-    });
-  }
-  return Response.json({ aci: result.aci.value } satisfies SignupInspectResponse);
+  return result.match(
+    (aci) => Response.json({ aci: aci.value } satisfies SignupInspectResponse),
+    (error) =>
+      Response.json({ error } satisfies SignupInspectResponse, { status: ERROR_STATUS[error] }),
+  );
 }

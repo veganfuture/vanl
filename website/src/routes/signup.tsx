@@ -4,12 +4,12 @@ import { Title } from "@solidjs/meta";
 import {
   SignupInspectResponseSchema,
   type SignupInspectResponse,
-} from "~/routes/api/auth/signup/inspect";
+} from "~/routes/api/auth/signup/inspect.schema";
 import {
   SignupResponseSchema,
   type SignupRequest,
   type SignupResponse,
-} from "~/routes/api/auth/signup";
+} from "~/routes/api/auth/signup.schema";
 
 function firstParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
