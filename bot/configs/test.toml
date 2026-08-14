@@ -12,3 +12,14 @@ Our main Signal groups:
   • Events – for sharing and discovering events: https://veganactivists.nl/events
 
 This intro group is just to welcome you and help you find your way. Someone of the welcome crew will reach out to you 💫'''
+
+[signup_feature]
+
+website_signup_base_url = "http://localhost:3000/signup"
+signup_message_template = "Welcome! Click this link to set up your Vegan Activists NL account (valid for 15 minutes): {url}"
+
+[bot_api]
+
+host = "127.0.0.1"
+port = 8787
+otp_message_template = "Your Vegan Activists NL login code is: {code}"

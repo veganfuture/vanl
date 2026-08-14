@@ -6,9 +6,11 @@ import time
 
 from loguru import logger
 
+from bot.api_server import BotApiServer
 from bot.bot_feature import BotFeature
 from bot.config import BotConfig
 from bot.signal_cli import SignalClient, create_signal_client
+from bot.signup_feature import SignupFeature
 from bot.welcome_feature import WelcomeFeature
 
 
@@ -42,7 +44,8 @@ async def _run_bot_async(config: BotConfig) -> None:
         daemon_socket_path=config.signal_daemon_socket_path,
     )
     features = _build_features(config, client)
-    runtime = SignalBotRunner(config, client, features)
+    api_server = BotApiServer(config.bot_api, client) if config.bot_api else None
+    runtime = SignalBotRunner(config, client, features, api_server)
     await runtime.run()
 
 
@@ -52,10 +55,12 @@ class SignalBotRunner:
         config: BotConfig,
         client: SignalClient,
         features: list[BotFeature],
+        api_server: BotApiServer | None = None,
     ) -> None:
         self.config = config
         self.client = client
         self.features = features
+        self.api_server = api_server
 
     async def run(self) -> None:
         """
@@ -77,6 +82,9 @@ class SignalBotRunner:
             for feature in self.features:
                 logger.info("Setting up feature {}", feature.name)
                 await feature.setup()
+
+            if self.api_server is not None:
+                await self.api_server.start()
 
             i = 0
             while True:
@@ -107,6 +115,8 @@ class SignalBotRunner:
                     logger.debug("Bot idling")
                 i += 1
         finally:
+            if self.api_server is not None:
+                await self.api_server.close()
             await self.client.close()
             logger.info(SHUTDOWN_MSG)
 
@@ -115,4 +125,6 @@ def _build_features(config: BotConfig, client: SignalClient) -> list[BotFeature]
     features: list[BotFeature] = []
     if config.welcome_feature is not None:
         features.append(WelcomeFeature(config.welcome_feature, client))
+    if config.signup_feature is not None:
+        features.append(SignupFeature(config.signup_feature, client))
     return features

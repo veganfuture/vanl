@@ -7,13 +7,10 @@ import { z } from "zod";
  * Field names mirror the TOML keys 1:1 — no separate camelCase mapping layer to
  * get out of sync with the file.
  */
+// No [server] host/port section: nitro's node-server preset (our `bun run
+// start`) binds via the standard PORT/HOST environment variables, not
+// application config — a TOML field here would be dead and misleading.
 const ConfigSchema = z.object({
-  server: z
-    .object({
-      host: z.string().default("0.0.0.0"),
-      port: z.number().int().positive().default(3000),
-    })
-    .default({}),
   site: z.object({
     base_url: z.string().url(),
   }),
@@ -22,6 +19,19 @@ const ConfigSchema = z.object({
       level: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
     })
     .default({}),
+  database: z.object({
+    host: z.string().default("127.0.0.1"),
+    port: z.number().int().positive().default(5432),
+    database: z.string(),
+    user: z.string().default("vanl"),
+  }),
+  auth: z.object({
+    bot_api_base_url: z.string().url(),
+    signup_public_key: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{43}$/, "must be a base64url-encoded 32-byte Ed25519 public key"),
+    site_admin_account_names: z.array(z.string()).default([]),
+  }),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;

@@ -356,9 +356,10 @@ I want all config in a single TOML. Secrets shall be passed via environment vari
  - Arrange code primarily in folders and moduldes by their function, not their technical implementation (e.g. we don't want a `models` folder).
  - Avoid duplicating business rules between the frontend and backend. The backend remains authoritative for validation and authorization.
  - All code shall be auto-formatted with a formatter
-  - Use a repository pattern (from domain driven design) whereby all database calls are hidden by repositories that give access to certain parts of the database without really exposing that the database is a Postgres database or a database at all really. 
+  - Use a repository pattern (from domain driven design) whereby all database calls are hidden by repositories that give access to certain parts of the database without really exposing that the database is a Postgres database or a database at all really.
  - Interact with the Postgres database using hand-written, parameterized SQL — do not use an ORM or a fluent query-builder that constructs SQL through method chaining (e.g. no Prisma, Drizzle, Kysely). Every repository function must still return a precisely typed result: validate or map each row into its declared TypeScript type at the query boundary, so callers never see any or a raw driver result type.i
  - Use a TypeScript formatter to auto-format code.
+ - Do not silently swallow error/exceptions anywhere. At the very least log a warning or error.
 
  ## Use of libraries
 

@@ -15,8 +15,9 @@ export function CopyButton(props: CopyButtonProps) {
       await navigator.clipboard.writeText(props.text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
-    } catch {
+    } catch (cause) {
       // Clipboard access can be denied by the browser; the user can still select/copy manually.
+      console.warn("Clipboard write failed", cause);
     }
   }
 

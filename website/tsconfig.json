@@ -17,6 +17,13 @@
       "~/*": ["./src/*"]
     }
   },
-  "include": ["src", "vitest.config.ts", "vitest.setup.ts", "vite.config.ts", "eslint.config.js"],
-  "exclude": ["node_modules", ".output", "dist"]
+  "include": [
+    "src",
+    "scripts",
+    "vitest.config.ts",
+    "vitest.setup.ts",
+    "vite.config.ts",
+    "eslint.config.js"
+  ],
+  "exclude": ["node_modules", ".output", ".direnv", ".devdb", "dist"]
 }

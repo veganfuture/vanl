@@ -10,14 +10,11 @@ level = "debug"
 [database]
 host = "127.0.0.1"
 port = 54329
-database = "vanl_dev"
+database = "vanl_test"
 user = "vanl"
 
 [auth]
 bot_api_base_url = "http://127.0.0.1:8787"
-# Dev-only keypair, safe to share — never use in production. Generate a real
-# one with `nix run ./bot#generate-signup-key`. Matching private key seed for
-# local end-to-end testing (export as VANL_SIGNUP_PRIVATE_KEY on the bot):
-# Psjl9VLCqVz3Hhw6zS-wfsLt6phUctNibo_bkT9ycV8
+# Same dev-only keypair as configs/dev.toml — see that file for the note.
 signup_public_key = "afQIoPf6trsqUYAvCUNebfnEdApb1JHnoM_Q0JIHBBE"
 site_admin_account_names = ["dev-admin"]

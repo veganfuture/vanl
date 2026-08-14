@@ -367,6 +367,19 @@
           ${pkgs.signal-cli}/bin/signal-cli link -n $link_name
         }
       '';
+
+      generateSignupKey = pkgs.writeScriptBin "generate-signup-key" ''
+        #!/usr/bin/env bash
+        set -euo pipefail
+        export UV_NO_MANAGED_PYTHON=1
+        export UV_PYTHON="${nixPython}"
+        ${pkgs.uv}/bin/uv run --dev --frozen --python "${nixPython}" python -c '
+        from bot.signup_token import generate_keypair
+        seed_b64, public_b64 = generate_keypair()
+        print(f"VANL_SIGNUP_PRIVATE_KEY (bot secret, env var)  = {seed_b64}")
+        print(f"signup_public_key (website config, not secret) = {public_b64}")
+        '
+      '';
     in {
       packages = {
         default = pkgs.signal-cli;
@@ -427,6 +440,10 @@
         install-precommit-hooks = {
           type = "app";
           program = "${self.packages.${system}.install-precommit-hooks}/bin/install-precommit-hooks";
+        };
+        generate-signup-key = {
+          type = "app";
+          program = "${generateSignupKey}/bin/generate-signup-key";
         };
       };
     });

@@ -1,9 +1,25 @@
-[server]
-host = "0.0.0.0"
-port = 3000
+# No [server] section: the listen address is controlled by the standard
+# PORT/HOST environment variables (nitro's convention, set in the systemd
+# unit — see flake.nix), not this file.
 
 [site]
 base_url = "https://veganactivists.nl"
 
 [logging]
 level = "info"
+
+[database]
+host = "127.0.0.1"
+port = 5432
+database = "vanl"
+user = "vanl"
+
+[auth]
+bot_api_base_url = "http://127.0.0.1:8787"
+# Generate a real production keypair with `nix run ./bot#generate-signup-key`,
+# put the public half here, and set the private half as VANL_SIGNUP_PRIVATE_KEY
+# in the bot's environment (never commit it). This placeholder deliberately
+# fails config validation so the server refuses to boot until it's replaced.
+signup_public_key = "REPLACE_WITH_REAL_PRODUCTION_PUBLIC_KEY"
+# Empty by default — no one is a site admin until explicitly configured here.
+site_admin_account_names = []

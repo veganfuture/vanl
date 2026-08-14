@@ -15,6 +15,21 @@ class WelcomeFeatureConfig(BaseModel):
     periodic_membership_reconcile_interval_seconds: float = Field(default=30.0, ge=0)
 
 
+class SignupFeatureConfig(BaseModel):
+    website_signup_base_url: str
+    signup_message_template: str
+
+
+class BotApiConfig(BaseModel):
+    host: str
+    """
+    Only ever bind to loopback — the website calls this over localhost, it must
+    never be reachable from the internet.
+    """
+    port: int = Field(gt=0, lt=65536)
+    otp_message_template: str
+
+
 class BotConfig(BaseModel):
     verbose: bool = False
     sync_on_startup: bool = True
@@ -22,13 +37,15 @@ class BotConfig(BaseModel):
 
     signal_receive_timeout_seconds: int = Field(default=5, gt=0)
     """
-    Determines how long the bot waits for signal messages/events to appear. 
+    Determines how long the bot waits for signal messages/events to appear.
     If no signal payload is received within this time the bot spents a cycle,
     which is also an event to all the features.
     """
 
     signal_daemon_socket_path: Path = Path("run/signal-cli.sock")
     welcome_feature: WelcomeFeatureConfig | None = None
+    signup_feature: SignupFeatureConfig | None = None
+    bot_api: BotApiConfig | None = None
 
 
 def load_config(config_path: Path) -> BotConfig:

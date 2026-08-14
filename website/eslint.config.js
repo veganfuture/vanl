@@ -6,7 +6,15 @@ import globals from "globals";
 
 export default [
   {
-    ignores: ["node_modules/**", ".output/**", ".nitro/**", ".vinxi/**", "dist/**"],
+    ignores: [
+      "node_modules/**",
+      ".output/**",
+      ".nitro/**",
+      ".vinxi/**",
+      ".direnv/**",
+      ".devdb/**",
+      "dist/**",
+    ],
   },
   js.configs.recommended,
   {
@@ -29,6 +37,9 @@ export default [
     rules: {
       ...tseslint.configs.recommended.rules,
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      // Base no-undef doesn't understand TS type-only positions (flags global
+      // lib.dom types like BufferSource) — tsc already checks this correctly.
+      "no-undef": "off",
     },
   },
   {

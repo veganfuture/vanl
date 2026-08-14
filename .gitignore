@@ -36,3 +36,4 @@ website/out
 !*.toml
 !*.manifest
 !*.ics
+!*.sql
