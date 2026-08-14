@@ -128,13 +128,13 @@ export default function LoginPage() {
 
       <Show when={step() === "code"}>
         <form class="space-y-4" onSubmit={onCodeSubmit}>
-          <p class="text-sm text-zinc-600">We sent a 4-digit code to you on Signal.</p>
+          <p class="text-sm text-zinc-600">We sent a 6-digit code to you on Signal.</p>
           <label class="block">
             <span class="block text-sm font-medium">Code</span>
             <input
               class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
               required
-              maxlength={4}
+              maxlength={6}
               inputmode="numeric"
               value={code()}
               onInput={(event) => setCode(event.currentTarget.value)}

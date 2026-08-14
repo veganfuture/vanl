@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { generateOtpCode, hashOtpCode } from "./otp";
 
 describe("generateOtpCode", () => {
-  it("always produces a zero-padded 4-digit string", () => {
+  it("always produces a zero-padded 6-digit string", () => {
     for (let i = 0; i < 200; i++) {
       const code = generateOtpCode();
-      expect(code).toMatch(/^\d{4}$/);
+      expect(code).toMatch(/^\d{6}$/);
     }
   });
 });

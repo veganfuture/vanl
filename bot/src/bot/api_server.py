@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import os
+import re
 
 import uvicorn
 from fastapi import FastAPI, Request, Response
@@ -11,6 +12,8 @@ from loguru import logger
 
 from bot.config import BotApiConfig
 from bot.signal_cli import SignalCliError, SignalClient
+
+OTP_CODE_RE = re.compile(r"^\d{6}$")
 
 
 class BotApiServer:
@@ -94,6 +97,9 @@ class BotApiServer:
         code = body.get("code") if isinstance(body, dict) else None
         if not isinstance(aci, str) or not aci or not isinstance(code, str) or not code:
             return JSONResponse({"error": "aci and code are required"}, status_code=400)
+        if not OTP_CODE_RE.match(code):
+            logger.warning("Rejected /messages/otp request with a malformed code")
+            return JSONResponse({"error": "code must be a 6-digit numeric string"}, status_code=400)
 
         message = self.config.otp_message_template.format(code=code)
         try:

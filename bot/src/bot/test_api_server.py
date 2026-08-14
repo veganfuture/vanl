@@ -36,7 +36,7 @@ class BotApiServerTests(unittest.IsolatedAsyncioTestCase):
         with TestClient(server._build_app()) as test_client:
             response = test_client.post(
                 "/messages/otp",
-                json={"aci": "11111111-1111-1111-1111-111111111111", "code": "1234"},
+                json={"aci": "11111111-1111-1111-1111-111111111111", "code": "123456"},
                 headers={"Authorization": "Bearer test-shared-secret"},
             )
             self.assertEqual(response.status_code, 200)
@@ -46,7 +46,7 @@ class BotApiServerTests(unittest.IsolatedAsyncioTestCase):
             [
                 (
                     "11111111-1111-1111-1111-111111111111",
-                    "Your Vegan Activists NL login code is: 1234",
+                    "Your Vegan Activists NL login code is: 123456",
                 )
             ],
         )
@@ -58,7 +58,7 @@ class BotApiServerTests(unittest.IsolatedAsyncioTestCase):
         with TestClient(server._build_app()) as test_client:
             response = test_client.post(
                 "/messages/otp",
-                json={"aci": "aci-1", "code": "1234"},
+                json={"aci": "aci-1", "code": "123456"},
                 headers={"Authorization": "Bearer wrong-secret"},
             )
             self.assertEqual(response.status_code, 401)
@@ -76,6 +76,21 @@ class BotApiServerTests(unittest.IsolatedAsyncioTestCase):
                 headers={"Authorization": "Bearer test-shared-secret"},
             )
             self.assertEqual(response.status_code, 400)
+
+        self.assertEqual(client.sent_contact_messages, [])
+
+    async def test_malformed_code_is_rejected(self) -> None:
+        client = MockSignalClient([])
+        server = _server_with_secret(client)
+
+        with TestClient(server._build_app()) as test_client:
+            for bad_code in ["1234", "1234567", "abcdef", "12345a"]:
+                response = test_client.post(
+                    "/messages/otp",
+                    json={"aci": "aci-1", "code": bad_code},
+                    headers={"Authorization": "Bearer test-shared-secret"},
+                )
+                self.assertEqual(response.status_code, 400, f"code={bad_code!r}")
 
         self.assertEqual(client.sent_contact_messages, [])
 
