@@ -59,7 +59,8 @@ describe("inspectSignupToken", () => {
 
     const result = await service.inspectSignupToken(token);
 
-    expect(result).toEqual({ aci });
+    if ("error" in result) throw new Error(`expected success, got ${JSON.stringify(result)}`);
+    expect(result.aci.value).toBe(aci);
   });
 
   it("rejects a malformed token", async () => {
@@ -81,11 +82,10 @@ describe("completeSignup", () => {
     });
 
     if (!("user" in result)) throw new Error(`expected success, got ${JSON.stringify(result)}`);
-    expect(result.user.accountName).toBe("erin");
+    expect(result.user.accountName.value).toBe("erin");
     const cookieToken = extractCookieValue(result.setCookieHeaders[0], SESSION_COOKIE_NAME);
-    expect(await service.getSessionUser(`${SESSION_COOKIE_NAME}=${cookieToken}`)).toMatchObject({
-      accountName: "erin",
-    });
+    const sessionUser = await service.getSessionUser(`${SESSION_COOKIE_NAME}=${cookieToken}`);
+    expect(sessionUser?.accountName.value).toBe("erin");
   });
 
   it("grants site_admin when the account name is in the bootstrap list", async () => {
@@ -163,7 +163,7 @@ describe("login", () => {
     const result = await service.verifyLogin("heidi", sentCode);
 
     if (!("user" in result)) throw new Error(`expected success, got ${JSON.stringify(result)}`);
-    expect(result.user.accountName).toBe("heidi");
+    expect(result.user.accountName.value).toBe("heidi");
   });
 
   it("rejects an unknown account", async () => {

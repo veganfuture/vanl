@@ -1,14 +1,9 @@
 import type postgres from "postgres";
 import { z } from "zod";
-import {
-  parseAccountName,
-  parseSignalAci,
-  parseUserId,
-  type AccountName,
-  type SignalAci,
-  type User,
-  type UserId,
-} from "./types";
+import { AccountName } from "./account_name";
+import { SignalAci } from "./signal_aci";
+import type { User } from "./user";
+import { UserId } from "./user_id";
 
 /**
  * Repositories are the only code in this project allowed to write SQL.
@@ -31,12 +26,33 @@ const UserRowSchema = z.object({
   deleted_at: z.coerce.date().nullable(),
 });
 
+/**
+ * Rows come from a table whose columns are constrained (CHECKs, not-null,
+ * uniqueness) so id/signal_aci/account_name should always be parseable — a
+ * failure here means the database and this code have drifted, not that a
+ * caller passed bad input. That's a corruption-level bug, so it throws
+ * rather than returning a union like the value types' own parsers do.
+ */
 function mapUserRow(row: unknown): User {
   const parsed = UserRowSchema.parse(row);
+
+  const id = UserId.from_string(parsed.id);
+  if (!(id instanceof UserId)) {
+    throw new Error(`Corrupt users row: ${id.message}`);
+  }
+  const signalAci = SignalAci.from_string(parsed.signal_aci);
+  if (!(signalAci instanceof SignalAci)) {
+    throw new Error(`Corrupt users row: ${signalAci.message}`);
+  }
+  const accountName = AccountName.from_string(parsed.account_name);
+  if (!(accountName instanceof AccountName)) {
+    throw new Error(`Corrupt users row: ${accountName.message}`);
+  }
+
   return {
-    id: parseUserId(parsed.id),
-    signalAci: parseSignalAci(parsed.signal_aci),
-    accountName: parseAccountName(parsed.account_name),
+    id,
+    signalAci,
+    accountName,
     email: parsed.email,
     displayName: parsed.display_name,
     affiliationsNote: parsed.affiliations_note,
@@ -95,7 +111,7 @@ export class AuthRepository {
       const rows = await tx`
         insert into users (signal_aci, account_name, email, display_name, affiliations_note)
         values (
-          ${input.signalAci}, ${input.accountName}, ${input.email},
+          ${input.signalAci.value}, ${input.accountName.value}, ${input.email},
           ${input.displayName}, ${input.affiliationsNote}
         )
         returning *
@@ -112,13 +128,15 @@ export class AuthRepository {
   }
 
   async findUserById(id: UserId): Promise<User | null> {
-    const rows = await this.sql`select * from users where id = ${id} and deleted_at is null`;
+    const rows = await this.sql`
+      select * from users where id = ${id.value} and deleted_at is null
+    `;
     return rows[0] ? mapUserRow(rows[0]) : null;
   }
 
   async findUserBySignalAci(aci: SignalAci): Promise<User | null> {
     const rows = await this.sql`
-      select * from users where signal_aci = ${aci} and deleted_at is null
+      select * from users where signal_aci = ${aci.value} and deleted_at is null
     `;
     return rows[0] ? mapUserRow(rows[0]) : null;
   }
@@ -132,14 +150,14 @@ export class AuthRepository {
 
   async ensureGlobalRole(userId: UserId, role: "site_admin"): Promise<void> {
     await this.sql`
-      insert into global_roles (user_id, role) values (${userId}, ${role})
+      insert into global_roles (user_id, role) values (${userId.value}, ${role})
       on conflict (user_id, role) do nothing
     `;
   }
 
   async isSiteAdmin(userId: UserId): Promise<boolean> {
     const rows = await this.sql`
-      select 1 from global_roles where user_id = ${userId} and role = 'site_admin'
+      select 1 from global_roles where user_id = ${userId.value} and role = 'site_admin'
     `;
     return rows.length > 0;
   }
@@ -149,7 +167,7 @@ export class AuthRepository {
   async insertSession(input: NewSession): Promise<void> {
     await this.sql`
       insert into sessions (user_id, token_hash, expires_at)
-      values (${input.userId}, ${input.tokenHash}, ${input.expiresAt})
+      values (${input.userId.value}, ${input.tokenHash}, ${input.expiresAt})
     `;
   }
 
@@ -162,7 +180,11 @@ export class AuthRepository {
     if (!row) {
       return null;
     }
-    return { userId: parseUserId(row.user_id as string), expiresAt: row.expires_at as Date };
+    const userId = UserId.from_string(row.user_id as string);
+    if (!(userId instanceof UserId)) {
+      throw new Error(`Corrupt sessions row: ${userId.message}`);
+    }
+    return { userId, expiresAt: row.expires_at as Date };
   }
 
   async revokeSessionByTokenHash(tokenHash: string): Promise<void> {
@@ -177,7 +199,7 @@ export class AuthRepository {
   async insertLoginChallenge(input: NewLoginChallenge): Promise<string> {
     const rows = await this.sql`
       insert into login_challenges (user_id, code_hash, expires_at)
-      values (${input.userId}, ${input.codeHash}, ${input.expiresAt})
+      values (${input.userId.value}, ${input.codeHash}, ${input.expiresAt})
       returning id
     `;
     return rows[0].id as string;
@@ -187,7 +209,7 @@ export class AuthRepository {
   async findLatestActiveLoginChallenge(userId: UserId): Promise<ActiveLoginChallenge | null> {
     const rows = await this.sql`
       select id, code_hash, attempts_remaining, expires_at from login_challenges
-      where user_id = ${userId} and expires_at > now() and attempts_remaining > 0
+      where user_id = ${userId.value} and expires_at > now() and attempts_remaining > 0
       order by created_at desc
       limit 1
     `;

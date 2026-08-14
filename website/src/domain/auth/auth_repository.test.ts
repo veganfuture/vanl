@@ -1,21 +1,37 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { sql } from "~/lib/db";
+import { AccountName } from "./account_name";
 import { AuthRepository } from "./auth_repository";
-import { parseAccountName, parseSignalAci, type User } from "./types";
+import { SignalAci } from "./signal_aci";
+import type { User } from "./user";
 
 const repository = new AuthRepository(sql);
+
+function aci(value: string): SignalAci {
+  const result = SignalAci.from_string(value);
+  if (!(result instanceof SignalAci)) {
+    throw new Error(result.message);
+  }
+  return result;
+}
+
+function accountName(value: string): AccountName {
+  const result = AccountName.from_string(value);
+  if (!(result instanceof AccountName)) {
+    throw new Error(result.message);
+  }
+  return result;
+}
 
 async function makeUser(
   overrides: Partial<{ aci: string; accountName: string }> = {},
 ): Promise<User> {
-  const aci = parseSignalAci(overrides.aci ?? crypto.randomUUID());
-  const accountName = parseAccountName(
-    overrides.accountName ?? `user${Math.random().toString(36).slice(2, 8)}`,
-  );
   const result = await repository.createUserFromSignup(
     {
-      signalAci: aci,
-      accountName,
+      signalAci: aci(overrides.aci ?? crypto.randomUUID()),
+      accountName: accountName(
+        overrides.accountName ?? `user${Math.random().toString(36).slice(2, 8)}`,
+      ),
       email: "person@example.com",
       displayName: "Test Person",
       affiliationsNote: null,
@@ -38,13 +54,13 @@ afterAll(async () => {
 
 describe("createUserFromSignup", () => {
   it("creates a user and consumes the nonce", async () => {
-    const aci = parseSignalAci(crypto.randomUUID());
+    const signalAci = aci(crypto.randomUUID());
     const nonce = crypto.randomUUID();
 
     const result = await repository.createUserFromSignup(
       {
-        signalAci: aci,
-        accountName: parseAccountName("alice"),
+        signalAci,
+        accountName: accountName("alice"),
         email: "alice@example.com",
         displayName: "Alice",
         affiliationsNote: "runs the events group",
@@ -55,8 +71,8 @@ describe("createUserFromSignup", () => {
     if (result === "nonce_already_used") {
       throw new Error("expected a fresh user, got nonce_already_used");
     }
-    expect(result.accountName).toBe("alice");
-    expect(result.signalAci).toBe(aci);
+    expect(result.accountName.value).toBe("alice");
+    expect(result.signalAci.value).toBe(signalAci.value);
     expect(await repository.isSignupNonceUsed(nonce)).toBe(true);
   });
 
@@ -64,8 +80,8 @@ describe("createUserFromSignup", () => {
     const nonce = crypto.randomUUID();
     const first = await repository.createUserFromSignup(
       {
-        signalAci: parseSignalAci(crypto.randomUUID()),
-        accountName: parseAccountName("bob"),
+        signalAci: aci(crypto.randomUUID()),
+        accountName: accountName("bob"),
         email: "bob@example.com",
         displayName: "Bob",
         affiliationsNote: null,
@@ -76,8 +92,8 @@ describe("createUserFromSignup", () => {
 
     const second = await repository.createUserFromSignup(
       {
-        signalAci: parseSignalAci(crypto.randomUUID()),
-        accountName: parseAccountName("bob-again"),
+        signalAci: aci(crypto.randomUUID()),
+        accountName: accountName("bob-again"),
         email: "bob2@example.com",
         displayName: "Bob Again",
         affiliationsNote: null,
@@ -89,11 +105,11 @@ describe("createUserFromSignup", () => {
   });
 
   it("enforces one account per Signal ACI at the database layer", async () => {
-    const aci = parseSignalAci(crypto.randomUUID());
+    const signalAci = aci(crypto.randomUUID());
     await repository.createUserFromSignup(
       {
-        signalAci: aci,
-        accountName: parseAccountName("carol"),
+        signalAci,
+        accountName: accountName("carol"),
         email: "carol@example.com",
         displayName: "Carol",
         affiliationsNote: null,
@@ -104,8 +120,8 @@ describe("createUserFromSignup", () => {
     await expect(
       repository.createUserFromSignup(
         {
-          signalAci: aci,
-          accountName: parseAccountName("carol-two"),
+          signalAci,
+          accountName: accountName("carol-two"),
           email: "carol2@example.com",
           displayName: "Carol Two",
           affiliationsNote: null,
@@ -120,9 +136,9 @@ describe("user lookups", () => {
   it("finds a user by account name, id, and Signal ACI", async () => {
     const user = await makeUser({ accountName: "dana" });
 
-    expect((await repository.findUserByAccountName("dana"))?.id).toBe(user.id);
-    expect((await repository.findUserById(user.id))?.accountName).toBe("dana");
-    expect((await repository.findUserBySignalAci(user.signalAci))?.id).toBe(user.id);
+    expect((await repository.findUserByAccountName("dana"))?.id.value).toBe(user.id.value);
+    expect((await repository.findUserById(user.id))?.accountName.value).toBe("dana");
+    expect((await repository.findUserBySignalAci(user.signalAci))?.id.value).toBe(user.id.value);
   });
 
   it("returns null for an account name that does not exist", async () => {
@@ -152,7 +168,9 @@ describe("sessions", () => {
       expiresAt: new Date(Date.now() + 60_000),
     });
 
-    expect((await repository.findActiveSessionByTokenHash(tokenHash))?.userId).toBe(user.id);
+    expect((await repository.findActiveSessionByTokenHash(tokenHash))?.userId.value).toBe(
+      user.id.value,
+    );
 
     await repository.revokeSessionByTokenHash(tokenHash);
 

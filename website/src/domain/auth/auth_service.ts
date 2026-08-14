@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { loadConfig, type AppConfig } from "~/lib/config";
 import { sql } from "~/lib/db";
 import { logger } from "~/lib/logger";
+import { AccountName } from "./account_name";
 import { AuthRepository } from "./auth_repository";
 import { sendOtpViaBot } from "./bot-client";
 import {
@@ -13,8 +14,10 @@ import {
 } from "./cookies";
 import { generateOtpCode, hashOtpCode, OTP_CHALLENGE_TTL_SECONDS } from "./otp";
 import { generateSessionToken, hashSessionToken, SESSION_TTL_SECONDS } from "./session";
+import { SignalAci } from "./signal_aci";
 import { verifySignupToken } from "./signup-token";
-import { parseAccountName, parseSignalAci, type SignalAci, type User } from "./types";
+import type { User } from "./user";
+import type { UserId } from "./user_id";
 
 export type AuthConfig = AppConfig["auth"];
 
@@ -59,14 +62,12 @@ export class AuthService {
       return { error: "invalid" };
     }
 
-    let aci: SignalAci;
-    try {
-      aci = parseSignalAci(payload.aci);
-    } catch (cause) {
+    const aci = SignalAci.from_string(payload.aci);
+    if (!(aci instanceof SignalAci)) {
       // A validly-signed token should always carry a real UUID — the bot only
       // ever signs envelope.source_uuid. Reaching here means bot and website
       // have drifted out of agreement on the payload format, not user error.
-      logger.error({ err: cause }, "well-signed signup token had a non-UUID aci");
+      logger.error({ err: aci.message }, "well-signed signup token had a non-UUID aci");
       return { error: "invalid" };
     }
 
@@ -86,21 +87,17 @@ export class AuthService {
       return { error: "invalid_token" };
     }
 
-    let aci: SignalAci;
-    try {
-      aci = parseSignalAci(payload.aci);
-    } catch (cause) {
+    const aci = SignalAci.from_string(payload.aci);
+    if (!(aci instanceof SignalAci)) {
       // Same reasoning as inspectSignupToken: a well-signed token with a
       // non-UUID aci means bot/website have drifted, not a user mistake.
-      logger.error({ err: cause }, "well-signed signup token had a non-UUID aci");
+      logger.error({ err: aci.message }, "well-signed signup token had a non-UUID aci");
       return { error: "invalid_token" };
     }
 
-    let accountName;
-    try {
-      accountName = parseAccountName(input.accountName);
-    } catch (cause) {
-      logger.warn({ err: cause }, "signup rejected: invalid account name");
+    const accountName = AccountName.from_string(input.accountName);
+    if (!(accountName instanceof AccountName)) {
+      logger.warn({ err: accountName.message }, "signup rejected: invalid account name");
       return { error: "validation" };
     }
 
@@ -122,7 +119,10 @@ export class AuthService {
       );
     } catch (cause) {
       if (isUniqueViolation(cause)) {
-        logger.warn({ accountName, err: cause }, "signup rejected: account name already taken");
+        logger.warn(
+          { accountName: accountName.value, err: cause },
+          "signup rejected: account name already taken",
+        );
         return { error: "account_name_taken" };
       }
       throw cause;
@@ -149,7 +149,7 @@ export class AuthService {
       codeHash: hashOtpCode(code),
       expiresAt: new Date(Date.now() + OTP_CHALLENGE_TTL_SECONDS * 1000),
     });
-    await sendOtpViaBot(user.signalAci, code);
+    await sendOtpViaBot(user.signalAci.value, code);
     return { ok: true };
   }
 
@@ -194,7 +194,7 @@ export class AuthService {
     return [buildDeleteCookie(SESSION_COOKIE_NAME)];
   }
 
-  private async startSession(userId: User["id"], accountName: string): Promise<string[]> {
+  private async startSession(userId: UserId, accountName: AccountName): Promise<string[]> {
     const token = generateSessionToken();
     await this.repository.insertSession({
       userId,
@@ -203,7 +203,7 @@ export class AuthService {
     });
     return [
       buildSetCookie(SESSION_COOKIE_NAME, token, { maxAgeSeconds: SESSION_TTL_SECONDS }),
-      buildSetCookie(REMEMBERED_ACCOUNT_COOKIE_NAME, accountName, {
+      buildSetCookie(REMEMBERED_ACCOUNT_COOKIE_NAME, accountName.value, {
         maxAgeSeconds: REMEMBERED_ACCOUNT_TTL_SECONDS,
         httpOnly: false,
       }),
@@ -211,7 +211,7 @@ export class AuthService {
   }
 
   private async ensureBootstrapAdminRole(user: User): Promise<void> {
-    if (this.config.site_admin_account_names.includes(user.accountName)) {
+    if (this.config.site_admin_account_names.includes(user.accountName.value)) {
       await this.repository.ensureGlobalRole(user.id, "site_admin");
     }
   }
