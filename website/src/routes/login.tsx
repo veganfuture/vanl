@@ -1,8 +1,16 @@
 import { Title } from "@solidjs/meta";
 import { createSignal, onMount, Show } from "solid-js";
 import { REMEMBERED_ACCOUNT_COOKIE_NAME } from "~/domain/auth/cookies";
-import type { LoginStartRequest, LoginStartResponse } from "~/routes/api/auth/login/start";
-import type { LoginVerifyRequest, LoginVerifyResponse } from "~/routes/api/auth/login/verify";
+import {
+  LoginStartResponseSchema,
+  type LoginStartRequest,
+  type LoginStartResponse,
+} from "~/routes/api/auth/login/start";
+import {
+  LoginVerifyResponseSchema,
+  type LoginVerifyRequest,
+  type LoginVerifyResponse,
+} from "~/routes/api/auth/login/verify";
 
 type Step = "account" | "code";
 
@@ -54,9 +62,11 @@ export default function LoginPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(request),
       });
-      const body = (await response.json().catch(() => ({}))) as LoginStartResponse;
-      if (!response.ok || "error" in body) {
-        setError(describeError("error" in body ? body.error : undefined));
+      const parsed = LoginStartResponseSchema.safeParse(await response.json().catch(() => null));
+      if (!parsed.success || "error" in parsed.data) {
+        setError(
+          describeError(parsed.success && "error" in parsed.data ? parsed.data.error : undefined),
+        );
         return;
       }
       setStep("code");
@@ -76,9 +86,11 @@ export default function LoginPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(request),
       });
-      const body = (await response.json().catch(() => ({}))) as LoginVerifyResponse;
-      if (!response.ok || "error" in body) {
-        setError(describeError("error" in body ? body.error : undefined));
+      const parsed = LoginVerifyResponseSchema.safeParse(await response.json().catch(() => null));
+      if (!parsed.success || "error" in parsed.data) {
+        setError(
+          describeError(parsed.success && "error" in parsed.data ? parsed.data.error : undefined),
+        );
         return;
       }
       window.location.href = "/";

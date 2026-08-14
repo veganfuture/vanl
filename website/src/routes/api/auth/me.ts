@@ -1,9 +1,11 @@
 import type { APIEvent } from "@solidjs/start/server";
+import { z } from "zod";
 import { authService } from "~/domain/auth/auth_service";
 
-export type MeResponse = {
-  user: { accountName: string; displayName: string } | null;
-};
+export const MeResponseSchema = z.object({
+  user: z.object({ accountName: z.string(), displayName: z.string() }).nullable(),
+});
+export type MeResponse = z.infer<typeof MeResponseSchema>;
 
 export async function GET(event: APIEvent): Promise<Response> {
   const user = await authService.getSessionUser(event.request.headers.get("cookie"));

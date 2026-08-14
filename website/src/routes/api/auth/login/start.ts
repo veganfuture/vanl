@@ -6,7 +6,11 @@ import { parseJsonBody } from "~/lib/http";
 export const LoginStartRequestSchema = z.object({ accountName: z.string().min(1) });
 export type LoginStartRequest = z.infer<typeof LoginStartRequestSchema>;
 
-export type LoginStartResponse = { ok: true } | { error: "account_not_found" | "validation" };
+export const LoginStartResponseSchema = z.union([
+  z.object({ ok: z.literal(true) }),
+  z.object({ error: z.enum(["account_not_found", "validation"]) }),
+]);
+export type LoginStartResponse = z.infer<typeof LoginStartResponseSchema>;
 
 export async function POST(event: APIEvent): Promise<Response> {
   const parsed = LoginStartRequestSchema.safeParse(await parseJsonBody(event.request));

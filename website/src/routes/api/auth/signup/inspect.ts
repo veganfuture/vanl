@@ -1,7 +1,12 @@
 import type { APIEvent } from "@solidjs/start/server";
+import { z } from "zod";
 import { authService } from "~/domain/auth/auth_service";
 
-export type SignupInspectResponse = { aci: string } | { error: "invalid" | "already_used" };
+export const SignupInspectResponseSchema = z.union([
+  z.object({ aci: z.string() }),
+  z.object({ error: z.enum(["invalid", "already_used"]) }),
+]);
+export type SignupInspectResponse = z.infer<typeof SignupInspectResponseSchema>;
 
 export async function GET(event: APIEvent): Promise<Response> {
   const token = new URL(event.request.url).searchParams.get("token");

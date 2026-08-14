@@ -9,16 +9,19 @@ export const LoginVerifyRequestSchema = z.object({
 });
 export type LoginVerifyRequest = z.infer<typeof LoginVerifyRequestSchema>;
 
-export type LoginVerifyResponse =
-  | { accountName: string }
-  | {
-      error:
-        | "account_not_found"
-        | "no_active_challenge"
-        | "wrong_code"
-        | "attempts_exhausted"
-        | "validation";
-    };
+export const LoginVerifyResponseSchema = z.union([
+  z.object({ accountName: z.string() }),
+  z.object({
+    error: z.enum([
+      "account_not_found",
+      "no_active_challenge",
+      "wrong_code",
+      "attempts_exhausted",
+      "validation",
+    ]),
+  }),
+]);
+export type LoginVerifyResponse = z.infer<typeof LoginVerifyResponseSchema>;
 
 const ERROR_STATUS: Record<string, number> = {
   account_not_found: 404,

@@ -1,8 +1,15 @@
 import { useSearchParams } from "@solidjs/router";
 import { createResource, createSignal, Show } from "solid-js";
 import { Title } from "@solidjs/meta";
-import type { SignupInspectResponse } from "~/routes/api/auth/signup/inspect";
-import type { SignupRequest, SignupResponse } from "~/routes/api/auth/signup";
+import {
+  SignupInspectResponseSchema,
+  type SignupInspectResponse,
+} from "~/routes/api/auth/signup/inspect";
+import {
+  SignupResponseSchema,
+  type SignupRequest,
+  type SignupResponse,
+} from "~/routes/api/auth/signup";
 
 function firstParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
@@ -43,7 +50,8 @@ export default function SignupPage() {
     const response = await fetch(
       `/api/auth/signup/inspect?token=${encodeURIComponent(tokenValue)}`,
     );
-    return (await response.json()) as SignupInspectResponse;
+    const parsed = SignupInspectResponseSchema.safeParse(await response.json().catch(() => null));
+    return parsed.success ? parsed.data : { error: "invalid" };
   });
 
   const [accountName, setAccountName] = createSignal("");
@@ -71,9 +79,11 @@ export default function SignupPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(request),
       });
-      const body = (await response.json().catch(() => ({}))) as SignupResponse;
-      if (!response.ok || "error" in body) {
-        setSubmitError(describeError("error" in body ? body.error : undefined));
+      const parsed = SignupResponseSchema.safeParse(await response.json().catch(() => null));
+      if (!parsed.success || "error" in parsed.data) {
+        setSubmitError(
+          describeError(parsed.success && "error" in parsed.data ? parsed.data.error : undefined),
+        );
         return;
       }
       setSuccess(true);

@@ -13,9 +13,13 @@ export const SignupRequestSchema = z.object({
 });
 export type SignupRequest = z.infer<typeof SignupRequestSchema>;
 
-export type SignupResponse =
-  | { accountName: string }
-  | { error: "invalid_token" | "already_used" | "account_name_taken" | "validation" };
+export const SignupResponseSchema = z.union([
+  z.object({ accountName: z.string() }),
+  z.object({
+    error: z.enum(["invalid_token", "already_used", "account_name_taken", "validation"]),
+  }),
+]);
+export type SignupResponse = z.infer<typeof SignupResponseSchema>;
 
 const ERROR_STATUS: Record<string, number> = {
   invalid_token: 400,
