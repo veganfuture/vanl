@@ -1,14 +1,18 @@
 import { useSearchParams } from "@solidjs/router";
 import { createResource, createSignal, Show } from "solid-js";
 import { Title } from "@solidjs/meta";
-
-type InspectResult = { aci: string } | { error: string };
+import type { SignupInspectResponse } from "~/routes/api/auth/signup/inspect";
+import type { SignupRequest, SignupResponse } from "~/routes/api/auth/signup";
 
 function firstParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
-function describeError(error: unknown): string {
+type SignupError =
+  | Extract<SignupInspectResponse, { error: string }>["error"]
+  | Extract<SignupResponse, { error: string }>["error"];
+
+function describeError(error: SignupError | undefined): string {
   switch (error) {
     case "already_used":
       return "This signup link has already been used.";
@@ -24,18 +28,22 @@ function describeError(error: unknown): string {
   }
 }
 
+function errorOf(result: SignupInspectResponse | undefined): SignupError | undefined {
+  return result && "error" in result ? result.error : undefined;
+}
+
 export default function SignupPage() {
   const [searchParams] = useSearchParams();
   const token = () => firstParam(searchParams.token);
 
-  const [inspection] = createResource(token, async (tokenValue) => {
+  const [inspection] = createResource(token, async (tokenValue): Promise<SignupInspectResponse> => {
     if (!tokenValue) {
-      return { error: "invalid" } satisfies InspectResult;
+      return { error: "invalid" };
     }
     const response = await fetch(
       `/api/auth/signup/inspect?token=${encodeURIComponent(tokenValue)}`,
     );
-    return (await response.json()) as InspectResult;
+    return (await response.json()) as SignupInspectResponse;
   });
 
   const [accountName, setAccountName] = createSignal("");
@@ -51,20 +59,21 @@ export default function SignupPage() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const request: SignupRequest = {
+        token: token(),
+        accountName: accountName(),
+        email: email(),
+        displayName: displayName(),
+        affiliationsNote: affiliationsNote().trim() || null,
+      };
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          token: token(),
-          accountName: accountName(),
-          email: email(),
-          displayName: displayName(),
-          affiliationsNote: affiliationsNote().trim() || null,
-        }),
+        body: JSON.stringify(request),
       });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        setSubmitError(describeError(body.error));
+      const body = (await response.json().catch(() => ({}))) as SignupResponse;
+      if (!response.ok || "error" in body) {
+        setSubmitError(describeError("error" in body ? body.error : undefined));
         return;
       }
       setSuccess(true);
@@ -79,9 +88,7 @@ export default function SignupPage() {
       <Show when={!inspection.loading} fallback={<p class="text-zinc-600">Checking your link…</p>}>
         <Show
           when={inspection() && !("error" in inspection()!)}
-          fallback={
-            <p class="text-red-700">{describeError((inspection() as { error?: string })?.error)}</p>
-          }
+          fallback={<p class="text-red-700">{describeError(errorOf(inspection()))}</p>}
         >
           <Show
             when={!success()}

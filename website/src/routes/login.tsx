@@ -1,10 +1,16 @@
 import { Title } from "@solidjs/meta";
 import { createSignal, onMount, Show } from "solid-js";
 import { REMEMBERED_ACCOUNT_COOKIE_NAME } from "~/domain/auth/cookies";
+import type { LoginStartRequest, LoginStartResponse } from "~/routes/api/auth/login/start";
+import type { LoginVerifyRequest, LoginVerifyResponse } from "~/routes/api/auth/login/verify";
 
 type Step = "account" | "code";
 
-function describeError(error: unknown): string {
+type LoginError =
+  | Extract<LoginStartResponse, { error: string }>["error"]
+  | Extract<LoginVerifyResponse, { error: string }>["error"];
+
+function describeError(error: LoginError | undefined): string {
   switch (error) {
     case "account_not_found":
       return "No account found with that name.";
@@ -14,6 +20,8 @@ function describeError(error: unknown): string {
       return "That code is incorrect. Try again.";
     case "attempts_exhausted":
       return "Too many incorrect attempts — request a new code.";
+    case "validation":
+      return "Please check the form and try again.";
     default:
       return "Something went wrong. Please try again.";
   }
@@ -40,13 +48,15 @@ export default function LoginPage() {
     setSubmitting(true);
     setError(null);
     try {
+      const request: LoginStartRequest = { accountName: accountName() };
       const response = await fetch("/api/auth/login/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ accountName: accountName() }),
+        body: JSON.stringify(request),
       });
-      if (!response.ok) {
-        setError(describeError("account_not_found"));
+      const body = (await response.json().catch(() => ({}))) as LoginStartResponse;
+      if (!response.ok || "error" in body) {
+        setError(describeError("error" in body ? body.error : undefined));
         return;
       }
       setStep("code");
@@ -60,14 +70,15 @@ export default function LoginPage() {
     setSubmitting(true);
     setError(null);
     try {
+      const request: LoginVerifyRequest = { accountName: accountName(), code: code() };
       const response = await fetch("/api/auth/login/verify", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ accountName: accountName(), code: code() }),
+        body: JSON.stringify(request),
       });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        setError(describeError(body.error));
+      const body = (await response.json().catch(() => ({}))) as LoginVerifyResponse;
+      if (!response.ok || "error" in body) {
+        setError(describeError("error" in body ? body.error : undefined));
         return;
       }
       window.location.href = "/";

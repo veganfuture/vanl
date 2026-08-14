@@ -3,17 +3,20 @@ import { z } from "zod";
 import { authService } from "~/domain/auth/auth_service";
 import { parseJsonBody } from "~/lib/http";
 
-const RequestSchema = z.object({ accountName: z.string().min(1) });
+export const LoginStartRequestSchema = z.object({ accountName: z.string().min(1) });
+export type LoginStartRequest = z.infer<typeof LoginStartRequestSchema>;
+
+export type LoginStartResponse = { ok: true } | { error: "account_not_found" | "validation" };
 
 export async function POST(event: APIEvent): Promise<Response> {
-  const parsed = RequestSchema.safeParse(await parseJsonBody(event.request));
+  const parsed = LoginStartRequestSchema.safeParse(await parseJsonBody(event.request));
   if (!parsed.success) {
-    return Response.json({ error: "validation" }, { status: 400 });
+    return Response.json({ error: "validation" } satisfies LoginStartResponse, { status: 400 });
   }
 
   const result = await authService.startLogin(parsed.data.accountName);
   if ("error" in result) {
-    return Response.json({ error: result.error }, { status: 404 });
+    return Response.json({ error: result.error } satisfies LoginStartResponse, { status: 404 });
   }
-  return Response.json({ ok: true });
+  return Response.json({ ok: true } satisfies LoginStartResponse);
 }
