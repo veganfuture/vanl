@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "migrate": "bun run scripts/migrate.ts",
+    "seed-places": "bun run scripts/seed-places.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write '**/*.{ts,tsx,css,json,js}' '!.output/**' '!.nitro/**' '!.vinxi/**' '!.direnv/**' '!.devdb/**' '!dist/**'",
