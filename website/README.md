@@ -45,9 +45,10 @@ nix run .#devdb-start
 ```
 
 This initializes `.devdb/data` on first run, starts `postgres` listening on
-`127.0.0.1:54329`, and creates the `vanl_dev` and `vanl_test` databases (the ones
-`configs/dev.toml` and `configs/test.toml` point at). It's safe to run again — it no-ops if the
-dev database is already running.
+`127.0.0.1:54329`, and creates the `vanl_dev` database (the one `configs/dev.toml` points at —
+also used by `nix run .#check`'s test run, so keep that in mind if you have data in there you
+care about; see below). It's safe to run again — it no-ops if the dev database is already
+running.
 
 ### Run migrations
 
@@ -68,15 +69,25 @@ Data persists in `.devdb/` between stop/start — delete that directory to reset
 
 `nix run .#check` (and the `checkProject` app it wraps, see `flake.nix`) starts the dev database,
 runs migrations, runs the test suite, and stops it again automatically — you don't need to do any
-of the above by hand just to run `bun run test`.
+of the above by hand just to run `bun run test`. Note that it runs against `configs/dev.toml`
+(the same config and database as `bun run dev`), not a separate test database — test files
+truncate shared tables in `beforeEach`, so running `nix run .#check` while you have data you care
+about in your local dev database will wipe it.
 
-### If the server won't start because it can't reach the database
+### If the server won't start
 
-The `postgres` client library connects lazily, so on its own a bad connection wouldn't surface
-until the first request that happens to touch the database. To avoid that, a Nitro plugin
-(`src/server/plugins/check-database-connection.ts`) runs a trivial query as soon as the server
-boots and, if it fails, logs a `fatal` error explaining what happened and exits the process
-immediately instead of starting up in a broken state. If you see a log line like:
+`src/server/plugins/startup-checks.ts` (a Nitro plugin, so it runs once as soon as the server
+boots, before it accepts any requests) fails fast instead of letting the first request that
+happens to hit a problem be the one that discovers it:
+
+- **Required environment variables** (currently just `VANL_BOT_API_SHARED_SECRET`, see
+  "Environment Variables" below) are checked synchronously at startup.
+- **Database connectivity**: the `postgres` client library connects lazily, so on its own a bad
+  connection wouldn't surface until the first request that happens to touch the database. This
+  plugin runs a trivial query instead and fails if it can't.
+
+Either check logs a `fatal` error explaining what's missing/wrong and exits the process. If it's
+the database, and you see:
 
 ```
 Could not connect to the database — refusing to start. Is the dev Postgres instance running?
@@ -86,6 +97,17 @@ Start it with `nix run .#devdb-start`. See README.md, section "Database", for de
 it means Postgres isn't reachable at the `[database]` host/port in whichever config file
 `VANL_CONFIG_PATH` points at — see "Start it" above, or check `configs/*.toml` and
 `VANL_DATABASE_PASSWORD` if you're pointed at something other than the local dev database.
+
+## Environment Variables
+
+On top of `configs/*.toml`, the website reads one secret from the environment:
+
+| Variable | Purpose |
+| --- | --- |
+| `VANL_BOT_API_SHARED_SECRET` | Authenticates this site's calls into the bot's local HTTP API (relaying OTP login codes over Signal). |
+
+It must match the bot's own `VANL_BOT_API_SHARED_SECRET` — see `../bot/README.md`, section
+"Environment Variables", for how to generate one and where it's used on the bot side.
 
 ## Configuration
 
@@ -119,7 +141,7 @@ mirroring how the Signal bot (`../bot`) is deployed. `nix run .#uninstall` remov
 - `src/lib/` — domain-agnostic utilities: config loading (`config.ts`), logging (`logger.ts`),
   i18n (`i18n.ts`), and static data (`groups.ts`, `metadata.ts`).
 - `src/server/plugins/` — Nitro plugins that run once at server startup (see
-  `vite.config.ts`'s `nitro({ serverDir: "src/server" })`), e.g. the database connectivity check.
+  `vite.config.ts`'s `nitro({ serverDir: "src/server" })`), e.g. `startup-checks.ts`.
 - `configs/` — non-secret TOML configuration per environment.
 - `public/` — static assets served as-is (favicons, QR codes, manifest).
 

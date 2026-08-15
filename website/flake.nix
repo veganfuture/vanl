@@ -86,11 +86,9 @@
             print $"Dev Postgres started on 127.0.0.1:${toString devDbPort}"
           }
 
-          for db in ["vanl_dev" "vanl_test"] {
-            let result = (^${pkgs.postgresql}/bin/createdb -h 127.0.0.1 -p ${toString devDbPort} -U vanl $db | complete)
-            if $result.exit_code == 0 {
-              print $"Created database ($db)"
-            }
+          let result = (^${pkgs.postgresql}/bin/createdb -h 127.0.0.1 -p ${toString devDbPort} -U vanl vanl_dev | complete)
+          if $result.exit_code == 0 {
+            print "Created database vanl_dev"
           }
         }
       '';
@@ -126,7 +124,7 @@
 
         ${devDbStart}/bin/devdb-start
         trap '${devDbStop}/bin/devdb-stop' EXIT
-        export VANL_CONFIG_PATH="configs/test.toml"
+        export VANL_CONFIG_PATH="configs/dev.toml"
         export VANL_DATABASE_PASSWORD=""
         ${pkgs.bun}/bin/bun run migrate
         ${pkgs.bun}/bin/bun run test
