@@ -289,6 +289,10 @@ export function EventForm(props: {
               <input
                 class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
                 required
+                autocomplete="off"
+                data-1p-ignore="true"
+                data-lpignore="true"
+                data-bwignore="true"
                 placeholder="e.g. Museumplein, or 'in front of the town hall'"
                 value={values().locationDescription}
                 onInput={(e) =>
