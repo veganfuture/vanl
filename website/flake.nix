@@ -278,10 +278,6 @@
         }
       '';
     in {
-      packages = {
-        check-project = checkProject;
-      };
-
       devShells.default = pkgs.mkShell {
         packages = runtimePkgs;
         shellHook = ''
