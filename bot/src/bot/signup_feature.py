@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from loguru import logger
 
@@ -7,6 +9,8 @@ from bot import signup_token
 from bot.bot_env import BotEnv
 from bot.config import SignupFeatureConfig
 from bot.signal_cli import SignalClient, SignalPayload
+
+SIGNUP_TRIGGER_RE = re.compile(r"\bsignup\b", re.IGNORECASE)
 
 
 class SignupFeature:
@@ -44,6 +48,7 @@ class SignupFeature:
         Returns: None
         """
         del cycle_finished_at
+        logger.debug("signup feature handling {} payload(s)", len(payloads))
         for payload in payloads:
             await self._maybe_send_signup_link(payload)
 
@@ -51,16 +56,23 @@ class SignupFeature:
         del cycle_finished_at
 
     async def _maybe_send_signup_link(self, payload: SignalPayload) -> None:
+        logger.debug("signup feature considering event: {}", payload.describe_event())
         envelope = payload.envelope
         if envelope is None or envelope.data_message is None:
             # Only react to messages sent directly TO the bot. In particular this
             # must not match envelope.sync_message (the bot's own sent messages,
             # mirrored back via multi-device sync) or it would reply to itself.
+            logger.debug("ignoring event: not a direct message to the bot")
             return
         if payload.extract_group_id() is not None:
+            logger.debug("ignoring event: message was sent to a group")
             return
         text = payload.extract_message_text()
         if text is None:
+            logger.debug("ignoring event: message has no extractable text")
+            return
+        if not SIGNUP_TRIGGER_RE.search(text):
+            logger.debug("ignoring event: message {!r} does not mention 'signup'", text)
             return
 
         aci = envelope.source_uuid
@@ -79,6 +91,7 @@ class SignupFeature:
             aci,
         )
         message = self.config.signup_message_template.format(url=url)
+        logger.debug("sending signup link to {}", aci)
         await self.client.send_contact_message(aci, message)
         logger.info("Sent signup link to {}", aci)
 

@@ -46,7 +46,9 @@ class SignupFeatureMessageTests(unittest.IsolatedAsyncioTestCase):
                 SignalPayload(
                     envelope=Envelope(
                         sourceUuid="11111111-1111-1111-1111-111111111111",
-                        dataMessage=DataMessage(message="hi, how do I join?"),
+                        dataMessage=DataMessage(
+                            message="hi, I'd like to signup please"
+                        ),
                     )
                 )
             ],
@@ -58,6 +60,60 @@ class SignupFeatureMessageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(recipient, "11111111-1111-1111-1111-111111111111")
         self.assertIn("https://veganactivists.nl/signup?token=", message)
 
+    async def test_trigger_word_is_case_insensitive(self) -> None:
+        client = MockSignalClient([])
+        feature = await _feature_with_secrets(client)
+
+        await feature.handle_payloads(
+            [
+                SignalPayload(
+                    envelope=Envelope(
+                        sourceUuid="11111111-1111-1111-1111-111111111111",
+                        dataMessage=DataMessage(message="SIGNUP"),
+                    )
+                )
+            ],
+            cycle_finished_at=0.0,
+        )
+
+        self.assertEqual(len(client.sent_contact_messages), 1)
+
+    async def test_message_without_the_trigger_word_is_ignored(self) -> None:
+        client = MockSignalClient([])
+        feature = await _feature_with_secrets(client)
+
+        await feature.handle_payloads(
+            [
+                SignalPayload(
+                    envelope=Envelope(
+                        sourceUuid="11111111-1111-1111-1111-111111111111",
+                        dataMessage=DataMessage(message="hi, how do I join?"),
+                    )
+                )
+            ],
+            cycle_finished_at=0.0,
+        )
+
+        self.assertEqual(client.sent_contact_messages, [])
+
+    async def test_trigger_word_as_a_substring_is_ignored(self) -> None:
+        client = MockSignalClient([])
+        feature = await _feature_with_secrets(client)
+
+        await feature.handle_payloads(
+            [
+                SignalPayload(
+                    envelope=Envelope(
+                        sourceUuid="11111111-1111-1111-1111-111111111111",
+                        dataMessage=DataMessage(message="is there a signupportunity?"),
+                    )
+                )
+            ],
+            cycle_finished_at=0.0,
+        )
+
+        self.assertEqual(client.sent_contact_messages, [])
+
     async def test_group_message_is_ignored(self) -> None:
         client = MockSignalClient([])
         feature = await _feature_with_secrets(client)
@@ -68,7 +124,7 @@ class SignupFeatureMessageTests(unittest.IsolatedAsyncioTestCase):
                     envelope=Envelope(
                         sourceUuid="11111111-1111-1111-1111-111111111111",
                         dataMessage=DataMessage(
-                            message="hi",
+                            message="signup",
                             groupInfo=GroupInfo(groupId="some-group"),
                         ),
                     )
@@ -89,9 +145,7 @@ class SignupFeatureMessageTests(unittest.IsolatedAsyncioTestCase):
                     envelope=Envelope(
                         sourceUuid="bot-aci",
                         syncMessage=SyncMessage(
-                            sentMessage=SyncSentMessage(
-                                message="Welcome! Click this link..."
-                            )
+                            sentMessage=SyncSentMessage(message="signup")
                         ),
                     )
                 )
@@ -106,7 +160,11 @@ class SignupFeatureMessageTests(unittest.IsolatedAsyncioTestCase):
         feature = await _feature_with_secrets(client)
 
         await feature.handle_payloads(
-            [SignalPayload(envelope=Envelope(dataMessage=DataMessage(message="hi")))],
+            [
+                SignalPayload(
+                    envelope=Envelope(dataMessage=DataMessage(message="signup"))
+                )
+            ],
             cycle_finished_at=0.0,
         )
 
