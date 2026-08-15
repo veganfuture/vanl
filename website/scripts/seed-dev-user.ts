@@ -3,16 +3,16 @@ import { loadConfig } from "../src/lib/config";
 import { SignalAci } from "../src/domain/auth/signal_aci";
 
 /**
- * Dev-only convenience: if DEV_ACI is set (a real Signal ACI, kept out of
- * git via .envrc - see README), upserts a "dev" user with that ACI and
- * grants it site_admin. No-ops entirely when DEV_ACI is unset, so this is
- * safe to call unconditionally from `bun run migrate` in every
- * environment, including CI and prod.
+ * Dev-only convenience: upserts a "dev" user with the Signal ACI from
+ * DEV_ACI (kept out of git via .envrc - see README) and grants it
+ * site_admin. Errors if DEV_ACI isn't set - `bun run migrate` only invokes
+ * this script when DEV_ACI is present (see package.json), so CI/prod never
+ * reach here at all.
  */
 async function main(): Promise<void> {
   const devAci = process.env.DEV_ACI;
   if (!devAci) {
-    return;
+    throw new Error('DEV_ACI is not set - see README.md, section "Environment Variables".');
   }
 
   const aciResult = SignalAci.from_string(devAci);

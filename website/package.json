@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "migrate": "bun run scripts/migrate.ts && bun run seed-dev-user",
+    "migrate": "bun run scripts/migrate.ts && (test -z \"$DEV_ACI\" || bun run seed-dev-user)",
     "seed-places": "bun run scripts/seed-places.ts",
     "seed-dev-user": "bun run scripts/seed-dev-user.ts",
     "typecheck": "tsc --noEmit",
