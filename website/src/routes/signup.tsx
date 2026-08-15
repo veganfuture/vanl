@@ -49,8 +49,8 @@ export default function SignupPage() {
         { response: SignupInspectResponseSchema },
       );
       return result.match(
-        (data) => ("error" in data ? describeApiError(data, SIGNUP_ERROR_MESSAGES) : undefined),
-        (fetchError) => describeApiError(fetchError, SIGNUP_ERROR_MESSAGES),
+        () => undefined,
+        (error) => describeApiError(error, SIGNUP_ERROR_MESSAGES),
       );
     },
   );
@@ -80,14 +80,8 @@ export default function SignupPage() {
         response: SignupResponseSchema,
       });
       result.match(
-        (data) => {
-          if ("error" in data) {
-            setSubmitError(describeApiError(data, SIGNUP_ERROR_MESSAGES));
-            return;
-          }
-          setSuccess(true);
-        },
-        (fetchError) => setSubmitError(describeApiError(fetchError, SIGNUP_ERROR_MESSAGES)),
+        () => setSuccess(true),
+        (error) => setSubmitError(describeApiError(error, SIGNUP_ERROR_MESSAGES)),
       );
     } finally {
       setSubmitting(false);

@@ -19,6 +19,21 @@ function apiFetchError(cause: unknown, status?: number): ApiFetchError {
   return { cause, status };
 }
 
+/** The success-only variant of a `SuccessShape | { error: ... }` response type. */
+export type OkResponse<TResponse> = Exclude<TResponse, { error: string }>;
+
+/** The `{ error: ... }` variant of a `SuccessShape | { error: ... }` response type. */
+export type ErrorResponse<TResponse> = Extract<TResponse, { error: string }>;
+
+function isErrorResponse(value: unknown): value is { error: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "error" in value &&
+    typeof value.error === "string"
+  );
+}
+
 type ApiFetchOptions<TReq extends ZodType | undefined, TRes extends ZodType | undefined> = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   /** Validated with `request.safeParse(body)` before the request is sent. */
@@ -35,9 +50,10 @@ type ApiFetchOptions<TReq extends ZodType | undefined, TRes extends ZodType | un
  * — our routes return typed `{ error: ... }` bodies on 4xx/5xx that are
  * still part of the `response` schema, not exceptional.
  *
- * Resolves Ok with the parsed response data (or `undefined` if no
- * `response` schema was given, e.g. a 204), or Err with an ApiFetchError
- * for anything that isn't a clean, schema-matching JSON body.
+ * Resolves Ok with the success-only response data (or `undefined` if no
+ * `response` schema was given, e.g. a 204). Everything else goes to Err:
+ * a known `{ error: ... }` body, or an ApiFetchError for anything that
+ * isn't a clean, schema-matching JSON body at all.
  */
 export function apiFetch<
   TReq extends ZodType | undefined = undefined,
@@ -45,7 +61,10 @@ export function apiFetch<
 >(
   path: string,
   options?: ApiFetchOptions<TReq, TRes>,
-): ResultAsync<TRes extends ZodType ? z.infer<TRes> : undefined, ApiFetchError> {
+): ResultAsync<
+  TRes extends ZodType ? OkResponse<z.infer<TRes>> : undefined,
+  ApiFetchError | (TRes extends ZodType ? ErrorResponse<z.infer<TRes>> : never)
+> {
   const { request, body, response, method } = options ?? {};
 
   if (request && body !== undefined) {
@@ -64,7 +83,7 @@ export function apiFetch<
     (cause) => apiFetchError(cause),
   ).andThen((httpResponse) => {
     if (!response) {
-      return okAsync(undefined as TRes extends ZodType ? z.infer<TRes> : undefined);
+      return okAsync(undefined as TRes extends ZodType ? OkResponse<z.infer<TRes>> : undefined);
     }
     return ResultAsync.fromPromise(httpResponse.json(), (cause) =>
       apiFetchError(cause, httpResponse.status),
@@ -73,7 +92,10 @@ export function apiFetch<
       if (!parsed.success) {
         return errAsync(apiFetchError(parsed.error, httpResponse.status));
       }
-      return okAsync(parsed.data as TRes extends ZodType ? z.infer<TRes> : undefined);
+      if (isErrorResponse(parsed.data)) {
+        return errAsync(parsed.data as TRes extends ZodType ? ErrorResponse<z.infer<TRes>> : never);
+      }
+      return okAsync(parsed.data as TRes extends ZodType ? OkResponse<z.infer<TRes>> : undefined);
     });
   });
 }

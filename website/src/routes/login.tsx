@@ -54,14 +54,8 @@ export default function LoginPage() {
         response: LoginStartResponseSchema,
       });
       result.match(
-        (data) => {
-          if ("error" in data) {
-            setError(describeApiError(data, LOGIN_ERROR_MESSAGES));
-            return;
-          }
-          setStep("code");
-        },
-        (fetchError) => setError(describeApiError(fetchError, LOGIN_ERROR_MESSAGES)),
+        () => setStep("code"),
+        (error) => setError(describeApiError(error, LOGIN_ERROR_MESSAGES)),
       );
     } finally {
       setSubmitting(false);
@@ -79,14 +73,10 @@ export default function LoginPage() {
         response: LoginVerifyResponseSchema,
       });
       result.match(
-        (data) => {
-          if ("error" in data) {
-            setError(describeApiError(data, LOGIN_ERROR_MESSAGES));
-            return;
-          }
+        () => {
           window.location.href = "/";
         },
-        (fetchError) => setError(describeApiError(fetchError, LOGIN_ERROR_MESSAGES)),
+        (error) => setError(describeApiError(error, LOGIN_ERROR_MESSAGES)),
       );
     } finally {
       setSubmitting(false);
