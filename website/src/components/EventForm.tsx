@@ -248,6 +248,10 @@ export function EventForm(props: {
               <input
                 class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
                 required
+                autocomplete="off"
+                data-1p-ignore="true"
+                data-lpignore="true"
+                data-bwignore="true"
                 placeholder="Start typing a Dutch city or town…"
                 value={placeQuery()}
                 onInput={(e) => {
@@ -300,6 +304,10 @@ export function EventForm(props: {
           <input
             class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
             required
+            autocomplete="off"
+            data-1p-ignore="true"
+            data-lpignore="true"
+            data-bwignore="true"
             placeholder="Start typing a street address…"
             value={addressQuery()}
             onInput={(e) => {
