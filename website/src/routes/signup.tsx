@@ -1,6 +1,7 @@
 import { useSearchParams } from "@solidjs/router";
 import { createResource, createSignal, Show } from "solid-js";
 import { Title } from "@solidjs/meta";
+import { apiUrl } from "~/lib/api-url";
 import {
   SignupInspectResponseSchema,
   type SignupInspectResponse,
@@ -48,7 +49,7 @@ export default function SignupPage() {
       return { error: "invalid" };
     }
     const response = await fetch(
-      `/api/auth/signup/inspect?token=${encodeURIComponent(tokenValue)}`,
+      apiUrl(`/api/auth/signup/inspect?token=${encodeURIComponent(tokenValue)}`),
     );
     const parsed = SignupInspectResponseSchema.safeParse(await response.json().catch(() => null));
     return parsed.success ? parsed.data : { error: "invalid" };
