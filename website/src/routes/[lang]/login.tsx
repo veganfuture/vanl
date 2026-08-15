@@ -1,6 +1,9 @@
+import { useParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
 import { createSignal, onMount, Show } from "solid-js";
+import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
+import { resolveLang } from "~/lib/i18n";
 import { REMEMBERED_ACCOUNT_COOKIE_NAME } from "~/domain/auth/cookies";
 import {
   LoginStartRequestSchema,
@@ -15,19 +18,50 @@ import {
 
 type Step = "account" | "code";
 
-const LOGIN_ERROR_MESSAGES: ErrorMessagesFor<LoginStartResponse | LoginVerifyResponse> = {
-  account_not_found: { message: "No account found with that name.", isWarn: true },
-  no_active_challenge: { message: "Your code expired — request a new one.", isWarn: true },
-  wrong_code: { message: "That code is incorrect. Try again.", isWarn: true },
-  attempts_exhausted: {
-    message: "Too many incorrect attempts — request a new code.",
-    isWarn: true,
-  },
-  validation: { message: "Please check the form and try again.", isWarn: false },
-  internal_error: { message: "Something went wrong. Please try again.", isWarn: false },
-};
-
 export default function LoginPage() {
+  const params = useParams<{ lang: string }>();
+  const lang = () => resolveLang(params.lang);
+  const t = (nl: string, en: string) => (lang() === "nl" ? nl : en);
+
+  const LOGIN_ERROR_MESSAGES: ErrorMessagesFor<LoginStartResponse | LoginVerifyResponse> = {
+    account_not_found: {
+      message: t("Geen account gevonden met die naam.", "No account found with that name."),
+      isWarn: true,
+    },
+    no_active_challenge: {
+      message: t(
+        "Je code is verlopen — vraag een nieuwe aan.",
+        "Your code expired — request a new one.",
+      ),
+      isWarn: true,
+    },
+    wrong_code: {
+      message: t("Die code is onjuist. Probeer het opnieuw.", "That code is incorrect. Try again."),
+      isWarn: true,
+    },
+    attempts_exhausted: {
+      message: t(
+        "Te veel foute pogingen — vraag een nieuwe code aan.",
+        "Too many incorrect attempts — request a new code.",
+      ),
+      isWarn: true,
+    },
+    validation: {
+      message: t(
+        "Controleer het formulier en probeer het opnieuw.",
+        "Please check the form and try again.",
+      ),
+      isWarn: false,
+    },
+    internal_error: {
+      message: t(
+        "Er is iets misgegaan. Probeer het opnieuw.",
+        "Something went wrong. Please try again.",
+      ),
+      isWarn: false,
+    },
+  };
+
   const [step, setStep] = createSignal<Step>("account");
   const [accountName, setAccountName] = createSignal("");
   const [code, setCode] = createSignal("");
@@ -74,7 +108,7 @@ export default function LoginPage() {
       });
       result.match(
         () => {
-          window.location.href = "/";
+          window.location.href = `/${lang()}`;
         },
         (error) => setError(describeApiError(error, LOGIN_ERROR_MESSAGES)),
       );
@@ -85,13 +119,14 @@ export default function LoginPage() {
 
   return (
     <main class="mx-auto max-w-md px-6 py-12">
-      <Title>Log in — Vegan Activists NL</Title>
-      <h1 class="mb-4 text-2xl font-semibold">Log in</h1>
+      <LocaleCookieSync lang={lang()} />
+      <Title>{t("Inloggen", "Log in")} — Vegan Activists NL</Title>
+      <h1 class="mb-4 text-2xl font-semibold">{t("Inloggen", "Log in")}</h1>
 
       <Show when={step() === "account"}>
         <form class="space-y-4" onSubmit={onStartSubmit}>
           <label class="block">
-            <span class="block text-sm font-medium">Account name</span>
+            <span class="block text-sm font-medium">{t("Accountnaam", "Account name")}</span>
             <input
               class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
               required
@@ -105,16 +140,23 @@ export default function LoginPage() {
             disabled={submitting()}
             class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
           >
-            {submitting() ? "Sending…" : "Send login code"}
+            {submitting()
+              ? t("Bezig met verzenden…", "Sending…")
+              : t("Inlogcode versturen", "Send login code")}
           </button>
         </form>
       </Show>
 
       <Show when={step() === "code"}>
         <form class="space-y-4" onSubmit={onCodeSubmit}>
-          <p class="text-sm text-zinc-600">We sent a 6-digit code to you on Signal.</p>
+          <p class="text-sm text-zinc-600">
+            {t(
+              "We hebben je een 6-cijferige code gestuurd via Signal.",
+              "We sent a 6-digit code to you on Signal.",
+            )}
+          </p>
           <label class="block">
-            <span class="block text-sm font-medium">Code</span>
+            <span class="block text-sm font-medium">{t("Code", "Code")}</span>
             <input
               class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
               required
@@ -130,7 +172,7 @@ export default function LoginPage() {
             disabled={submitting()}
             class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
           >
-            {submitting() ? "Verifying…" : "Log in"}
+            {submitting() ? t("Bezig met verifiëren…", "Verifying…") : t("Inloggen", "Log in")}
           </button>
         </form>
       </Show>

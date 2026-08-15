@@ -3,19 +3,12 @@ import { CopyButton } from "./CopyButton";
 import type { GroupInfo } from "~/lib/groups";
 import type { Locale } from "~/lib/i18n";
 
-export type GroupsAccordionDict = {
-  openInSignal: string;
-  downloadQr: string;
-  copyLabel: string;
-  copySuccess: string;
-};
-
 export function GroupsAccordion(props: {
   groups: GroupInfo[];
-  locale: Locale;
-  dict: GroupsAccordionDict;
+  lang: Locale;
   defaultOpen?: number;
 }) {
+  const t = (nl: string, en: string) => (props.lang === "nl" ? nl : en);
   const [openIndex, setOpenIndex] = createSignal<number | null>(props.defaultOpen ?? 0);
   const baseId = createUniqueId();
 
@@ -37,7 +30,7 @@ export function GroupsAccordion(props: {
               >
                 <div>
                   <div class="font-medium">{g.title}</div>
-                  <div class="text-sm text-zinc-600">{g.description[props.locale]}</div>
+                  <div class="text-sm text-zinc-600">{g.description[props.lang]}</div>
                 </div>
                 <svg
                   class={`h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-200 ${isOpen() ? "rotate-180" : "rotate-0"}`}
@@ -76,12 +69,12 @@ export function GroupsAccordion(props: {
                         rel="noopener noreferrer"
                         class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 no-underline"
                       >
-                        {props.dict.openInSignal}
+                        Open in Signal
                       </a>
                       <CopyButton
                         text={g.url}
-                        label={props.dict.copyLabel}
-                        success={props.dict.copySuccess}
+                        label={t("Link kopiëren", "Copy link")}
+                        success={t("Link gekopieerd!", "Link copied!")}
                         class="inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm transition hover:border-zinc-400 no-underline"
                       />
                       <a
@@ -89,7 +82,7 @@ export function GroupsAccordion(props: {
                         download=""
                         class="inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm transition hover:border-zinc-400 no-underline"
                       >
-                        {props.dict.downloadQr}
+                        {t("Download QR-code", "Download QR code")}
                       </a>
                     </div>
                   </div>

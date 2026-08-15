@@ -1,13 +1,30 @@
 import { onMount } from "solid-js";
+import { LOCALE_COOKIE_NAME } from "~/lib/i18n";
 
-// Static index that client-redirects by browser locale. No backend needed.
+function readCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+// Static index that client-redirects by sticky preference, falling back to
+// browser locale. No backend needed - the redirect target has to be decided
+// client-side either way (Accept-Language sniffing server-side would make
+// this response un-cacheable), so a cookie read costs nothing extra here.
 export default function Index() {
   onMount(() => {
-    const langs = (
-      navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language]
-    ).map((l) => l?.toLowerCase?.() || "");
-    const isDutch = langs.some((l) => l.startsWith("nl"));
-    const target = isDutch ? "/nl" : "/en";
+    const sticky = readCookie(LOCALE_COOKIE_NAME);
+    let target: string;
+    if (sticky === "nl" || sticky === "en") {
+      target = `/${sticky}`;
+    } else {
+      const langs = (
+        navigator.languages && navigator.languages.length
+          ? navigator.languages
+          : [navigator.language]
+      ).map((l) => l?.toLowerCase?.() || "");
+      const isDutch = langs.some((l) => l.startsWith("nl"));
+      target = isDutch ? "/nl" : "/en";
+    }
     const { hash, search } = window.location;
     window.location.replace(target + (search || "") + (hash || ""));
   });

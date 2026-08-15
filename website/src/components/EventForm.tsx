@@ -1,5 +1,6 @@
 import { createSignal, For, Show } from "solid-js";
 import { apiFetch, type ErrorMessagesFor } from "~/lib/api-fetch";
+import { makeT, type Locale } from "~/lib/i18n";
 import type { EventJson } from "~/routes/api/events/event.schema";
 import type { PdokSuggestResponse } from "~/routes/api/events/pdok-suggest.schema";
 import { PdokSuggestResponseSchema } from "~/routes/api/events/pdok-suggest.schema";
@@ -9,20 +10,42 @@ import { SearchPlacesResponseSchema } from "~/routes/api/places/search.schema";
 export type EventFormError =
   "unauthorized" | "not_found" | "forbidden" | "validation" | "internal_error";
 
-export const EVENT_FORM_ERROR_MESSAGES: ErrorMessagesFor<{ error: EventFormError }> = {
-  unauthorized: { message: "You need to log in to do that.", isWarn: true },
-  not_found: { message: "That event no longer exists.", isWarn: true },
-  forbidden: { message: "You don't have permission to do that.", isWarn: true },
-  validation: { message: "Please check the form and try again.", isWarn: false },
-  internal_error: { message: "Something went wrong. Please try again.", isWarn: false },
-};
+export function eventFormErrorMessages(lang: Locale): ErrorMessagesFor<{ error: EventFormError }> {
+  const t = makeT(lang);
+  return {
+    unauthorized: {
+      message: t("Je moet inloggen om dat te doen.", "You need to log in to do that."),
+      isWarn: true,
+    },
+    not_found: {
+      message: t("Dat evenement bestaat niet meer.", "That event no longer exists."),
+      isWarn: true,
+    },
+    forbidden: {
+      message: t(
+        "Je hebt geen toestemming om dat te doen.",
+        "You don't have permission to do that.",
+      ),
+      isWarn: true,
+    },
+    validation: {
+      message: t(
+        "Controleer het formulier en probeer het opnieuw.",
+        "Please check the form and try again.",
+      ),
+      isWarn: false,
+    },
+    internal_error: {
+      message: t(
+        "Er is iets misgegaan. Probeer het opnieuw.",
+        "Something went wrong. Please try again.",
+      ),
+      isWarn: false,
+    },
+  };
+}
 
 type LocationKind = EventJson["locationKind"];
-
-const LOCATION_KIND_LABELS: Record<LocationKind, string> = {
-  precise_address: "Precise address",
-  meeting_point_city_only: "Meeting point (city shown, exact spot shared with attendees)",
-};
 
 export type EventFormValues = {
   title: string;
@@ -115,11 +138,21 @@ function debounced<T>(fn: (arg: T) => void, delayMs: number): (arg: T) => void {
 }
 
 export function EventForm(props: {
+  lang: Locale;
   initial: EventFormValues;
   submitLabel: string;
   submittingLabel: string;
   onSubmit: (values: EventFormValues) => Promise<{ ok: true } | { ok: false; message: string }>;
 }) {
+  const t = (nl: string, en: string) => (props.lang === "nl" ? nl : en);
+  const locationKindLabels = (): Record<LocationKind, string> => ({
+    precise_address: t("Exact adres", "Precise address"),
+    meeting_point_city_only: t(
+      "Verzamelpunt (stad zichtbaar, exacte plek alleen gedeeld met deelnemers)",
+      "Meeting point (city shown, exact spot shared with attendees)",
+    ),
+  });
+
   const [values, setValues] = createSignal(props.initial);
   const [submitting, setSubmitting] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
@@ -173,7 +206,7 @@ export function EventForm(props: {
   return (
     <form class="space-y-4" onSubmit={onSubmit}>
       <label class="block">
-        <span class="block text-sm font-medium">Title</span>
+        <span class="block text-sm font-medium">{t("Titel", "Title")}</span>
         <input
           class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
           required
@@ -183,7 +216,7 @@ export function EventForm(props: {
       </label>
 
       <label class="block">
-        <span class="block text-sm font-medium">Description</span>
+        <span class="block text-sm font-medium">{t("Beschrijving", "Description")}</span>
         <textarea
           class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
           required
@@ -195,7 +228,7 @@ export function EventForm(props: {
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="block">
-          <span class="block text-sm font-medium">Starts at</span>
+          <span class="block text-sm font-medium">{t("Begint om", "Starts at")}</span>
           <input
             type="datetime-local"
             class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
@@ -205,7 +238,9 @@ export function EventForm(props: {
           />
         </label>
         <label class="block">
-          <span class="block text-sm font-medium">Ends at (optional)</span>
+          <span class="block text-sm font-medium">
+            {t("Eindigt om (optioneel)", "Ends at (optional)")}
+          </span>
           <input
             type="datetime-local"
             class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
@@ -216,7 +251,7 @@ export function EventForm(props: {
       </div>
 
       <label class="block">
-        <span class="block text-sm font-medium">Location kind</span>
+        <span class="block text-sm font-medium">{t("Soort locatie", "Location kind")}</span>
         <select
           class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
           value={values().locationKind}
@@ -233,7 +268,7 @@ export function EventForm(props: {
             });
           }}
         >
-          <For each={Object.entries(LOCATION_KIND_LABELS)}>
+          <For each={Object.entries(locationKindLabels())}>
             {([kind, label]) => <option value={kind}>{label}</option>}
           </For>
         </select>
@@ -244,7 +279,9 @@ export function EventForm(props: {
         fallback={
           <>
             <div class="relative block">
-              <span class="block text-sm font-medium">City / woonplaats</span>
+              <span class="block text-sm font-medium">
+                {t("Stad / woonplaats", "City / woonplaats")}
+              </span>
               <input
                 class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
                 required
@@ -252,7 +289,10 @@ export function EventForm(props: {
                 data-1p-ignore="true"
                 data-lpignore="true"
                 data-bwignore="true"
-                placeholder="Start typing a Dutch city or town…"
+                placeholder={t(
+                  "Begin met typen van een Nederlandse stad of plaats…",
+                  "Start typing a Dutch city or town…",
+                )}
                 value={placeQuery()}
                 onInput={(e) => {
                   const query = e.currentTarget.value;
@@ -285,7 +325,9 @@ export function EventForm(props: {
             </div>
 
             <label class="block">
-              <span class="block text-sm font-medium">Location description</span>
+              <span class="block text-sm font-medium">
+                {t("Locatiebeschrijving", "Location description")}
+              </span>
               <input
                 class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
                 required
@@ -293,7 +335,10 @@ export function EventForm(props: {
                 data-1p-ignore="true"
                 data-lpignore="true"
                 data-bwignore="true"
-                placeholder="e.g. Museumplein, or 'in front of the town hall'"
+                placeholder={t(
+                  "bijv. Museumplein, of 'voor het gemeentehuis'",
+                  "e.g. Museumplein, or 'in front of the town hall'",
+                )}
                 value={values().locationDescription}
                 onInput={(e) =>
                   setValues({ ...values(), locationDescription: e.currentTarget.value })
@@ -304,7 +349,7 @@ export function EventForm(props: {
         }
       >
         <div class="relative block">
-          <span class="block text-sm font-medium">Address</span>
+          <span class="block text-sm font-medium">{t("Adres", "Address")}</span>
           <input
             class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
             required
@@ -312,7 +357,10 @@ export function EventForm(props: {
             data-1p-ignore="true"
             data-lpignore="true"
             data-bwignore="true"
-            placeholder="Start typing a street address…"
+            placeholder={t(
+              "Begin met typen van een straatadres…",
+              "Start typing a street address…",
+            )}
             value={addressQuery()}
             onInput={(e) => {
               const query = e.currentTarget.value;
@@ -347,14 +395,18 @@ export function EventForm(props: {
             </ul>
           </Show>
           <p class="mt-1 text-xs text-zinc-500">
-            Search and pick your address here — this is the only way to set the location for a
-            precise-address event, and it needs PDOK to be reachable to save.
+            {t(
+              "Zoek en kies hier je adres — dit is de enige manier om de locatie voor een evenement met exact adres in te stellen, en PDOK moet bereikbaar zijn om op te slaan.",
+              "Search and pick your address here — this is the only way to set the location for a precise-address event, and it needs PDOK to be reachable to save.",
+            )}
           </p>
         </div>
       </Show>
 
       <label class="block">
-        <span class="block text-sm font-medium">Map URL (optional)</span>
+        <span class="block text-sm font-medium">
+          {t("Kaart-URL (optioneel)", "Map URL (optional)")}
+        </span>
         <input
           type="url"
           class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
@@ -364,7 +416,9 @@ export function EventForm(props: {
       </label>
 
       <label class="block">
-        <span class="block text-sm font-medium">Contact info (optional)</span>
+        <span class="block text-sm font-medium">
+          {t("Contactgegevens (optioneel)", "Contact info (optional)")}
+        </span>
         <input
           class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
           value={values().contactInfo}
@@ -373,7 +427,9 @@ export function EventForm(props: {
       </label>
 
       <label class="block">
-        <span class="block text-sm font-medium">Registration instructions (optional)</span>
+        <span class="block text-sm font-medium">
+          {t("Aanmeldinstructies (optioneel)", "Registration instructions (optional)")}
+        </span>
         <textarea
           class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
           rows={2}
@@ -385,7 +441,9 @@ export function EventForm(props: {
       </label>
 
       <label class="block">
-        <span class="block text-sm font-medium">External event URL (optional)</span>
+        <span class="block text-sm font-medium">
+          {t("Externe evenement-URL (optioneel)", "External event URL (optional)")}
+        </span>
         <input
           type="url"
           class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
@@ -395,7 +453,9 @@ export function EventForm(props: {
       </label>
 
       <label class="block">
-        <span class="block text-sm font-medium">Registration URL (optional)</span>
+        <span class="block text-sm font-medium">
+          {t("Aanmeld-URL (optioneel)", "Registration URL (optional)")}
+        </span>
         <input
           type="url"
           class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"

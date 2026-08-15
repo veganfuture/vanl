@@ -1,7 +1,9 @@
 import { useParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
 import { createResource, createSignal, Show } from "solid-js";
+import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
+import { resolveLang } from "~/lib/i18n";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { GetEventBySlugResponseSchema } from "~/routes/api/events/by-slug/[slug].schema";
 import {
@@ -14,33 +16,87 @@ import {
   type SetEventStatusResponse,
 } from "~/routes/api/events/[id]/status.schema";
 
-const LOCATION_KIND_LABELS: Record<string, string> = {
-  precise_address: "Precise address",
-  meeting_point_city_only: "Meeting point",
-};
-
-const DELETE_ERROR_MESSAGES: ErrorMessagesFor<DeleteEventResponse> = {
-  unauthorized: { message: "You need to log in to do that.", isWarn: true },
-  not_found: { message: "That event no longer exists.", isWarn: true },
-  forbidden: { message: "You don't have permission to do that.", isWarn: true },
-  validation: { message: "Something went wrong. Please try again.", isWarn: false },
-  internal_error: { message: "Something went wrong. Please try again.", isWarn: false },
-};
-
-const STATUS_ERROR_MESSAGES: ErrorMessagesFor<SetEventStatusResponse> = {
-  unauthorized: { message: "You need to log in to do that.", isWarn: true },
-  not_found: { message: "That event no longer exists.", isWarn: true },
-  forbidden: { message: "You don't have permission to do that.", isWarn: true },
-  validation: { message: "Please check the form and try again.", isWarn: false },
-  internal_error: { message: "Something went wrong. Please try again.", isWarn: false },
-};
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-}
-
 export default function EventDetailPage() {
-  const params = useParams();
+  const params = useParams<{ lang: string; slug: string }>();
+  const lang = () => resolveLang(params.lang);
+  const t = (nl: string, en: string) => (lang() === "nl" ? nl : en);
+
+  const locationKindLabels: Record<string, string> = {
+    precise_address: t("Exact adres", "Precise address"),
+    meeting_point_city_only: t("Verzamelpunt", "Meeting point"),
+  };
+
+  const deleteErrorMessages = (): ErrorMessagesFor<DeleteEventResponse> => ({
+    unauthorized: {
+      message: t("Je moet inloggen om dat te doen.", "You need to log in to do that."),
+      isWarn: true,
+    },
+    not_found: {
+      message: t("Dat evenement bestaat niet meer.", "That event no longer exists."),
+      isWarn: true,
+    },
+    forbidden: {
+      message: t(
+        "Je hebt geen toestemming om dat te doen.",
+        "You don't have permission to do that.",
+      ),
+      isWarn: true,
+    },
+    validation: {
+      message: t(
+        "Er is iets misgegaan. Probeer het opnieuw.",
+        "Something went wrong. Please try again.",
+      ),
+      isWarn: false,
+    },
+    internal_error: {
+      message: t(
+        "Er is iets misgegaan. Probeer het opnieuw.",
+        "Something went wrong. Please try again.",
+      ),
+      isWarn: false,
+    },
+  });
+
+  const statusErrorMessages = (): ErrorMessagesFor<SetEventStatusResponse> => ({
+    unauthorized: {
+      message: t("Je moet inloggen om dat te doen.", "You need to log in to do that."),
+      isWarn: true,
+    },
+    not_found: {
+      message: t("Dat evenement bestaat niet meer.", "That event no longer exists."),
+      isWarn: true,
+    },
+    forbidden: {
+      message: t(
+        "Je hebt geen toestemming om dat te doen.",
+        "You don't have permission to do that.",
+      ),
+      isWarn: true,
+    },
+    validation: {
+      message: t(
+        "Controleer het formulier en probeer het opnieuw.",
+        "Please check the form and try again.",
+      ),
+      isWarn: false,
+    },
+    internal_error: {
+      message: t(
+        "Er is iets misgegaan. Probeer het opnieuw.",
+        "Something went wrong. Please try again.",
+      ),
+      isWarn: false,
+    },
+  });
+
+  function formatDate(iso: string): string {
+    return new Date(iso).toLocaleString(lang() === "nl" ? "nl-NL" : "en-GB", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  }
+
   const [actionError, setActionError] = createSignal<string | null>(null);
   const [refreshKey, setRefreshKey] = createSignal(0);
 
@@ -75,7 +131,14 @@ export default function EventDetailPage() {
   async function onDelete() {
     const currentEvent = event();
     if (!currentEvent) return;
-    if (!window.confirm(`Delete "${currentEvent.title}"? This can't be undone.`)) {
+    if (
+      !window.confirm(
+        t(
+          `"${currentEvent.title}" verwijderen? Dit kan niet ongedaan worden gemaakt.`,
+          `Delete "${currentEvent.title}"? This can't be undone.`,
+        ),
+      )
+    ) {
       return;
     }
     setActionError(null);
@@ -85,47 +148,62 @@ export default function EventDetailPage() {
     });
     result.match(
       () => {
-        window.location.href = "/events";
+        window.location.href = `/${lang()}/events`;
       },
-      (error) => setActionError(describeApiError(error, DELETE_ERROR_MESSAGES)),
+      (error) => setActionError(describeApiError(error, deleteErrorMessages())),
     );
   }
 
   async function onSetStatus(status: "hidden" | "visible" | "cancelled") {
     const currentEvent = event();
     if (!currentEvent) return;
-    if (status === "cancelled" && !window.confirm(`Cancel "${currentEvent.title}"?`)) {
+    if (
+      status === "cancelled" &&
+      !window.confirm(t(`"${currentEvent.title}" annuleren?`, `Cancel "${currentEvent.title}"?`))
+    ) {
       return;
     }
     setActionError(null);
     const result = await apiFetch(`/api/events/${currentEvent.id}/status`, {
       request: SetEventStatusRequestSchema,
-      body: { status, cancelReason: status === "cancelled" ? "Cancelled by moderator" : null },
+      body: {
+        status,
+        cancelReason:
+          status === "cancelled" ? t("Geannuleerd door moderator", "Cancelled by moderator") : null,
+      },
       response: SetEventStatusResponseSchema,
     });
     result.match(
       () => setRefreshKey((k) => k + 1),
-      (error) => setActionError(describeApiError(error, STATUS_ERROR_MESSAGES)),
+      (error) => setActionError(describeApiError(error, statusErrorMessages())),
     );
   }
 
   return (
     <main class="mx-auto max-w-2xl px-6 py-12">
-      <Show when={!event.loading} fallback={<p class="text-zinc-600">Loading…</p>}>
-        <Show when={event()} fallback={<p class="text-zinc-600">Event not found.</p>}>
+      <LocaleCookieSync lang={lang()} />
+      <Show when={!event.loading} fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
+        <Show
+          when={event()}
+          fallback={
+            <p class="text-zinc-600">{t("Evenement niet gevonden.", "Event not found.")}</p>
+          }
+        >
           {(currentEvent) => (
             <>
               <Title>{currentEvent().title} — Vegan Activists NL</Title>
               <h1 class="mb-2 text-2xl font-semibold">{currentEvent().title}</h1>
               <Show when={currentEvent().status !== "visible"}>
                 <p class="mb-4 inline-block rounded bg-amber-100 px-2 py-1 text-sm text-amber-800">
-                  {currentEvent().status === "cancelled" ? "Cancelled" : "Hidden"}
+                  {currentEvent().status === "cancelled"
+                    ? t("Geannuleerd", "Cancelled")
+                    : t("Verborgen", "Hidden")}
                   {currentEvent().cancelReason ? ` — ${currentEvent().cancelReason}` : ""}
                 </p>
               </Show>
               <p class="mb-1 text-zinc-600">{formatDate(currentEvent().startAt)}</p>
               <p class="mb-4 text-zinc-600">
-                {LOCATION_KIND_LABELS[currentEvent().locationKind]} —{" "}
+                {locationKindLabels[currentEvent().locationKind]} —{" "}
                 {currentEvent().locationDescription}
                 <Show when={currentEvent().locationStreet}>
                   <>
@@ -145,7 +223,7 @@ export default function EventDetailPage() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    View on map
+                    {t("Bekijk op kaart", "View on map")}
                   </a>
                 </p>
               </Show>
@@ -157,7 +235,7 @@ export default function EventDetailPage() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Register
+                    {t("Aanmelden", "Register")}
                   </a>
                 </p>
               </Show>
@@ -169,7 +247,7 @@ export default function EventDetailPage() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    More info
+                    {t("Meer info", "More info")}
                   </a>
                 </p>
               </Show>
@@ -177,7 +255,10 @@ export default function EventDetailPage() {
                 <p class="mb-2 whitespace-pre-wrap">{currentEvent().registrationInstructions}</p>
               </Show>
               <Show when={currentEvent().contactInfo}>
-                <p class="mb-2 text-sm text-zinc-600">Contact: {currentEvent().contactInfo}</p>
+                <p class="mb-2 text-sm text-zinc-600">
+                  {t("Contact: ", "Contact: ")}
+                  {currentEvent().contactInfo}
+                </p>
               </Show>
 
               <Show when={actionError()}>
@@ -187,10 +268,10 @@ export default function EventDetailPage() {
               <Show when={canModerate()}>
                 <div class="mt-8 flex flex-wrap gap-3 border-t border-zinc-200 pt-6">
                   <a
-                    href={`/events/${currentEvent().slug}/edit`}
+                    href={`/${lang()}/events/${currentEvent().slug}/edit`}
                     class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
                   >
-                    Edit
+                    {t("Bewerken", "Edit")}
                   </a>
                   <Show
                     when={currentEvent().status === "visible"}
@@ -200,7 +281,7 @@ export default function EventDetailPage() {
                         class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
                         onClick={() => onSetStatus("visible")}
                       >
-                        Show
+                        {t("Tonen", "Show")}
                       </button>
                     }
                   >
@@ -209,7 +290,7 @@ export default function EventDetailPage() {
                       class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
                       onClick={() => onSetStatus("hidden")}
                     >
-                      Hide
+                      {t("Verbergen", "Hide")}
                     </button>
                   </Show>
                   <Show when={currentEvent().status !== "cancelled"}>
@@ -218,7 +299,7 @@ export default function EventDetailPage() {
                       class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
                       onClick={() => onSetStatus("cancelled")}
                     >
-                      Cancel event
+                      {t("Evenement annuleren", "Cancel event")}
                     </button>
                   </Show>
                   <button
@@ -226,7 +307,7 @@ export default function EventDetailPage() {
                     class="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700 transition hover:bg-red-50"
                     onClick={onDelete}
                   >
-                    Delete
+                    {t("Verwijderen", "Delete")}
                   </button>
                 </div>
               </Show>
