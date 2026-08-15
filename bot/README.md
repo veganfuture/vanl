@@ -243,7 +243,7 @@ You can also make a $SIGNAL_ACCOUNT environment variable (put that in your .envr
 Then run the bot from a nix dev shell:
 
 ```sh
-bot --config configs/test.toml
+bot --config configs/dev.toml
 ```
 
 ### Test the update process manually
