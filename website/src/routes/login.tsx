@@ -1,11 +1,6 @@
 import { Title } from "@solidjs/meta";
 import { createSignal, onMount, Show } from "solid-js";
-import {
-  apiFetch,
-  describeApiError,
-  isApiFetchError,
-  type ErrorMessagesFor,
-} from "~/lib/api-fetch";
+import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { REMEMBERED_ACCOUNT_COOKIE_NAME } from "~/domain/auth/cookies";
 import {
   LoginStartRequestSchema,
@@ -64,11 +59,16 @@ export default function LoginPage() {
         body: { accountName: accountName() },
         response: LoginStartResponseSchema,
       });
-      if (isApiFetchError(result) || "error" in result) {
-        setError(describeApiError(result, LOGIN_START_ERROR_MESSAGES));
-        return;
-      }
-      setStep("code");
+      result.match(
+        (data) => {
+          if ("error" in data) {
+            setError(describeApiError(data, LOGIN_START_ERROR_MESSAGES));
+            return;
+          }
+          setStep("code");
+        },
+        (fetchError) => setError(describeApiError(fetchError, LOGIN_START_ERROR_MESSAGES)),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -84,11 +84,16 @@ export default function LoginPage() {
         body: { accountName: accountName(), code: code() },
         response: LoginVerifyResponseSchema,
       });
-      if (isApiFetchError(result) || "error" in result) {
-        setError(describeApiError(result, LOGIN_VERIFY_ERROR_MESSAGES));
-        return;
-      }
-      window.location.href = "/";
+      result.match(
+        (data) => {
+          if ("error" in data) {
+            setError(describeApiError(data, LOGIN_VERIFY_ERROR_MESSAGES));
+            return;
+          }
+          window.location.href = "/";
+        },
+        (fetchError) => setError(describeApiError(fetchError, LOGIN_VERIFY_ERROR_MESSAGES)),
+      );
     } finally {
       setSubmitting(false);
     }

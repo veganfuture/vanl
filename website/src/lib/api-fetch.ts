@@ -1,29 +1,22 @@
+import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import type { ZodType, z } from "zod";
 import { apiUrl } from "./api-url";
-
-const API_FETCH_ERROR = Symbol("apiFetchError");
 
 /**
  * Anything that kept us from getting a response matching the expected
  * schema: a network failure, a non-JSON body, or a body that doesn't match
- * `request`/`response`. Tagged with a Symbol rather than a string field
- * because the success type comes straight from `response.json()` — real
- * parsed JSON can never contain a symbol-keyed property, so this can never
- * collide with a legitimate response shape.
+ * `request`/`response`. Only ever appears on the Err side of the
+ * ResultAsync apiFetch returns, so unlike the response data (arbitrary
+ * parsed JSON) it needs no runtime tag to stay distinguishable.
  */
 export type ApiFetchError = {
-  readonly [API_FETCH_ERROR]: true;
   readonly cause: unknown;
   /** The response's HTTP status, when we got a response at all. */
   readonly status?: number;
 };
 
-export function isApiFetchError(value: unknown): value is ApiFetchError {
-  return typeof value === "object" && value !== null && API_FETCH_ERROR in value;
-}
-
 function apiFetchError(cause: unknown, status?: number): ApiFetchError {
-  return { [API_FETCH_ERROR]: true, cause, status };
+  return { cause, status };
 }
 
 type ApiFetchOptions<TReq extends ZodType | undefined, TRes extends ZodType | undefined> = {
@@ -42,53 +35,47 @@ type ApiFetchOptions<TReq extends ZodType | undefined, TRes extends ZodType | un
  * — our routes return typed `{ error: ... }` bodies on 4xx/5xx that are
  * still part of the `response` schema, not exceptional.
  *
- * Returns the parsed response data (or `undefined` if no `response` schema
- * was given, e.g. a 204), or an `ApiFetchError` for anything that isn't a
- * clean, schema-matching JSON body.
+ * Resolves Ok with the parsed response data (or `undefined` if no
+ * `response` schema was given, e.g. a 204), or Err with an ApiFetchError
+ * for anything that isn't a clean, schema-matching JSON body.
  */
-export async function apiFetch<
+export function apiFetch<
   TReq extends ZodType | undefined = undefined,
   TRes extends ZodType | undefined = undefined,
 >(
   path: string,
   options?: ApiFetchOptions<TReq, TRes>,
-): Promise<(TRes extends ZodType ? z.infer<TRes> : undefined) | ApiFetchError> {
+): ResultAsync<TRes extends ZodType ? z.infer<TRes> : undefined, ApiFetchError> {
   const { request, body, response, method } = options ?? {};
 
   if (request && body !== undefined) {
     const parsedBody = request.safeParse(body);
     if (!parsedBody.success) {
-      return apiFetchError(parsedBody.error);
+      return errAsync(apiFetchError(parsedBody.error));
     }
   }
 
-  let httpResponse: Response;
-  try {
-    httpResponse = await fetch(apiUrl(path), {
+  return ResultAsync.fromPromise(
+    fetch(apiUrl(path), {
       method: method ?? (body !== undefined ? "POST" : "GET"),
       headers: body !== undefined ? { "content-type": "application/json" } : undefined,
       body: body !== undefined ? JSON.stringify(body) : undefined,
+    }),
+    (cause) => apiFetchError(cause),
+  ).andThen((httpResponse) => {
+    if (!response) {
+      return okAsync(undefined as TRes extends ZodType ? z.infer<TRes> : undefined);
+    }
+    return ResultAsync.fromPromise(httpResponse.json(), (cause) =>
+      apiFetchError(cause, httpResponse.status),
+    ).andThen((rawJson) => {
+      const parsed = response.safeParse(rawJson);
+      if (!parsed.success) {
+        return errAsync(apiFetchError(parsed.error, httpResponse.status));
+      }
+      return okAsync(parsed.data as TRes extends ZodType ? z.infer<TRes> : undefined);
     });
-  } catch (cause) {
-    return apiFetchError(cause);
-  }
-
-  if (!response) {
-    return undefined as TRes extends ZodType ? z.infer<TRes> : undefined;
-  }
-
-  let rawJson: unknown;
-  try {
-    rawJson = await httpResponse.json();
-  } catch (cause) {
-    return apiFetchError(cause, httpResponse.status);
-  }
-
-  const parsed = response.safeParse(rawJson);
-  if (!parsed.success) {
-    return apiFetchError(parsed.error, httpResponse.status);
-  }
-  return parsed.data as TRes extends ZodType ? z.infer<TRes> : undefined;
+  });
 }
 
 export type ApiErrorMessage = {
@@ -104,7 +91,7 @@ export type ApiErrorOf<TResponse> = Extract<TResponse, { error: string }>["error
 export type ErrorMessagesFor<TResponse> = Record<ApiErrorOf<TResponse>, ApiErrorMessage>;
 
 /**
- * Turn an already-known-to-be-an-error apiFetch result into a message to
+ * Turn an already-known-to-be-an-error apiFetch outcome into a message to
  * show the user, logging it along the way (console.error for ApiFetchError
  * and any message marked `isWarn: false`, console.warn otherwise).
  *
@@ -117,15 +104,15 @@ export function describeApiError<TError extends string>(
   result: ApiFetchError | { error: TError },
   messages: Record<TError, ApiErrorMessage>,
 ): string {
-  if (isApiFetchError(result)) {
-    console.error("API request failed:", result.cause, result.status);
-    return "Something went wrong. Please try again.";
+  if ("error" in result) {
+    const entry = messages[result.error];
+    if (entry.isWarn) {
+      console.warn("API returned error:", result.error);
+    } else {
+      console.error("API returned error:", result.error);
+    }
+    return entry.message;
   }
-  const entry = messages[result.error];
-  if (entry.isWarn) {
-    console.warn("API returned error:", result.error);
-  } else {
-    console.error("API returned error:", result.error);
-  }
-  return entry.message;
+  console.error("API request failed:", result.cause, result.status);
+  return "Something went wrong. Please try again.";
 }

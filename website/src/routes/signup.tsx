@@ -1,12 +1,7 @@
 import { useSearchParams } from "@solidjs/router";
 import { createResource, createSignal, Show } from "solid-js";
 import { Title } from "@solidjs/meta";
-import {
-  apiFetch,
-  describeApiError,
-  isApiFetchError,
-  type ErrorMessagesFor,
-} from "~/lib/api-fetch";
+import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
 import {
   SignupInspectResponseSchema,
   type SignupInspectResponse,
@@ -58,10 +53,11 @@ export default function SignupPage() {
         `/api/auth/signup/inspect?token=${encodeURIComponent(tokenValue)}`,
         { response: SignupInspectResponseSchema },
       );
-      if (isApiFetchError(result) || "error" in result) {
-        return describeApiError(result, SIGNUP_INSPECT_ERROR_MESSAGES);
-      }
-      return undefined;
+      return result.match(
+        (data) =>
+          "error" in data ? describeApiError(data, SIGNUP_INSPECT_ERROR_MESSAGES) : undefined,
+        (fetchError) => describeApiError(fetchError, SIGNUP_INSPECT_ERROR_MESSAGES),
+      );
     },
   );
 
@@ -89,11 +85,16 @@ export default function SignupPage() {
         },
         response: SignupResponseSchema,
       });
-      if (isApiFetchError(result) || "error" in result) {
-        setSubmitError(describeApiError(result, SIGNUP_ERROR_MESSAGES));
-        return;
-      }
-      setSuccess(true);
+      result.match(
+        (data) => {
+          if ("error" in data) {
+            setSubmitError(describeApiError(data, SIGNUP_ERROR_MESSAGES));
+            return;
+          }
+          setSuccess(true);
+        },
+        (fetchError) => setSubmitError(describeApiError(fetchError, SIGNUP_ERROR_MESSAGES)),
+      );
     } finally {
       setSubmitting(false);
     }
