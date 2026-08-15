@@ -248,6 +248,14 @@ export class AuthService {
       });
   }
 
+  /** Fails closed: a DB error is treated as "not an admin", never as "is one". */
+  isSiteAdmin(userId: UserId): ResultAsync<boolean, never> {
+    return this.repository.isSiteAdmin(userId).orElse((dbError) => {
+      logger.error({ err: dbError }, "failed to check site admin role");
+      return okAsync(false);
+    });
+  }
+
   logout(cookieHeader: string | null): ResultAsync<string[], never> {
     const token = parseCookies(cookieHeader)[SESSION_COOKIE_NAME];
     if (!token) {

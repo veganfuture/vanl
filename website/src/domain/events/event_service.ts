@@ -1,6 +1,7 @@
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { z } from "zod";
 import { UserId } from "../auth/user_id";
+import { sql } from "~/lib/db";
 import { logger } from "~/lib/logger";
 import type { Event, EventLocationKind } from "./event";
 import { EventRepository, type EditableEventFields } from "./event_repository";
@@ -249,3 +250,5 @@ export class EventService {
       });
   }
 }
+
+export const eventService = new EventService(new EventRepository(sql));
