@@ -1,14 +1,14 @@
 import { useSearchParams } from "@solidjs/router";
 import { createResource, createSignal, Show } from "solid-js";
 import { Title } from "@solidjs/meta";
-import { apiUrl } from "~/lib/api-url";
+import { apiFetch, isApiFetchError } from "~/lib/api-fetch";
 import {
   SignupInspectResponseSchema,
   type SignupInspectResponse,
 } from "~/routes/api/auth/signup/inspect.schema";
 import {
+  SignupRequestSchema,
   SignupResponseSchema,
-  type SignupRequest,
   type SignupResponse,
 } from "~/routes/api/auth/signup.schema";
 
@@ -48,11 +48,11 @@ export default function SignupPage() {
     if (!tokenValue) {
       return { error: "invalid" };
     }
-    const response = await fetch(
-      apiUrl(`/api/auth/signup/inspect?token=${encodeURIComponent(tokenValue)}`),
+    const result = await apiFetch(
+      `/api/auth/signup/inspect?token=${encodeURIComponent(tokenValue)}`,
+      { response: SignupInspectResponseSchema },
     );
-    const parsed = SignupInspectResponseSchema.safeParse(await response.json().catch(() => null));
-    return parsed.success ? parsed.data : { error: "invalid" };
+    return isApiFetchError(result) ? { error: "invalid" } : result;
   });
 
   const [accountName, setAccountName] = createSignal("");
@@ -68,23 +68,19 @@ export default function SignupPage() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const request: SignupRequest = {
-        token: token(),
-        accountName: accountName(),
-        email: email(),
-        displayName: displayName(),
-        affiliationsNote: affiliationsNote().trim() || null,
-      };
-      const response = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(request),
+      const result = await apiFetch("/api/auth/signup", {
+        request: SignupRequestSchema,
+        body: {
+          token: token(),
+          accountName: accountName(),
+          email: email(),
+          displayName: displayName(),
+          affiliationsNote: affiliationsNote().trim() || null,
+        },
+        response: SignupResponseSchema,
       });
-      const parsed = SignupResponseSchema.safeParse(await response.json().catch(() => null));
-      if (!parsed.success || "error" in parsed.data) {
-        setSubmitError(
-          describeError(parsed.success && "error" in parsed.data ? parsed.data.error : undefined),
-        );
+      if (isApiFetchError(result) || "error" in result) {
+        setSubmitError(describeError(isApiFetchError(result) ? undefined : result.error));
         return;
       }
       setSuccess(true);

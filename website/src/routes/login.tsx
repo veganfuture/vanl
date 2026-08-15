@@ -1,14 +1,15 @@
 import { Title } from "@solidjs/meta";
 import { createSignal, onMount, Show } from "solid-js";
+import { apiFetch, isApiFetchError } from "~/lib/api-fetch";
 import { REMEMBERED_ACCOUNT_COOKIE_NAME } from "~/domain/auth/cookies";
 import {
+  LoginStartRequestSchema,
   LoginStartResponseSchema,
-  type LoginStartRequest,
   type LoginStartResponse,
 } from "~/routes/api/auth/login/start.schema";
 import {
+  LoginVerifyRequestSchema,
   LoginVerifyResponseSchema,
-  type LoginVerifyRequest,
   type LoginVerifyResponse,
 } from "~/routes/api/auth/login/verify.schema";
 
@@ -56,17 +57,13 @@ export default function LoginPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const request: LoginStartRequest = { accountName: accountName() };
-      const response = await fetch("/api/auth/login/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(request),
+      const result = await apiFetch("/api/auth/login/start", {
+        request: LoginStartRequestSchema,
+        body: { accountName: accountName() },
+        response: LoginStartResponseSchema,
       });
-      const parsed = LoginStartResponseSchema.safeParse(await response.json().catch(() => null));
-      if (!parsed.success || "error" in parsed.data) {
-        setError(
-          describeError(parsed.success && "error" in parsed.data ? parsed.data.error : undefined),
-        );
+      if (isApiFetchError(result) || "error" in result) {
+        setError(describeError(isApiFetchError(result) ? undefined : result.error));
         return;
       }
       setStep("code");
@@ -80,17 +77,13 @@ export default function LoginPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const request: LoginVerifyRequest = { accountName: accountName(), code: code() };
-      const response = await fetch("/api/auth/login/verify", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(request),
+      const result = await apiFetch("/api/auth/login/verify", {
+        request: LoginVerifyRequestSchema,
+        body: { accountName: accountName(), code: code() },
+        response: LoginVerifyResponseSchema,
       });
-      const parsed = LoginVerifyResponseSchema.safeParse(await response.json().catch(() => null));
-      if (!parsed.success || "error" in parsed.data) {
-        setError(
-          describeError(parsed.success && "error" in parsed.data ? parsed.data.error : undefined),
-        );
+      if (isApiFetchError(result) || "error" in result) {
+        setError(describeError(isApiFetchError(result) ? undefined : result.error));
         return;
       }
       window.location.href = "/";
