@@ -48,7 +48,7 @@ All primary keys are surrogate UUIDs. Business-facing identifiers (`account_name
 - Invariant enforced in the application layer within a transaction: every organization has ≥1 `org_admin` at all times (demoting/removing the last admin, or the last admin deleting their account, must be rejected).
 
 ### Province
-- Postgres enum, 12 fixed values (Drenthe, Flevoland, Fryslân, Gelderland, Groningen, Limburg, Noord-Brabant, Noord-Holland, Overijssel, Utrecht, Zeeland, Zuid-Holland). Never changes; no lookup table needed.
+- Postgres enum, 12 fixed values (Drenthe, Flevoland, Friesland, Gelderland, Groningen, Limburg, Noord-Brabant, Noord-Holland, Overijssel, Utrecht, Zeeland, Zuid-Holland). Never changes; no lookup table needed.
 
 ### Place (canonical `woonplaats`)
 - `id`, `name`, `municipality_name`, `province` (enum), `source_id` (external CBS/PDOK identifier)
