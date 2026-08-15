@@ -146,6 +146,14 @@ export class EventService {
     });
   }
 
+  /** "My events" - every status, not just visible, since it's for managing your own events. */
+  listEventsByPublisher(publisherUserId: UserId): ResultAsync<Event[], never> {
+    return this.repository.listEventsByPublisher(publisherUserId).orElse((dbError) => {
+      logger.error({ err: dbError }, "failed to list events by publisher");
+      return okAsync([]);
+    });
+  }
+
   updateEvent(
     actingUser: ActingUser,
     eventId: EventId,

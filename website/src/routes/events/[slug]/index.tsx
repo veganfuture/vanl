@@ -1,6 +1,7 @@
 import { useParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
 import { createResource, createSignal, Show } from "solid-js";
+import { Navbar } from "~/components/Navbar";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { GetEventBySlugResponseSchema } from "~/routes/api/events/by-slug/[slug].schema";
@@ -110,130 +111,133 @@ export default function EventDetailPage() {
   }
 
   return (
-    <main class="mx-auto max-w-2xl px-6 py-12">
-      <Show when={!event.loading} fallback={<p class="text-zinc-600">Loading…</p>}>
-        <Show when={event()} fallback={<p class="text-zinc-600">Event not found.</p>}>
-          {(currentEvent) => (
-            <>
-              <Title>{currentEvent().title} — Vegan Activists NL</Title>
-              <h1 class="mb-2 text-2xl font-semibold">{currentEvent().title}</h1>
-              <Show when={currentEvent().status !== "visible"}>
-                <p class="mb-4 inline-block rounded bg-amber-100 px-2 py-1 text-sm text-amber-800">
-                  {currentEvent().status === "cancelled" ? "Cancelled" : "Hidden"}
-                  {currentEvent().cancelReason ? ` — ${currentEvent().cancelReason}` : ""}
-                </p>
-              </Show>
-              <p class="mb-1 text-zinc-600">{formatDate(currentEvent().startAt)}</p>
-              <p class="mb-4 text-zinc-600">
-                {LOCATION_KIND_LABELS[currentEvent().locationKind]} —{" "}
-                {currentEvent().locationDescription}
-                <Show when={currentEvent().locationStreet}>
-                  <>
-                    <br />
-                    {currentEvent().locationStreet} {currentEvent().locationHouseNumber},{" "}
-                    {currentEvent().locationPostcode}
-                  </>
+    <>
+      <Navbar />
+      <main class="mx-auto max-w-2xl px-6 py-12">
+        <Show when={!event.loading} fallback={<p class="text-zinc-600">Loading…</p>}>
+          <Show when={event()} fallback={<p class="text-zinc-600">Event not found.</p>}>
+            {(currentEvent) => (
+              <>
+                <Title>{currentEvent().title} — Vegan Activists NL</Title>
+                <h1 class="mb-2 text-2xl font-semibold">{currentEvent().title}</h1>
+                <Show when={currentEvent().status !== "visible"}>
+                  <p class="mb-4 inline-block rounded bg-amber-100 px-2 py-1 text-sm text-amber-800">
+                    {currentEvent().status === "cancelled" ? "Cancelled" : "Hidden"}
+                    {currentEvent().cancelReason ? ` — ${currentEvent().cancelReason}` : ""}
+                  </p>
                 </Show>
-              </p>
-              <p class="mb-6 whitespace-pre-wrap">{currentEvent().description}</p>
-
-              <Show when={currentEvent().mapUrl}>
-                <p class="mb-2">
-                  <a
-                    href={currentEvent().mapUrl!}
-                    class="underline"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View on map
-                  </a>
+                <p class="mb-1 text-zinc-600">{formatDate(currentEvent().startAt)}</p>
+                <p class="mb-4 text-zinc-600">
+                  {LOCATION_KIND_LABELS[currentEvent().locationKind]} —{" "}
+                  {currentEvent().locationDescription}
+                  <Show when={currentEvent().locationStreet}>
+                    <>
+                      <br />
+                      {currentEvent().locationStreet} {currentEvent().locationHouseNumber},{" "}
+                      {currentEvent().locationPostcode}
+                    </>
+                  </Show>
                 </p>
-              </Show>
-              <Show when={currentEvent().registrationUrl}>
-                <p class="mb-2">
-                  <a
-                    href={currentEvent().registrationUrl!}
-                    class="underline"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Register
-                  </a>
-                </p>
-              </Show>
-              <Show when={currentEvent().externalEventUrl}>
-                <p class="mb-2">
-                  <a
-                    href={currentEvent().externalEventUrl!}
-                    class="underline"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    More info
-                  </a>
-                </p>
-              </Show>
-              <Show when={currentEvent().registrationInstructions}>
-                <p class="mb-2 whitespace-pre-wrap">{currentEvent().registrationInstructions}</p>
-              </Show>
-              <Show when={currentEvent().contactInfo}>
-                <p class="mb-2 text-sm text-zinc-600">Contact: {currentEvent().contactInfo}</p>
-              </Show>
+                <p class="mb-6 whitespace-pre-wrap">{currentEvent().description}</p>
 
-              <Show when={actionError()}>
-                {(message) => <p class="mt-4 text-red-700">{message()}</p>}
-              </Show>
+                <Show when={currentEvent().mapUrl}>
+                  <p class="mb-2">
+                    <a
+                      href={currentEvent().mapUrl!}
+                      class="underline"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View on map
+                    </a>
+                  </p>
+                </Show>
+                <Show when={currentEvent().registrationUrl}>
+                  <p class="mb-2">
+                    <a
+                      href={currentEvent().registrationUrl!}
+                      class="underline"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Register
+                    </a>
+                  </p>
+                </Show>
+                <Show when={currentEvent().externalEventUrl}>
+                  <p class="mb-2">
+                    <a
+                      href={currentEvent().externalEventUrl!}
+                      class="underline"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      More info
+                    </a>
+                  </p>
+                </Show>
+                <Show when={currentEvent().registrationInstructions}>
+                  <p class="mb-2 whitespace-pre-wrap">{currentEvent().registrationInstructions}</p>
+                </Show>
+                <Show when={currentEvent().contactInfo}>
+                  <p class="mb-2 text-sm text-zinc-600">Contact: {currentEvent().contactInfo}</p>
+                </Show>
 
-              <Show when={canModerate()}>
-                <div class="mt-8 flex flex-wrap gap-3 border-t border-zinc-200 pt-6">
-                  <a
-                    href={`/events/${currentEvent().slug}/edit`}
-                    class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
-                  >
-                    Edit
-                  </a>
-                  <Show
-                    when={currentEvent().status === "visible"}
-                    fallback={
+                <Show when={actionError()}>
+                  {(message) => <p class="mt-4 text-red-700">{message()}</p>}
+                </Show>
+
+                <Show when={canModerate()}>
+                  <div class="mt-8 flex flex-wrap gap-3 border-t border-zinc-200 pt-6">
+                    <a
+                      href={`/events/${currentEvent().slug}/edit`}
+                      class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
+                    >
+                      Edit
+                    </a>
+                    <Show
+                      when={currentEvent().status === "visible"}
+                      fallback={
+                        <button
+                          type="button"
+                          class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
+                          onClick={() => onSetStatus("visible")}
+                        >
+                          Show
+                        </button>
+                      }
+                    >
                       <button
                         type="button"
                         class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
-                        onClick={() => onSetStatus("visible")}
+                        onClick={() => onSetStatus("hidden")}
                       >
-                        Show
+                        Hide
                       </button>
-                    }
-                  >
+                    </Show>
+                    <Show when={currentEvent().status !== "cancelled"}>
+                      <button
+                        type="button"
+                        class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
+                        onClick={() => onSetStatus("cancelled")}
+                      >
+                        Cancel event
+                      </button>
+                    </Show>
                     <button
                       type="button"
-                      class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
-                      onClick={() => onSetStatus("hidden")}
+                      class="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700 transition hover:bg-red-50"
+                      onClick={onDelete}
                     >
-                      Hide
+                      Delete
                     </button>
-                  </Show>
-                  <Show when={currentEvent().status !== "cancelled"}>
-                    <button
-                      type="button"
-                      class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
-                      onClick={() => onSetStatus("cancelled")}
-                    >
-                      Cancel event
-                    </button>
-                  </Show>
-                  <button
-                    type="button"
-                    class="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700 transition hover:bg-red-50"
-                    onClick={onDelete}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </Show>
-            </>
-          )}
+                  </div>
+                </Show>
+              </>
+            )}
+          </Show>
         </Show>
-      </Show>
-    </main>
+      </main>
+    </>
   );
 }

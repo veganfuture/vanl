@@ -8,6 +8,7 @@ import {
   toEventRequestBody,
   type EventFormValues,
 } from "~/components/EventForm";
+import { Navbar } from "~/components/Navbar";
 import { apiFetch, describeApiError } from "~/lib/api-fetch";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { GetEventBySlugResponseSchema } from "~/routes/api/events/by-slug/[slug].schema";
@@ -81,30 +82,35 @@ export default function EditEventPage() {
   }
 
   return (
-    <main class="mx-auto max-w-2xl px-6 py-12">
-      <Title>Edit event — Vegan Activists NL</Title>
-      <h1 class="mb-6 text-2xl font-semibold">Edit event</h1>
+    <>
+      <Navbar />
+      <main class="mx-auto max-w-2xl px-6 py-12">
+        <Title>Edit event — Vegan Activists NL</Title>
+        <h1 class="mb-6 text-2xl font-semibold">Edit event</h1>
 
-      <Show
-        when={!event.loading && !me.loading && !placeLabel.loading}
-        fallback={<p class="text-zinc-600">Loading…</p>}
-      >
-        <Show when={event()} fallback={<p class="text-zinc-600">Event not found.</p>}>
-          {(currentEvent) => (
-            <Show
-              when={canEdit()}
-              fallback={<p class="text-zinc-600">You don't have permission to edit this event.</p>}
-            >
-              <EventForm
-                initial={eventFormValuesFromEvent(currentEvent(), placeLabel() ?? "")}
-                submitLabel="Save changes"
-                submittingLabel="Saving…"
-                onSubmit={onSubmit}
-              />
-            </Show>
-          )}
+        <Show
+          when={!event.loading && !me.loading && !placeLabel.loading}
+          fallback={<p class="text-zinc-600">Loading…</p>}
+        >
+          <Show when={event()} fallback={<p class="text-zinc-600">Event not found.</p>}>
+            {(currentEvent) => (
+              <Show
+                when={canEdit()}
+                fallback={
+                  <p class="text-zinc-600">You don't have permission to edit this event.</p>
+                }
+              >
+                <EventForm
+                  initial={eventFormValuesFromEvent(currentEvent(), placeLabel() ?? "")}
+                  submitLabel="Save changes"
+                  submittingLabel="Saving…"
+                  onSubmit={onSubmit}
+                />
+              </Show>
+            )}
+          </Show>
         </Show>
-      </Show>
-    </main>
+      </main>
+    </>
   );
 }

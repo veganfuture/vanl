@@ -213,6 +213,26 @@ export class EventRepository {
     });
   }
 
+  /** All of a publisher's own events regardless of status, soonest first - backs "My events". */
+  listEventsByPublisher(publisherUserId: UserId): ResultAsync<Event[], DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        select * from events where publisher_user_id = ${publisherUserId.value} order by start_at asc
+      `,
+      (cause): DbError => ({ message: "Failed to list events by publisher", cause }),
+    ).andThen((rows) => {
+      const mapped: Event[] = [];
+      for (const row of rows) {
+        const result = mapEventRow(row);
+        if (result.isErr()) {
+          return err<Event[], DbError>(result.error);
+        }
+        mapped.push(result.value);
+      }
+      return ok(mapped);
+    });
+  }
+
   updateEvent(
     id: EventId,
     fields: EditableEventFields,

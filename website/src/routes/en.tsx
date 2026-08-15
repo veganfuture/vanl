@@ -1,6 +1,7 @@
 import { Link, Meta, Title } from "@solidjs/meta";
 import { GROUPS } from "~/lib/groups";
 import { Landing } from "~/components/Landing";
+import { Navbar } from "~/components/Navbar";
 import { BASE_URL } from "~/lib/metadata";
 
 export default function PageEN() {
@@ -10,6 +11,7 @@ export default function PageEN() {
       <Meta property="og:locale" content="en_US" />
       <Link rel="alternate" hreflang="en" href={`${BASE_URL}/en`} />
       <Link rel="alternate" hreflang="nl" href={`${BASE_URL}/nl`} />
+      <Navbar />
       <Landing
         locale="en"
         dict={{
