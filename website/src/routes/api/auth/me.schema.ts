@@ -7,6 +7,13 @@ import { z } from "zod";
  * reading) into the client bundle.
  */
 export const MeResponseSchema = z.object({
-  user: z.object({ accountName: z.string(), displayName: z.string() }).nullable(),
+  user: z
+    .object({
+      id: z.string(),
+      accountName: z.string(),
+      displayName: z.string(),
+      isSiteAdmin: z.boolean(),
+    })
+    .nullable(),
 });
 export type MeResponse = z.infer<typeof MeResponseSchema>;
