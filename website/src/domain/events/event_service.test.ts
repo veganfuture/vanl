@@ -121,12 +121,35 @@ describe("createEvent", () => {
     const publisher = await makeUser("publisher-with-nl-only");
     const result = await service.createEvent(
       publisher,
-      baseInput({ titleNl: "Alleen Nederlands", titleEn: null }),
+      baseInput({
+        titleNl: "Alleen Nederlands",
+        titleEn: null,
+        descriptionNl: "Een Nederlandse beschrijving",
+        descriptionEn: null,
+      }),
     );
 
     const event = result._unsafeUnwrap();
     expect(event.titleNl).toBe("Alleen Nederlands");
     expect(event.titleEn).toBeNull();
+  });
+
+  it("rejects a title given without a matching-language description", async () => {
+    const publisher = await makeUser("publisher-with-mismatched-nl");
+    const result = await service.createEvent(
+      publisher,
+      baseInput({ titleNl: "Titel zonder beschrijving", descriptionNl: null }),
+    );
+    expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
+  it("rejects creating an event with a startAt in the past", async () => {
+    const publisher = await makeUser("publisher-with-past-start");
+    const result = await service.createEvent(
+      publisher,
+      baseInput({ startAt: new Date(Date.now() - 24 * 60 * 60 * 1000) }),
+    );
+    expect(result._unsafeUnwrapErr()).toBe("validation");
   });
 
   it("rejects endAt before startAt", async () => {

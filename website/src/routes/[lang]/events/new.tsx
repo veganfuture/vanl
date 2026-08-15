@@ -70,6 +70,7 @@ export default function NewEventPage() {
             initial={emptyEventFormValues()}
             submitLabel={t("Evenement aanmaken", "Create event")}
             submittingLabel={t("Bezig met aanmaken…", "Creating…")}
+            requireFutureStart
             onSubmit={onSubmit}
           />
         </Show>

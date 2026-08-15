@@ -142,6 +142,8 @@ export function EventForm(props: {
   initial: EventFormValues;
   submitLabel: string;
   submittingLabel: string;
+  /** New events can't start in the past - editing an existing (possibly already-past) event isn't restricted. */
+  requireFutureStart?: boolean;
   onSubmit: (values: EventFormValues) => Promise<{ ok: true } | { ok: false; message: string }>;
 }) {
   const t = (nl: string, en: string) => (props.lang === "nl" ? nl : en);
@@ -207,8 +209,8 @@ export function EventForm(props: {
     <form class="space-y-4" onSubmit={onSubmit}>
       <p class="text-xs text-zinc-500">
         {t(
-          "Vul de titel en beschrijving in het Nederlands, Engels, of beide in.",
-          "Fill in the title and description in Dutch, English, or both.",
+          "Vul titel en beschrijving samen in het Nederlands, Engels, of beide in.",
+          "Fill in title and description together, in Dutch, English, or both.",
         )}
       </p>
 
@@ -259,6 +261,9 @@ export function EventForm(props: {
             type="datetime-local"
             class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
             required
+            min={
+              props.requireFutureStart ? isoToLocalDateTime(new Date().toISOString()) : undefined
+            }
             value={values().startAt}
             onInput={(e) => setValues({ ...values(), startAt: e.currentTarget.value })}
           />
@@ -472,7 +477,10 @@ export function EventForm(props: {
         disabled={
           submitting() ||
           !(values().titleNl.trim() || values().titleEn.trim()) ||
-          !(values().descriptionNl.trim() || values().descriptionEn.trim()) ||
+          !!values().titleNl.trim() !== !!values().descriptionNl.trim() ||
+          !!values().titleEn.trim() !== !!values().descriptionEn.trim() ||
+          (props.requireFutureStart &&
+            (!values().startAt || new Date(values().startAt) <= new Date())) ||
           (values().locationKind === "precise_address"
             ? !values().pdokAddressId
             : !values().placeId)

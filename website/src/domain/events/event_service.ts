@@ -76,9 +76,13 @@ const EventInputSchema = z
     message: "at least one of titleNl/titleEn is required",
     path: ["titleNl"],
   })
-  .refine((data) => data.descriptionNl !== null || data.descriptionEn !== null, {
-    message: "at least one of descriptionNl/descriptionEn is required",
+  .refine((data) => (data.titleNl !== null) === (data.descriptionNl !== null), {
+    message: "titleNl and descriptionNl must be given together",
     path: ["descriptionNl"],
+  })
+  .refine((data) => (data.titleEn !== null) === (data.descriptionEn !== null), {
+    message: "titleEn and descriptionEn must be given together",
+    path: ["descriptionEn"],
   });
 
 export type CreateEventError = "validation" | "internal_error";
@@ -115,6 +119,13 @@ export class EventService {
     const parsed = EventInputSchema.safeParse(input);
     if (!parsed.success) {
       logger.warn({ err: parsed.error }, "event creation rejected: invalid input");
+      return errAsync("validation");
+    }
+    if (parsed.data.startAt <= new Date()) {
+      logger.warn(
+        { startAt: parsed.data.startAt },
+        "event creation rejected: startAt is in the past",
+      );
       return errAsync("validation");
     }
 
