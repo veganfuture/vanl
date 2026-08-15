@@ -116,6 +116,28 @@
         }
       '';
 
+      devDbRepl = pkgs.writeScriptBin "devdb-repl" ''
+        ${nuShellScript}
+
+        def main [--repo-dir: string = "."] {
+          let repo_dir = ($repo_dir | path expand)
+          let data_dir = ($repo_dir | path join ".devdb" "data")
+          let pid_file = ($data_dir | path join "postmaster.pid")
+
+          if not ($pid_file | path exists) {
+            print -e "Dev Postgres is not running. Start it with: nix run .#devdb-start"
+            exit 1
+          }
+
+          # Args must be a list spread with ...$args, not bare tokens after
+          # `exec` — nushell's `exec` has its own -h/--help flag, so a literal
+          # `-h` here gets parsed as exec's --help (swallowing every arg after
+          # it) instead of being passed through to psql.
+          let psql_args = ["-h" "127.0.0.1" "-p" "${toString devDbPort}" "-U" "vanl" "vanl_dev"]
+          exec ${pkgs.postgresql}/bin/psql ...$psql_args
+        }
+      '';
+
       devDbStop = pkgs.writeScriptBin "devdb-stop" ''
         ${nuShellScript}
 
@@ -291,6 +313,10 @@
         devdb-status = {
           type = "app";
           program = "${devDbStatus}/bin/devdb-status";
+        };
+        devdb-repl = {
+          type = "app";
+          program = "${devDbRepl}/bin/devdb-repl";
         };
         devdb-stop = {
           type = "app";

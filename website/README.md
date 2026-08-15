@@ -68,6 +68,14 @@ nix run .#devdb-status
 Exits 0 and prints `Dev Postgres is running on 127.0.0.1:54329.` if it is; exits 1 with a
 message otherwise.
 
+### Open a psql prompt against it
+
+```bash
+nix run .#devdb-repl
+```
+
+Connects to `vanl_dev` as the `vanl` user. No password needed (same `--auth=trust` as above).
+
 ### Stop it
 
 ```bash
