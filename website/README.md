@@ -117,14 +117,16 @@ it means Postgres isn't reachable at the `[database]` host/port in whichever con
 
 ## Environment Variables
 
-On top of `configs/*.toml`, the website reads one secret from the environment:
+On top of `configs/*.toml`, the website reads secrets from the environment:
 
 | Variable | Purpose |
 | --- | --- |
 | `VANL_BOT_API_SHARED_SECRET` | Authenticates this site's calls into the bot's local HTTP API (relaying OTP login codes over Signal). |
+| `DEV_ACI` | Optional, dev-only. Your own Signal ACI — if set, `bun run migrate` seeds a `dev` user with that ACI and grants it `site_admin`, so you can log in as yourself locally without going through signup. Unset in CI/prod; never commit it (put it in your own untracked `.envrc`). |
 
-It must match the bot's own `VANL_BOT_API_SHARED_SECRET` — see `../bot/README.md`, section
-"Environment Variables", for how to generate one and where it's used on the bot side.
+`VANL_BOT_API_SHARED_SECRET` must match the bot's own `VANL_BOT_API_SHARED_SECRET` — see
+`../bot/README.md`, section "Environment Variables", for how to generate one and where it's used
+on the bot side.
 
 ## Configuration
 
