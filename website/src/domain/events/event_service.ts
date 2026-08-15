@@ -7,6 +7,7 @@ import { placeRepository, type PlaceRepository } from "~/domain/places/place_rep
 import type { Event, EventLocationKind } from "./event";
 import { EventRepository, type EditableEventFields } from "./event_repository";
 import type { EventId } from "./event_id";
+import { validateEvent } from "~/shared/events/event_validation";
 import { lookupAddress } from "./pdok-client";
 import { generateSlug } from "./slug";
 
@@ -16,9 +17,10 @@ export type ActingUser = { readonly id: UserId; readonly isSiteAdmin: boolean };
 /**
  * Same shape whether creating or updating - the caller (route layer) is
  * expected to have already parsed raw request JSON into these types (dates
- * as Date, absent optional fields as null, never ""). This service does
- * its own business-rule validation on top (non-empty after trim, endAt >
- * startAt, valid URLs), the same division of labor as auth_service.ts.
+ * as Date, absent optional fields as null, never ""). Business-rule
+ * validation (required-ness, cross-field constraints) is delegated to
+ * validateEvent (~/shared/events/event_validation.ts), shared with the client so its
+ * rules can never drift from what the server actually accepts.
  */
 export type EventInput = {
   /** Bilingual: a publisher fills in either language or both - at least one of each pair is required. */
@@ -44,46 +46,28 @@ const nullableTrimmed = z
   .nullable()
   .transform((v) => v?.trim() || null);
 
-const EventInputSchema = z
-  .object({
-    titleNl: nullableTrimmed,
-    titleEn: nullableTrimmed,
-    descriptionNl: nullableTrimmed,
-    descriptionEn: nullableTrimmed,
-    startAt: z.date(),
-    endAt: z.date().nullable(),
-    locationKind: z.enum(["precise_address", "meeting_point_city_only"]),
-    placeId: z.string().uuid().nullable(),
-    locationDescription: z.string().trim().min(1),
-    pdokAddressId: z.string().nullable(),
-    mapUrl: z.string().trim().url().nullable(),
-    externalEventUrl: z.string().trim().url().nullable(),
-    registrationUrl: z.string().trim().url().nullable(),
-  })
-  .refine((data) => data.endAt === null || data.endAt > data.startAt, {
-    message: "endAt must be after startAt",
-    path: ["endAt"],
-  })
-  .refine((data) => data.locationKind === "precise_address" || data.placeId !== null, {
-    message: "placeId is required unless locationKind is precise_address",
-    path: ["placeId"],
-  })
-  .refine((data) => data.locationKind !== "precise_address" || data.pdokAddressId !== null, {
-    message: "pdokAddressId is required when locationKind is precise_address",
-    path: ["pdokAddressId"],
-  })
-  .refine((data) => data.titleNl !== null || data.titleEn !== null, {
-    message: "at least one of titleNl/titleEn is required",
-    path: ["titleNl"],
-  })
-  .refine((data) => (data.titleNl !== null) === (data.descriptionNl !== null), {
-    message: "titleNl and descriptionNl must be given together",
-    path: ["descriptionNl"],
-  })
-  .refine((data) => (data.titleEn !== null) === (data.descriptionEn !== null), {
-    message: "titleEn and descriptionEn must be given together",
-    path: ["descriptionEn"],
-  });
+/**
+ * Shape/type coercion only - trimming, nullable transforms, and defensive
+ * format guards (uuid/url) against a malformed request body. The actual
+ * business rules (required-ness, cross-field constraints, friendly
+ * messages) live in validateEvent, shared with the client - see there
+ * for the single source of truth.
+ */
+const EventInputSchema = z.object({
+  titleNl: nullableTrimmed,
+  titleEn: nullableTrimmed,
+  descriptionNl: nullableTrimmed,
+  descriptionEn: nullableTrimmed,
+  startAt: z.date(),
+  endAt: z.date().nullable(),
+  locationKind: z.enum(["precise_address", "meeting_point_city_only"]),
+  placeId: z.string().uuid().nullable(),
+  locationDescription: z.string().trim(),
+  pdokAddressId: z.string().nullable(),
+  mapUrl: z.string().trim().url().nullable(),
+  externalEventUrl: z.string().trim().url().nullable(),
+  registrationUrl: z.string().trim().url().nullable(),
+});
 
 export type CreateEventError = "validation" | "internal_error";
 export type UpdateEventError = "not_found" | "forbidden" | "validation" | "internal_error";
@@ -121,11 +105,9 @@ export class EventService {
       logger.warn({ err: parsed.error }, "event creation rejected: invalid input");
       return errAsync("validation");
     }
-    if (parsed.data.startAt <= new Date()) {
-      logger.warn(
-        { startAt: parsed.data.startAt },
-        "event creation rejected: startAt is in the past",
-      );
+    const validation = validateEvent(parsed.data, { lang: "en", requireFutureStart: true });
+    if (validation.isErr()) {
+      logger.warn({ messages: validation.error }, "event creation rejected: invalid input");
       return errAsync("validation");
     }
 
@@ -188,6 +170,11 @@ export class EventService {
       const parsed = EventInputSchema.safeParse(input);
       if (!parsed.success) {
         logger.warn({ err: parsed.error }, "event update rejected: invalid input");
+        return errAsync<Event, UpdateEventError>("validation");
+      }
+      const validation = validateEvent(parsed.data, { lang: "en", requireFutureStart: false });
+      if (validation.isErr()) {
+        logger.warn({ messages: validation.error }, "event update rejected: invalid input");
         return errAsync<Event, UpdateEventError>("validation");
       }
       return this.resolveLocationFields(parsed.data).andThen((locationFields) => {
@@ -266,8 +253,9 @@ export class EventService {
   }
 
   /**
-   * For meeting_point_city_only, placeId comes straight from the input (the
-   * schema refine above already guarantees it's non-null there). For
+   * For meeting_point_city_only, placeId comes straight from the input
+   * (validateEvent already guarantees it's non-null there, called before
+   * this method runs). For
    * precise_address, the PDOK free-text address search is the *only* way a
    * publisher specifies a location - there's no manual place/description
    * fallback - so both placeId and the structured PDOK fields must resolve

@@ -1,4 +1,5 @@
 import { createSignal, For, Show } from "solid-js";
+import { validateEvent, type ValidatableEvent } from "~/shared/events/event_validation";
 import { apiFetch, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { makeT, type Locale } from "~/lib/i18n";
 import type { EventJson } from "~/routes/api/events/event.schema";
@@ -129,6 +130,24 @@ export function eventFormValuesFromEvent(event: EventJson, placeLabel: string): 
   };
 }
 
+function toValidatableEvent(values: EventFormValues): ValidatableEvent {
+  return {
+    titleNl: values.titleNl.trim() || null,
+    titleEn: values.titleEn.trim() || null,
+    descriptionNl: values.descriptionNl.trim() || null,
+    descriptionEn: values.descriptionEn.trim() || null,
+    startAt: values.startAt ? new Date(values.startAt) : null,
+    endAt: values.endAt ? new Date(values.endAt) : null,
+    locationKind: values.locationKind,
+    placeId: values.locationKind === "precise_address" ? null : values.placeId || null,
+    locationDescription: values.locationDescription.trim(),
+    pdokAddressId: values.pdokAddressId,
+    mapUrl: values.mapUrl.trim() || null,
+    externalEventUrl: values.externalEventUrl.trim() || null,
+    registrationUrl: values.registrationUrl.trim() || null,
+  };
+}
+
 function debounced<T>(fn: (arg: T) => void, delayMs: number): (arg: T) => void {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   return (arg: T) => {
@@ -158,6 +177,7 @@ export function EventForm(props: {
   const [values, setValues] = createSignal(props.initial);
   const [submitting, setSubmitting] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+  const [validationMessages, setValidationMessages] = createSignal<string[]>([]);
 
   const [placeResults, setPlaceResults] = createSignal<SearchPlacesResponse["places"]>([]);
   const [placeQuery, setPlaceQuery] = createSignal(props.initial.placeLabel);
@@ -193,8 +213,19 @@ export function EventForm(props: {
 
   async function onSubmit(submitEvent: SubmitEvent) {
     submitEvent.preventDefault();
-    setSubmitting(true);
     setError(null);
+    setValidationMessages([]);
+
+    const validation = validateEvent(toValidatableEvent(values()), {
+      lang: props.lang,
+      requireFutureStart: !!props.requireFutureStart,
+    });
+    if (validation.isErr()) {
+      setValidationMessages(validation.error);
+      return;
+    }
+
+    setSubmitting(true);
     try {
       const outcome = await props.onSubmit(values());
       if (!outcome.ok) {
@@ -470,21 +501,17 @@ export function EventForm(props: {
         />
       </label>
 
+      <Show when={validationMessages().length > 0}>
+        <ul class="list-inside list-disc space-y-1 text-red-700">
+          <For each={validationMessages()}>{(message) => <li>{message}</li>}</For>
+        </ul>
+      </Show>
+
       <Show when={error()}>{(message) => <p class="text-red-700">{message()}</p>}</Show>
 
       <button
         type="submit"
-        disabled={
-          submitting() ||
-          !(values().titleNl.trim() || values().titleEn.trim()) ||
-          !!values().titleNl.trim() !== !!values().descriptionNl.trim() ||
-          !!values().titleEn.trim() !== !!values().descriptionEn.trim() ||
-          (props.requireFutureStart &&
-            (!values().startAt || new Date(values().startAt) <= new Date())) ||
-          (values().locationKind === "precise_address"
-            ? !values().pdokAddressId
-            : !values().placeId)
-        }
+        disabled={submitting()}
         class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
       >
         {submitting() ? props.submittingLabel : props.submitLabel}
