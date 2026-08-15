@@ -7,6 +7,7 @@ import time
 from loguru import logger
 
 from bot.api_server import BotApiServer
+from bot.bot_env import BotEnv
 from bot.bot_feature import BotFeature
 from bot.config import BotConfig
 from bot.signal_cli import SignalClient, create_signal_client
@@ -27,9 +28,9 @@ Starting Up Bot
 """
 
 
-def run_bot(config: BotConfig) -> None:
+def run_bot(config: BotConfig, env: BotEnv) -> None:
     try:
-        asyncio.run(_run_bot_async(config))
+        asyncio.run(_run_bot_async(config, env))
     except KeyboardInterrupt:
         pass
     except Exception:
@@ -37,14 +38,14 @@ def run_bot(config: BotConfig) -> None:
         raise
 
 
-async def _run_bot_async(config: BotConfig) -> None:
+async def _run_bot_async(config: BotConfig, env: BotEnv) -> None:
     client = create_signal_client(
         command_timeout_seconds=config.signal_cli_timeout_seconds,
         receive_timeout_seconds=config.signal_receive_timeout_seconds,
         daemon_socket_path=config.signal_daemon_socket_path,
     )
-    features = _build_features(config, client)
-    api_server = BotApiServer(config.bot_api, client) if config.bot_api else None
+    features = _build_features(config, client, env)
+    api_server = BotApiServer(config.bot_api, client, env) if config.bot_api else None
     runtime = SignalBotRunner(config, client, features, api_server)
     await runtime.run()
 
@@ -121,10 +122,12 @@ class SignalBotRunner:
             logger.info(SHUTDOWN_MSG)
 
 
-def _build_features(config: BotConfig, client: SignalClient) -> list[BotFeature]:
+def _build_features(
+    config: BotConfig, client: SignalClient, env: BotEnv
+) -> list[BotFeature]:
     features: list[BotFeature] = []
     if config.welcome_feature is not None:
         features.append(WelcomeFeature(config.welcome_feature, client))
     if config.signup_feature is not None:
-        features.append(SignupFeature(config.signup_feature, client))
+        features.append(SignupFeature(config.signup_feature, client, env))
     return features

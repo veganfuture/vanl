@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import os
-
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from loguru import logger
 
 from bot import signup_token
+from bot.bot_env import BotEnv
 from bot.config import SignupFeatureConfig
 from bot.signal_cli import SignalClient, SignalPayload
 
@@ -18,20 +17,21 @@ class SignupFeature:
 
     name = "signup"
 
-    def __init__(self, config: SignupFeatureConfig, client: SignalClient) -> None:
+    def __init__(
+        self, config: SignupFeatureConfig, client: SignalClient, env: BotEnv
+    ) -> None:
         self.config = config
         self.client = client
+        self.env = env
         self._private_key: Ed25519PrivateKey | None = None
 
     async def setup(self) -> None:
         """
-        Load the signing key from the environment.
+        Load the signing key from the injected environment.
 
         Returns: None
         """
-        self._private_key = signup_token.load_private_key(
-            _require_env("VANL_SIGNUP_PRIVATE_KEY")
-        )
+        self._private_key = signup_token.load_private_key(self.env.signup_private_key)
 
     async def handle_payloads(
         self,
@@ -88,10 +88,3 @@ class SignupFeature:
                 "SignupFeature.setup() must run before handling payloads"
             )
         return self._private_key
-
-
-def _require_env(name: str) -> str:
-    value = os.environ.get(name)
-    if not value:
-        raise RuntimeError(f"Missing required environment variable: {name}")
-    return value

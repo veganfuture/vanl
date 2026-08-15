@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import os
 import unittest
-from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from bot.__test__.mock_signal_client import MockSignalClient
 from bot.api_server import BotApiServer
+from bot.bot_env import BotEnv
 from bot.config import BotApiConfig
 
 
@@ -19,13 +18,15 @@ def _config() -> BotApiConfig:
     )
 
 
+def _env() -> BotEnv:
+    return BotEnv(
+        signup_private_key="unused-in-these-tests",
+        bot_api_shared_secret="test-shared-secret",
+    )
+
+
 def _server_with_secret(client: MockSignalClient) -> BotApiServer:
-    server = BotApiServer(_config(), client)
-    with patch.dict(
-        os.environ, {"VANL_BOT_API_SHARED_SECRET": "test-shared-secret"}, clear=False
-    ):
-        server._load_secret()
-    return server
+    return BotApiServer(_config(), client, _env())
 
 
 class BotApiServerTests(unittest.IsolatedAsyncioTestCase):

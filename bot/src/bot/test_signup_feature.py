@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import os
 import unittest
-from unittest.mock import patch
 
 from bot.__test__.mock_signal_client import MockSignalClient
+from bot.bot_env import BotEnv
 from bot.config import SignupFeatureConfig
 from bot.signal_cli import (
     DataMessage,
@@ -27,12 +26,13 @@ def _config() -> SignupFeatureConfig:
 
 
 async def _feature_with_secrets(client: MockSignalClient) -> SignupFeature:
-    feature = SignupFeature(_config(), client)
     seed_b64, _public_b64 = generate_keypair()
-    with patch.dict(
-        os.environ, {"VANL_SIGNUP_PRIVATE_KEY": seed_b64}, clear=False
-    ):
-        await feature.setup()
+    env = BotEnv(
+        signup_private_key=seed_b64,
+        bot_api_shared_secret="unused-in-these-tests",
+    )
+    feature = SignupFeature(_config(), client, env)
+    await feature.setup()
     return feature
 
 

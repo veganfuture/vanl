@@ -64,6 +64,62 @@ When a new commit is detected:
 
 ---
 
+# Environment Variables
+
+On top of its TOML config file, the bot reads a couple of secrets from the
+environment. They're loaded once up front (`BotEnv.load()` in
+`src/bot/bot_env.py`) — if any are missing, the bot refuses to start and
+prints exactly which ones, what they're for, and how to get them, instead of
+failing later with a confusing error.
+
+| Variable | Purpose |
+| --- | --- |
+| `VANL_SIGNUP_PRIVATE_KEY` | Signs the signup links the bot sends over Signal. |
+| `VANL_BOT_API_SHARED_SECRET` | Authenticates the website's calls into the bot's local HTTP API. |
+
+Set them in your shell (e.g. via `.envrc`/`.env` for local development), or
+as `Environment=` entries in the `bot.service` systemd unit in production.
+
+## `VANL_SIGNUP_PRIVATE_KEY`
+
+An Ed25519 keypair used to sign the single-use signup links the bot sends to
+people over Signal. The bot holds the private key (this environment
+variable); the website is given the matching public key (the
+`signup_public_key` field in its own TOML config) to verify those signatures.
+
+Generate a fresh keypair with:
+
+```sh
+nix run .#generate-signup-key
+```
+
+This prints two lines:
+
+```
+VANL_SIGNUP_PRIVATE_KEY (bot secret, env var)  = <...>
+signup_public_key (website config, not secret) = <...>
+```
+
+Set the first as the bot's `VANL_SIGNUP_PRIVATE_KEY` environment variable,
+and put the second in the website's config under `signup_public_key`.
+
+## `VANL_BOT_API_SHARED_SECRET`
+
+A plain shared secret (not a keypair) the website sends as a Bearer token
+when it calls the bot's local HTTP API (to relay a one-time login code over
+Signal, see `src/bot/api_server.py`). Any sufficiently random string works —
+generate one with:
+
+```sh
+openssl rand -hex 32
+```
+
+Set the exact same value as `VANL_BOT_API_SHARED_SECRET` in both the bot's
+environment and the website's environment — they must match, since it's a
+shared secret rather than a keypair.
+
+---
+
 # Server Setup
 
 These steps are only needed once.
