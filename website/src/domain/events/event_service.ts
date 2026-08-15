@@ -3,6 +3,7 @@ import { z } from "zod";
 import { UserId } from "../auth/user_id";
 import { sql } from "~/lib/db";
 import { logger } from "~/lib/logger";
+import { placeRepository, type PlaceRepository } from "~/domain/places/place_repository";
 import type { Event, EventLocationKind } from "./event";
 import { EventRepository, type EditableEventFields } from "./event_repository";
 import type { EventId } from "./event_id";
@@ -25,9 +26,10 @@ export type EventInput = {
   startAt: Date;
   endAt: Date | null;
   locationKind: EventLocationKind;
-  placeId: string;
+  /** Required unless locationKind = precise_address, where it's resolved from the PDOK lookup instead. */
+  placeId: string | null;
   locationDescription: string;
-  /** Only meaningful when locationKind = precise_address; the selected PDOK suggestion's id. */
+  /** Required when locationKind = precise_address - the selected PDOK suggestion's id. Ignored otherwise. */
   pdokAddressId: string | null;
   mapUrl: string | null;
   contactInfo: string | null;
@@ -42,13 +44,8 @@ const EventInputSchema = z
     description: z.string().trim().min(1),
     startAt: z.date(),
     endAt: z.date().nullable(),
-    locationKind: z.enum([
-      "precise_address",
-      "city_only",
-      "meeting_point_city_only",
-      "location_tbd",
-    ]),
-    placeId: z.string().uuid(),
+    locationKind: z.enum(["precise_address", "meeting_point_city_only"]),
+    placeId: z.string().uuid().nullable(),
     locationDescription: z.string().trim().min(1),
     pdokAddressId: z.string().nullable(),
     mapUrl: z.string().trim().url().nullable(),
@@ -60,6 +57,14 @@ const EventInputSchema = z
   .refine((data) => data.endAt === null || data.endAt > data.startAt, {
     message: "endAt must be after startAt",
     path: ["endAt"],
+  })
+  .refine((data) => data.locationKind === "precise_address" || data.placeId !== null, {
+    message: "placeId is required unless locationKind is precise_address",
+    path: ["placeId"],
+  })
+  .refine((data) => data.locationKind !== "precise_address" || data.pdokAddressId !== null, {
+    message: "pdokAddressId is required when locationKind is precise_address",
+    path: ["pdokAddressId"],
   });
 
 export type CreateEventError = "validation" | "internal_error";
@@ -86,7 +91,10 @@ const NULL_PDOK_FIELDS: PdokFields = {
 };
 
 export class EventService {
-  constructor(private readonly repository: EventRepository) {}
+  constructor(
+    private readonly repository: EventRepository,
+    private readonly placeRepository: PlaceRepository,
+  ) {}
 
   /** Any authenticated user may create an event published as themselves (permission matrix §3). */
   createEvent(publisherUserId: UserId, input: EventInput): ResultAsync<Event, CreateEventError> {
@@ -96,7 +104,7 @@ export class EventService {
       return errAsync("validation");
     }
 
-    return this.resolvePdokFields(parsed.data).andThen((pdokFields) =>
+    return this.resolveLocationFields(parsed.data).andThen((locationFields) =>
       this.repository
         .createEvent({
           slug: generateSlug(parsed.data.title),
@@ -105,9 +113,8 @@ export class EventService {
           startAt: parsed.data.startAt,
           endAt: parsed.data.endAt,
           locationKind: parsed.data.locationKind,
-          placeId: parsed.data.placeId,
           locationDescription: parsed.data.locationDescription,
-          ...pdokFields,
+          ...locationFields,
           mapUrl: parsed.data.mapUrl,
           contactInfo: parsed.data.contactInfo,
           registrationInstructions: parsed.data.registrationInstructions,
@@ -150,16 +157,15 @@ export class EventService {
         logger.warn({ err: parsed.error }, "event update rejected: invalid input");
         return errAsync<Event, UpdateEventError>("validation");
       }
-      return this.resolvePdokFields(parsed.data).andThen((pdokFields) => {
+      return this.resolveLocationFields(parsed.data).andThen((locationFields) => {
         const fields: EditableEventFields = {
           title: parsed.data.title,
           description: parsed.data.description,
           startAt: parsed.data.startAt,
           endAt: parsed.data.endAt,
           locationKind: parsed.data.locationKind,
-          placeId: parsed.data.placeId,
           locationDescription: parsed.data.locationDescription,
-          ...pdokFields,
+          ...locationFields,
           mapUrl: parsed.data.mapUrl,
           contactInfo: parsed.data.contactInfo,
           registrationInstructions: parsed.data.registrationInstructions,
@@ -226,29 +232,56 @@ export class EventService {
       });
   }
 
-  private resolvePdokFields(
+  /**
+   * For meeting_point_city_only, placeId comes straight from the input (the
+   * schema refine above already guarantees it's non-null there). For
+   * precise_address, the PDOK free-text address search is the *only* way a
+   * publisher specifies a location - there's no manual place/description
+   * fallback - so both placeId and the structured PDOK fields must resolve
+   * together from the same lookup, or the save fails outright.
+   */
+  private resolveLocationFields(
     input: z.infer<typeof EventInputSchema>,
-  ): ResultAsync<PdokFields, never> {
-    if (input.locationKind !== "precise_address" || !input.pdokAddressId) {
-      return okAsync(NULL_PDOK_FIELDS);
+  ): ResultAsync<PdokFields & { placeId: string }, "validation"> {
+    if (input.locationKind !== "precise_address") {
+      return okAsync({ placeId: input.placeId as string, ...NULL_PDOK_FIELDS });
     }
-    return lookupAddress(input.pdokAddressId)
-      .map((address) => ({
-        locationStreet: address.street,
-        locationHouseNumber: address.houseNumber,
-        locationPostcode: address.postcode,
-        locationLat: address.lat,
-        locationLng: address.lng,
-        locationPdokId: address.pdokId,
-      }))
-      .orElse((pdokError) => {
+
+    return lookupAddress(input.pdokAddressId as string)
+      .mapErr((pdokError): "validation" => {
         logger.warn(
           { err: pdokError },
-          "PDOK address lookup failed; saving event without a resolved address",
+          "PDOK address lookup failed; cannot resolve precise_address location",
         );
-        return okAsync(NULL_PDOK_FIELDS);
-      });
+        return "validation";
+      })
+      .andThen((address) =>
+        this.placeRepository
+          .findPlaceByName(address.woonplaatsNaam)
+          .mapErr((dbError): "validation" => {
+            logger.error({ err: dbError }, "failed to resolve place for precise_address event");
+            return "validation";
+          })
+          .andThen((place): ResultAsync<PdokFields & { placeId: string }, "validation"> => {
+            if (!place) {
+              logger.warn(
+                { woonplaatsNaam: address.woonplaatsNaam },
+                "PDOK-resolved city has no matching place row; cannot save precise_address event",
+              );
+              return errAsync("validation");
+            }
+            return okAsync({
+              placeId: place.id,
+              locationStreet: address.street,
+              locationHouseNumber: address.houseNumber,
+              locationPostcode: address.postcode,
+              locationLat: address.lat,
+              locationLng: address.lng,
+              locationPdokId: address.pdokId,
+            });
+          }),
+      );
   }
 }
 
-export const eventService = new EventService(new EventRepository(sql));
+export const eventService = new EventService(new EventRepository(sql), placeRepository);

@@ -21,7 +21,7 @@ create table places (
 create index places_name_idx on places (name);
 
 create type event_location_kind as enum (
-  'precise_address', 'city_only', 'meeting_point_city_only', 'location_tbd'
+  'precise_address', 'meeting_point_city_only'
 );
 
 create type event_status as enum ('hidden', 'visible', 'cancelled');
@@ -43,10 +43,11 @@ create table events (
   place_id uuid not null references places (id),
   location_description text not null,
 
-  -- Best-effort PDOK Locatieserver lookup result for location_kind =
-  -- precise_address; null if the publisher's event isn't precise_address, or
-  -- if it is but PDOK was unreachable when they saved (never a hard
-  -- requirement to publish - see docs/milestones.md M3).
+  -- PDOK Locatieserver lookup result for location_kind = precise_address -
+  -- the PDOK free-text address search is the only way a publisher specifies
+  -- a precise_address location (also resolves place_id, see event_service.ts
+  -- resolveLocationFields), so these are always populated together with it.
+  -- Null for every other location_kind.
   location_street text,
   location_house_number text,
   location_postcode text,

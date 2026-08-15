@@ -43,6 +43,14 @@ export class PlaceRepository {
     ).andThen((rows): Result<Place | null, DbError> => (rows[0] ? mapPlaceRow(rows[0]) : ok(null)));
   }
 
+  /** Exact match on the canonical PDOK woonplaats name - used to resolve a precise_address event's place from its PDOK address lookup. */
+  findPlaceByName(name: string): ResultAsync<Place | null, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`select * from places where name = ${name}`,
+      (cause): DbError => ({ message: "Failed to find place by name", cause }),
+    ).andThen((rows): Result<Place | null, DbError> => (rows[0] ? mapPlaceRow(rows[0]) : ok(null)));
+  }
+
   /** Places, not user-editable (seeded once from pdok.nl) - a simple prefix/substring search is enough. */
   searchPlaces(query: string): ResultAsync<Place[], DbError> {
     return ResultAsync.fromPromise(

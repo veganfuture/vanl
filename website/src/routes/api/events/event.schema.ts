@@ -14,7 +14,7 @@ export const EventJsonSchema = z.object({
   description: z.string(),
   startAt: z.string(),
   endAt: z.string().nullable(),
-  locationKind: z.enum(["precise_address", "city_only", "meeting_point_city_only", "location_tbd"]),
+  locationKind: z.enum(["precise_address", "meeting_point_city_only"]),
   placeId: z.string(),
   locationDescription: z.string(),
   locationStreet: z.string().nullable(),
@@ -70,10 +70,11 @@ export const EventRequestSchema = z.object({
   description: z.string().min(1),
   startAt: z.string().datetime(),
   endAt: z.string().datetime().nullable(),
-  locationKind: z.enum(["precise_address", "city_only", "meeting_point_city_only", "location_tbd"]),
-  placeId: z.string().uuid(),
+  locationKind: z.enum(["precise_address", "meeting_point_city_only"]),
+  /** Required unless locationKind = precise_address, where the server resolves it from the PDOK lookup instead. */
+  placeId: z.string().uuid().nullable(),
   locationDescription: z.string().min(1),
-  /** Only meaningful when locationKind = precise_address; the selected PDOK suggestion's id. */
+  /** Required when locationKind = precise_address - the selected PDOK suggestion's id. */
   pdokAddressId: z.string().nullable(),
   mapUrl: z.string().nullable(),
   contactInfo: z.string().nullable(),

@@ -5,9 +5,7 @@ import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
 
 const LOCATION_KIND_LABELS: Record<string, string> = {
   precise_address: "Precise address",
-  city_only: "City only",
   meeting_point_city_only: "Meeting point",
-  location_tbd: "Location TBD",
 };
 
 function formatDate(iso: string): string {

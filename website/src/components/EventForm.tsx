@@ -21,9 +21,7 @@ type LocationKind = EventJson["locationKind"];
 
 const LOCATION_KIND_LABELS: Record<LocationKind, string> = {
   precise_address: "Precise address",
-  city_only: "City only",
   meeting_point_city_only: "Meeting point (city shown, exact spot shared with attendees)",
-  location_tbd: "Location to be determined",
 };
 
 export type EventFormValues = {
@@ -50,7 +48,7 @@ export function emptyEventFormValues(): EventFormValues {
     description: "",
     startAt: "",
     endAt: "",
-    locationKind: "city_only",
+    locationKind: "precise_address",
     placeId: "",
     placeLabel: "",
     locationDescription: "",
@@ -222,9 +220,18 @@ export function EventForm(props: {
         <select
           class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
           value={values().locationKind}
-          onChange={(e) =>
-            setValues({ ...values(), locationKind: e.currentTarget.value as LocationKind })
-          }
+          onChange={(e) => {
+            setPlaceQuery("");
+            setAddressQuery("");
+            setValues({
+              ...values(),
+              locationKind: e.currentTarget.value as LocationKind,
+              placeId: "",
+              placeLabel: "",
+              pdokAddressId: null,
+              locationDescription: "",
+            });
+          }}
         >
           <For each={Object.entries(LOCATION_KIND_LABELS)}>
             {([kind, label]) => <option value={kind}>{label}</option>}
@@ -232,65 +239,73 @@ export function EventForm(props: {
         </select>
       </label>
 
-      <div class="relative block">
-        <span class="block text-sm font-medium">City / woonplaats</span>
-        <input
-          class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
-          required
-          placeholder="Start typing a Dutch city or town…"
-          value={placeQuery()}
-          onInput={(e) => {
-            const query = e.currentTarget.value;
-            setPlaceQuery(query);
-            setValues({ ...values(), placeId: "", placeLabel: "" });
-            searchPlaces(query);
-          }}
-        />
-        <Show when={placeResults().length > 0 && !values().placeId}>
-          <ul class="absolute z-10 mt-1 w-full rounded border border-zinc-300 bg-white shadow-lg">
-            <For each={placeResults()}>
-              {(place) => (
-                <li>
-                  <button
-                    type="button"
-                    class="block w-full px-3 py-2 text-left hover:bg-zinc-100"
-                    onClick={() => {
-                      setValues({ ...values(), placeId: place.id, placeLabel: place.name });
-                      setPlaceQuery(place.name);
-                      setPlaceResults([]);
-                    }}
-                  >
-                    {place.name} <span class="text-zinc-500">({place.municipalityName})</span>
-                  </button>
-                </li>
-              )}
-            </For>
-          </ul>
-        </Show>
-      </div>
+      <Show
+        when={values().locationKind === "precise_address"}
+        fallback={
+          <>
+            <div class="relative block">
+              <span class="block text-sm font-medium">City / woonplaats</span>
+              <input
+                class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+                required
+                placeholder="Start typing a Dutch city or town…"
+                value={placeQuery()}
+                onInput={(e) => {
+                  const query = e.currentTarget.value;
+                  setPlaceQuery(query);
+                  setValues({ ...values(), placeId: "", placeLabel: "" });
+                  searchPlaces(query);
+                }}
+              />
+              <Show when={placeResults().length > 0 && !values().placeId}>
+                <ul class="absolute z-10 mt-1 w-full rounded border border-zinc-300 bg-white shadow-lg">
+                  <For each={placeResults()}>
+                    {(place) => (
+                      <li>
+                        <button
+                          type="button"
+                          class="block w-full px-3 py-2 text-left hover:bg-zinc-100"
+                          onClick={() => {
+                            setValues({ ...values(), placeId: place.id, placeLabel: place.name });
+                            setPlaceQuery(place.name);
+                            setPlaceResults([]);
+                          }}
+                        >
+                          {place.name} <span class="text-zinc-500">({place.municipalityName})</span>
+                        </button>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </Show>
+            </div>
 
-      <label class="block">
-        <span class="block text-sm font-medium">Location description</span>
-        <input
-          class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
-          required
-          placeholder="e.g. Museumplein, or 'in front of the town hall'"
-          value={values().locationDescription}
-          onInput={(e) => setValues({ ...values(), locationDescription: e.currentTarget.value })}
-        />
-      </label>
-
-      <Show when={values().locationKind === "precise_address"}>
+            <label class="block">
+              <span class="block text-sm font-medium">Location description</span>
+              <input
+                class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+                required
+                placeholder="e.g. Museumplein, or 'in front of the town hall'"
+                value={values().locationDescription}
+                onInput={(e) =>
+                  setValues({ ...values(), locationDescription: e.currentTarget.value })
+                }
+              />
+            </label>
+          </>
+        }
+      >
         <div class="relative block">
-          <span class="block text-sm font-medium">Address (looked up via PDOK)</span>
+          <span class="block text-sm font-medium">Address</span>
           <input
             class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+            required
             placeholder="Start typing a street address…"
             value={addressQuery()}
             onInput={(e) => {
               const query = e.currentTarget.value;
               setAddressQuery(query);
-              setValues({ ...values(), pdokAddressId: null });
+              setValues({ ...values(), pdokAddressId: null, locationDescription: "" });
               searchAddresses(query);
             }}
           />
@@ -303,7 +318,11 @@ export function EventForm(props: {
                       type="button"
                       class="block w-full px-3 py-2 text-left hover:bg-zinc-100"
                       onClick={() => {
-                        setValues({ ...values(), pdokAddressId: suggestion.pdokId });
+                        setValues({
+                          ...values(),
+                          pdokAddressId: suggestion.pdokId,
+                          locationDescription: suggestion.label,
+                        });
                         setAddressQuery(suggestion.label);
                         setAddressResults([]);
                       }}
@@ -316,8 +335,8 @@ export function EventForm(props: {
             </ul>
           </Show>
           <p class="mt-1 text-xs text-zinc-500">
-            Optional — if PDOK can't be reached the event still saves fine with just the location
-            description above.
+            Search and pick your address here — this is the only way to set the location for a
+            precise-address event, and it needs PDOK to be reachable to save.
           </p>
         </div>
       </Show>
@@ -377,7 +396,12 @@ export function EventForm(props: {
 
       <button
         type="submit"
-        disabled={submitting() || !values().placeId}
+        disabled={
+          submitting() ||
+          (values().locationKind === "precise_address"
+            ? !values().pdokAddressId
+            : !values().placeId)
+        }
         class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
       >
         {submitting() ? props.submittingLabel : props.submitLabel}
@@ -393,7 +417,9 @@ export function toEventRequestBody(values: EventFormValues) {
     startAt: localDateTimeToIso(values.startAt) ?? "",
     endAt: localDateTimeToIso(values.endAt),
     locationKind: values.locationKind,
-    placeId: values.placeId,
+    // The server resolves placeId from the PDOK lookup for precise_address -
+    // it's never taken from client state for that kind.
+    placeId: values.locationKind === "precise_address" ? null : values.placeId || null,
     locationDescription: values.locationDescription.trim(),
     pdokAddressId: values.pdokAddressId,
     mapUrl: values.mapUrl.trim() || null,

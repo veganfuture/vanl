@@ -61,9 +61,9 @@ All primary keys are surrogate UUIDs. Business-facing identifiers (`account_name
 - `title`, `description`
 - `start_at` (timestamptz, stored as unix epoch, entered/rendered in `Europe/Amsterdam`)
 - `end_at` (nullable, same rules; validated `end_at > start_at` when present)
-- `location_kind` (enum: `precise_address`, `city_only`, `meeting_point_city_only`, `location_tbd`)
-- `place_id` (fk to Place, not null — every event has at least a canonical city)
-- `location_description` (text, not null — the publisher's free-text address/meeting-point/etc., preserved verbatim regardless of `location_kind`)
+- `location_kind` (enum: `precise_address`, `meeting_point_city_only`)
+- `place_id` (fk to Place, not null — every event has at least a canonical city; for `precise_address`, resolved server-side from the PDOK address lookup rather than chosen directly by the publisher)
+- `location_description` (text, not null — free text for `meeting_point_city_only`; for `precise_address` it's the PDOK-resolved address string, since the PDOK free-text search is the only way a publisher specifies that kind of location)
 - `map_url` (nullable, validated URL)
 - `contact_info`, `registration_instructions` (nullable text)
 - `external_event_url`, `registration_url` (nullable, validated URLs)

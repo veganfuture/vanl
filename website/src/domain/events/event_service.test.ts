@@ -15,10 +15,12 @@ vi.mock("./pdok-client", () => ({
 const { lookupAddress } = await import("./pdok-client");
 const { EventRepository } = await import("./event_repository");
 const { EventService } = await import("./event_service");
+const { PlaceRepository } = await import("../places/place_repository");
 
 const authRepository = new AuthRepository(sql);
 const repository = new EventRepository(sql);
-const service = new EventService(repository);
+const placeRepository = new PlaceRepository(sql);
+const service = new EventService(repository, placeRepository);
 
 let testPlaceId: string;
 
@@ -51,7 +53,7 @@ function baseInput(overrides: Partial<EventInput> = {}): EventInput {
     description: "A test event",
     startAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     endAt: null,
-    locationKind: "city_only",
+    locationKind: "meeting_point_city_only",
     placeId: testPlaceId,
     locationDescription: "Somewhere in town",
     pdokAddressId: null,
@@ -117,7 +119,7 @@ describe("createEvent", () => {
     expect(result._unsafeUnwrapErr()).toBe("validation");
   });
 
-  it("resolves PDOK fields for precise_address when the lookup succeeds", async () => {
+  it("resolves PDOK fields and placeId for precise_address when the lookup succeeds", async () => {
     const publisher = await makeUser("publisher-with-good-pdok");
     vi.mocked(lookupAddress).mockReturnValue(
       okAsync({
@@ -125,7 +127,7 @@ describe("createEvent", () => {
         street: "Europalaan",
         houseNumber: "93",
         postcode: "3526KP",
-        woonplaatsNaam: "Utrecht",
+        woonplaatsNaam: "Test Fixture City",
         lat: 52.06,
         lng: 5.1,
       }),
@@ -133,26 +135,66 @@ describe("createEvent", () => {
 
     const result = await service.createEvent(
       publisher,
-      baseInput({ locationKind: "precise_address", pdokAddressId: "adr-123" }),
+      baseInput({
+        locationKind: "precise_address",
+        placeId: null,
+        pdokAddressId: "adr-123",
+      }),
     );
 
     const event = result._unsafeUnwrap();
     expect(event.locationStreet).toBe("Europalaan");
     expect(event.locationPdokId).toBe("adr-123");
+    expect(event.placeId).toBe(testPlaceId);
   });
 
-  it("saves the event with null PDOK fields when PDOK is unreachable, instead of failing", async () => {
+  it("fails instead of saving a precise_address event when PDOK is unreachable", async () => {
     const publisher = await makeUser("publisher-with-down-pdok");
     vi.mocked(lookupAddress).mockReturnValue(errAsync({ message: "network error" }));
 
     const result = await service.createEvent(
       publisher,
-      baseInput({ locationKind: "precise_address", pdokAddressId: "adr-456" }),
+      baseInput({ locationKind: "precise_address", placeId: null, pdokAddressId: "adr-456" }),
     );
 
-    const event = result._unsafeUnwrap();
-    expect(event.locationStreet).toBeNull();
-    expect(event.locationPdokId).toBeNull();
+    expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
+  it("fails when the PDOK-resolved city has no matching place row", async () => {
+    const publisher = await makeUser("publisher-with-unknown-city");
+    vi.mocked(lookupAddress).mockReturnValue(
+      okAsync({
+        pdokId: "adr-789",
+        street: "Nergensweg",
+        houseNumber: "1",
+        postcode: "0000AA",
+        woonplaatsNaam: "Nonexistent Place That Was Never Seeded",
+        lat: 0,
+        lng: 0,
+      }),
+    );
+
+    const result = await service.createEvent(
+      publisher,
+      baseInput({ locationKind: "precise_address", placeId: null, pdokAddressId: "adr-789" }),
+    );
+
+    expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
+  it("rejects precise_address without a pdokAddressId", async () => {
+    const publisher = await makeUser("publisher-with-missing-pdok-id");
+    const result = await service.createEvent(
+      publisher,
+      baseInput({ locationKind: "precise_address", placeId: null, pdokAddressId: null }),
+    );
+    expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
+  it("rejects meeting_point_city_only without a placeId", async () => {
+    const publisher = await makeUser("publisher-with-missing-place");
+    const result = await service.createEvent(publisher, baseInput({ placeId: null }));
+    expect(result._unsafeUnwrapErr()).toBe("validation");
   });
 });
 

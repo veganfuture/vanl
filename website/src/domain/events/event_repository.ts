@@ -19,12 +19,7 @@ const EventRowSchema = z.object({
   description: z.string(),
   start_at: z.coerce.date(),
   end_at: z.coerce.date().nullable(),
-  location_kind: z.enum([
-    "precise_address",
-    "city_only",
-    "meeting_point_city_only",
-    "location_tbd",
-  ]),
+  location_kind: z.enum(["precise_address", "meeting_point_city_only"]),
   place_id: z.string(),
   location_description: z.string(),
   location_street: z.string().nullable(),

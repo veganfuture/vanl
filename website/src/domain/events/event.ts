@@ -1,8 +1,7 @@
 import type { UserId } from "../auth/user_id";
 import type { EventId } from "./event_id";
 
-export type EventLocationKind =
-  "precise_address" | "city_only" | "meeting_point_city_only" | "location_tbd";
+export type EventLocationKind = "precise_address" | "meeting_point_city_only";
 
 export type EventStatus = "hidden" | "visible" | "cancelled";
 
@@ -19,7 +18,7 @@ export type Event = {
   /** Canonical woonplaats. A foreign key, not wrapped in a value class - see Place. */
   placeId: string;
   locationDescription: string;
-  /** Best-effort PDOK Locatieserver result; only ever set for locationKind = precise_address. */
+  /** PDOK Locatieserver result; always set for locationKind = precise_address, always null otherwise. */
   locationStreet: string | null;
   locationHouseNumber: string | null;
   locationPostcode: string | null;
