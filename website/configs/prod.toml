@@ -21,5 +21,3 @@ bot_api_base_url = "http://127.0.0.1:8787"
 # in the bot's environment (never commit it). This placeholder deliberately
 # fails config validation so the server refuses to boot until it's replaced.
 signup_public_key = "REPLACE_WITH_REAL_PRODUCTION_PUBLIC_KEY"
-# Empty by default — no one is a site admin until explicitly configured here.
-site_admin_account_names = []

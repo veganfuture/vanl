@@ -143,8 +143,7 @@ export class AuthService {
             created === "nonce_already_used" ? errAsync("already_used") : okAsync(created),
           )
           .andThen((user) =>
-            this.ensureBootstrapAdminRole(user)
-              .andThen(() => this.startSession(user.id, user.accountName))
+            this.startSession(user.id, user.accountName)
               .mapErr((dbError): CompleteSignupError => {
                 logger.error({ err: dbError }, "failed to finish signup after creating user");
                 return "internal_error";
@@ -214,8 +213,7 @@ export class AuthService {
       )
       .andThen(({ user, challenge }) => {
         if (hashesEqual(hashOtpCode(code), challenge.codeHash)) {
-          return this.ensureBootstrapAdminRole(user)
-            .andThen(() => this.startSession(user.id, user.accountName))
+          return this.startSession(user.id, user.accountName)
             .mapErr((dbError): VerifyLoginError => {
               logger.error({ err: dbError }, "failed to finish login after verifying code");
               return "internal_error";
@@ -279,13 +277,6 @@ export class AuthService {
           httpOnly: false,
         }),
       ]);
-  }
-
-  private ensureBootstrapAdminRole(user: User): ResultAsync<void, DbError> {
-    if (this.config.site_admin_account_names.includes(user.accountName.value)) {
-      return this.repository.ensureGlobalRole(user.id, "site_admin");
-    }
-    return okAsync(undefined);
   }
 }
 

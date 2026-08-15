@@ -108,6 +108,13 @@ export class AuthRepository {
    * insert and the user insert happen in one transaction so a double-submit
    * of the same signup link can never create two accounts.
    *
+   * The very first account ever created becomes site_admin, so there's
+   * always a way in on a fresh install without configuring anything. Done
+   * in the same transaction as the insert, checking the count immediately
+   * after: good enough given how this app is actually used (signups only
+   * happen one at a time, DM-gated by the bot) — a true race between two
+   * concurrent "first" signups isn't guarded against.
+   *
    * Resolves to the new user, or "nonce_already_used" if this link was
    * already consumed (by a concurrent request or an earlier visit) — that's
    * an expected outcome the caller must branch on, not a DbError.
@@ -135,7 +142,14 @@ export class AuthRepository {
           )
           returning *
         `;
-        return rows[0];
+        const user = rows[0];
+
+        const [{ count }] = await tx`select count(*)::int as count from users`;
+        if (count === 1) {
+          await tx`insert into global_roles (user_id, role) values (${user.id}, 'site_admin')`;
+        }
+
+        return user;
       }),
       (cause): DbError => ({ message: "Failed to create user from signup", cause }),
     ).andThen((result): Result<User | "nonce_already_used", DbError> =>
@@ -178,16 +192,6 @@ export class AuthRepository {
   }
 
   // --- Global roles ---
-
-  ensureGlobalRole(userId: UserId, role: "site_admin"): ResultAsync<void, DbError> {
-    return ResultAsync.fromPromise(
-      this.sql`
-        insert into global_roles (user_id, role) values (${userId.value}, ${role})
-        on conflict (user_id, role) do nothing
-      `,
-      (cause): DbError => ({ message: "Failed to ensure global role", cause }),
-    ).map(() => undefined);
-  }
 
   isSiteAdmin(userId: UserId): ResultAsync<boolean, DbError> {
     return ResultAsync.fromPromise(

@@ -30,7 +30,6 @@ const ConfigSchema = z.object({
     signup_public_key: z
       .string()
       .regex(/^[A-Za-z0-9_-]{43}$/, "must be a base64url-encoded 32-byte Ed25519 public key"),
-    site_admin_account_names: z.array(z.string()).default([]),
   }),
 });
 

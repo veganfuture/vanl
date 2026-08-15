@@ -54,7 +54,6 @@ describe("loadConfig", () => {
     expect(config.database.host).toBe("127.0.0.1");
     expect(config.database.user).toBe("vanl");
     expect(config.auth.bot_api_base_url).toBe("http://127.0.0.1:8787");
-    expect(config.auth.site_admin_account_names).toEqual([]);
   });
 
   it("rejects a config missing the required site.base_url", () => {

@@ -20,4 +20,3 @@ bot_api_base_url = "http://127.0.0.1:8787"
 # local end-to-end testing (export as VANL_SIGNUP_PRIVATE_KEY on the bot):
 # Psjl9VLCqVz3Hhw6zS-wfsLt6phUctNibo_bkT9ycV8
 signup_public_key = "afQIoPf6trsqUYAvCUNebfnEdApb1JHnoM_Q0JIHBBE"
-site_admin_account_names = ["dev-admin"]

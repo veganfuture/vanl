@@ -158,14 +158,15 @@ describe("user lookups", () => {
 });
 
 describe("global roles", () => {
-  it("is idempotent and reflects in isSiteAdmin", async () => {
-    const user = await makeUser();
-    expect((await repository.isSiteAdmin(user.id))._unsafeUnwrap()).toBe(false);
+  it("makes the first user created site_admin", async () => {
+    const first = await makeUser();
+    expect((await repository.isSiteAdmin(first.id))._unsafeUnwrap()).toBe(true);
+  });
 
-    (await repository.ensureGlobalRole(user.id, "site_admin"))._unsafeUnwrap();
-    (await repository.ensureGlobalRole(user.id, "site_admin"))._unsafeUnwrap(); // must not error on repeat
-
-    expect((await repository.isSiteAdmin(user.id))._unsafeUnwrap()).toBe(true);
+  it("does not make later users site_admin", async () => {
+    await makeUser();
+    const second = await makeUser();
+    expect((await repository.isSiteAdmin(second.id))._unsafeUnwrap()).toBe(false);
   });
 });
 

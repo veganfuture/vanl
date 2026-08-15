@@ -89,20 +89,26 @@ describe("completeSignup", () => {
     expect(sessionUser._unsafeUnwrap()?.accountName.value).toBe("erin");
   });
 
-  it("grants site_admin when the account name is in the bootstrap list", async () => {
-    // configs/test.toml sets site_admin_account_names = ["dev-admin"]
-    const token = signWithDevKey("44444444-4444-4444-4444-444444444444");
-
-    const result = await service.completeSignup({
-      token,
+  it("grants site_admin to the first user who signs up", async () => {
+    const first = await service.completeSignup({
+      token: signWithDevKey("44444444-4444-4444-4444-444444444444"),
       accountName: "dev-admin",
       email: "admin@example.com",
       displayName: "Dev Admin",
       affiliationsNote: null,
     });
+    const { user: firstUser } = first._unsafeUnwrap();
+    expect((await repository.isSiteAdmin(firstUser.id))._unsafeUnwrap()).toBe(true);
 
-    const { user } = result._unsafeUnwrap();
-    expect((await repository.isSiteAdmin(user.id))._unsafeUnwrap()).toBe(true);
+    const second = await service.completeSignup({
+      token: signWithDevKey("44444444-4444-4444-4444-444444444401"),
+      accountName: "not-admin",
+      email: "not-admin@example.com",
+      displayName: "Not Admin",
+      affiliationsNote: null,
+    });
+    const { user: secondUser } = second._unsafeUnwrap();
+    expect((await repository.isSiteAdmin(secondUser.id))._unsafeUnwrap()).toBe(false);
   });
 
   it("rejects reusing the same signup link twice", async () => {
