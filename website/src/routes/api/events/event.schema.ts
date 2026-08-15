@@ -10,8 +10,10 @@ import type { Event } from "~/domain/events/event";
 export const EventJsonSchema = z.object({
   id: z.string(),
   slug: z.string(),
-  title: z.string(),
-  description: z.string(),
+  titleNl: z.string().nullable(),
+  titleEn: z.string().nullable(),
+  descriptionNl: z.string().nullable(),
+  descriptionEn: z.string().nullable(),
   startAt: z.string(),
   endAt: z.string().nullable(),
   locationKind: z.enum(["precise_address", "meeting_point_city_only"]),
@@ -24,8 +26,6 @@ export const EventJsonSchema = z.object({
   locationLng: z.number().nullable(),
   locationPdokId: z.string().nullable(),
   mapUrl: z.string().nullable(),
-  contactInfo: z.string().nullable(),
-  registrationInstructions: z.string().nullable(),
   externalEventUrl: z.string().nullable(),
   registrationUrl: z.string().nullable(),
   publisherUserId: z.string(),
@@ -39,8 +39,10 @@ export function toEventJson(event: Event): EventJson {
   return {
     id: event.id.value,
     slug: event.slug,
-    title: event.title,
-    description: event.description,
+    titleNl: event.titleNl,
+    titleEn: event.titleEn,
+    descriptionNl: event.descriptionNl,
+    descriptionEn: event.descriptionEn,
     startAt: event.startAt.toISOString(),
     endAt: event.endAt?.toISOString() ?? null,
     locationKind: event.locationKind,
@@ -53,8 +55,6 @@ export function toEventJson(event: Event): EventJson {
     locationLng: event.locationLng,
     locationPdokId: event.locationPdokId,
     mapUrl: event.mapUrl,
-    contactInfo: event.contactInfo,
-    registrationInstructions: event.registrationInstructions,
     externalEventUrl: event.externalEventUrl,
     registrationUrl: event.registrationUrl,
     publisherUserId: event.publisherUserId.value,
@@ -66,8 +66,10 @@ export function toEventJson(event: Event): EventJson {
 
 /** Request body shared by create (POST) and update (PATCH). */
 export const EventRequestSchema = z.object({
-  title: z.string().min(1),
-  description: z.string().min(1),
+  titleNl: z.string().nullable(),
+  titleEn: z.string().nullable(),
+  descriptionNl: z.string().nullable(),
+  descriptionEn: z.string().nullable(),
   startAt: z.string().datetime(),
   endAt: z.string().datetime().nullable(),
   locationKind: z.enum(["precise_address", "meeting_point_city_only"]),
@@ -77,8 +79,6 @@ export const EventRequestSchema = z.object({
   /** Required when locationKind = precise_address - the selected PDOK suggestion's id. */
   pdokAddressId: z.string().nullable(),
   mapUrl: z.string().nullable(),
-  contactInfo: z.string().nullable(),
-  registrationInstructions: z.string().nullable(),
   externalEventUrl: z.string().nullable(),
   registrationUrl: z.string().nullable(),
 });

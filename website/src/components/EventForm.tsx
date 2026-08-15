@@ -48,8 +48,10 @@ export function eventFormErrorMessages(lang: Locale): ErrorMessagesFor<{ error: 
 type LocationKind = EventJson["locationKind"];
 
 export type EventFormValues = {
-  title: string;
-  description: string;
+  titleNl: string;
+  titleEn: string;
+  descriptionNl: string;
+  descriptionEn: string;
   startAt: string;
   endAt: string;
   locationKind: LocationKind;
@@ -59,16 +61,16 @@ export type EventFormValues = {
   pdokAddressId: string | null;
   addressLabel: string;
   mapUrl: string;
-  contactInfo: string;
-  registrationInstructions: string;
   externalEventUrl: string;
   registrationUrl: string;
 };
 
 export function emptyEventFormValues(): EventFormValues {
   return {
-    title: "",
-    description: "",
+    titleNl: "",
+    titleEn: "",
+    descriptionNl: "",
+    descriptionEn: "",
     startAt: "",
     endAt: "",
     locationKind: "precise_address",
@@ -78,8 +80,6 @@ export function emptyEventFormValues(): EventFormValues {
     pdokAddressId: null,
     addressLabel: "",
     mapUrl: "",
-    contactInfo: "",
-    registrationInstructions: "",
     externalEventUrl: "",
     registrationUrl: "",
   };
@@ -111,8 +111,10 @@ export function eventFormValuesFromEvent(event: EventJson, placeLabel: string): 
     ? `${event.locationStreet} ${event.locationHouseNumber ?? ""}, ${event.locationPostcode ?? ""}`.trim()
     : "";
   return {
-    title: event.title,
-    description: event.description,
+    titleNl: event.titleNl ?? "",
+    titleEn: event.titleEn ?? "",
+    descriptionNl: event.descriptionNl ?? "",
+    descriptionEn: event.descriptionEn ?? "",
     startAt: isoToLocalDateTime(event.startAt),
     endAt: isoToLocalDateTime(event.endAt),
     locationKind: event.locationKind,
@@ -122,8 +124,6 @@ export function eventFormValuesFromEvent(event: EventJson, placeLabel: string): 
     pdokAddressId: event.locationPdokId,
     addressLabel,
     mapUrl: event.mapUrl ?? "",
-    contactInfo: event.contactInfo ?? "",
-    registrationInstructions: event.registrationInstructions ?? "",
     externalEventUrl: event.externalEventUrl ?? "",
     registrationUrl: event.registrationUrl ?? "",
   };
@@ -205,26 +205,52 @@ export function EventForm(props: {
 
   return (
     <form class="space-y-4" onSubmit={onSubmit}>
-      <label class="block">
-        <span class="block text-sm font-medium">{t("Titel", "Title")}</span>
-        <input
-          class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
-          required
-          value={values().title}
-          onInput={(e) => setValues({ ...values(), title: e.currentTarget.value })}
-        />
-      </label>
+      <p class="text-xs text-zinc-500">
+        {t(
+          "Vul de titel en beschrijving in het Nederlands, Engels, of beide in.",
+          "Fill in the title and description in Dutch, English, or both.",
+        )}
+      </p>
 
-      <label class="block">
-        <span class="block text-sm font-medium">{t("Beschrijving", "Description")}</span>
-        <textarea
-          class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
-          required
-          rows={4}
-          value={values().description}
-          onInput={(e) => setValues({ ...values(), description: e.currentTarget.value })}
-        />
-      </label>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <label class="block">
+          <span class="block text-sm font-medium">🇳🇱 Titel</span>
+          <input
+            class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+            value={values().titleNl}
+            onInput={(e) => setValues({ ...values(), titleNl: e.currentTarget.value })}
+          />
+        </label>
+        <label class="block">
+          <span class="block text-sm font-medium">🇬🇧 Title</span>
+          <input
+            class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+            value={values().titleEn}
+            onInput={(e) => setValues({ ...values(), titleEn: e.currentTarget.value })}
+          />
+        </label>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <label class="block">
+          <span class="block text-sm font-medium">🇳🇱 Beschrijving</span>
+          <textarea
+            class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+            rows={4}
+            value={values().descriptionNl}
+            onInput={(e) => setValues({ ...values(), descriptionNl: e.currentTarget.value })}
+          />
+        </label>
+        <label class="block">
+          <span class="block text-sm font-medium">🇬🇧 Description</span>
+          <textarea
+            class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+            rows={4}
+            value={values().descriptionEn}
+            onInput={(e) => setValues({ ...values(), descriptionEn: e.currentTarget.value })}
+          />
+        </label>
+      </div>
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="block">
@@ -417,31 +443,6 @@ export function EventForm(props: {
 
       <label class="block">
         <span class="block text-sm font-medium">
-          {t("Contactgegevens (optioneel)", "Contact info (optional)")}
-        </span>
-        <input
-          class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
-          value={values().contactInfo}
-          onInput={(e) => setValues({ ...values(), contactInfo: e.currentTarget.value })}
-        />
-      </label>
-
-      <label class="block">
-        <span class="block text-sm font-medium">
-          {t("Aanmeldinstructies (optioneel)", "Registration instructions (optional)")}
-        </span>
-        <textarea
-          class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
-          rows={2}
-          value={values().registrationInstructions}
-          onInput={(e) =>
-            setValues({ ...values(), registrationInstructions: e.currentTarget.value })
-          }
-        />
-      </label>
-
-      <label class="block">
-        <span class="block text-sm font-medium">
           {t("Externe evenement-URL (optioneel)", "External event URL (optional)")}
         </span>
         <input
@@ -470,6 +471,8 @@ export function EventForm(props: {
         type="submit"
         disabled={
           submitting() ||
+          !(values().titleNl.trim() || values().titleEn.trim()) ||
+          !(values().descriptionNl.trim() || values().descriptionEn.trim()) ||
           (values().locationKind === "precise_address"
             ? !values().pdokAddressId
             : !values().placeId)
@@ -484,8 +487,10 @@ export function EventForm(props: {
 
 export function toEventRequestBody(values: EventFormValues) {
   return {
-    title: values.title.trim(),
-    description: values.description.trim(),
+    titleNl: values.titleNl.trim() || null,
+    titleEn: values.titleEn.trim() || null,
+    descriptionNl: values.descriptionNl.trim() || null,
+    descriptionEn: values.descriptionEn.trim() || null,
     startAt: localDateTimeToIso(values.startAt) ?? "",
     endAt: localDateTimeToIso(values.endAt),
     locationKind: values.locationKind,
@@ -495,8 +500,6 @@ export function toEventRequestBody(values: EventFormValues) {
     locationDescription: values.locationDescription.trim(),
     pdokAddressId: values.pdokAddressId,
     mapUrl: values.mapUrl.trim() || null,
-    contactInfo: values.contactInfo.trim() || null,
-    registrationInstructions: values.registrationInstructions.trim() || null,
     externalEventUrl: values.externalEventUrl.trim() || null,
     registrationUrl: values.registrationUrl.trim() || null,
   };

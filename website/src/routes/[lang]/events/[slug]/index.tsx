@@ -3,7 +3,7 @@ import { Title } from "@solidjs/meta";
 import { createResource, createSignal, Show } from "solid-js";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
-import { resolveLang } from "~/lib/i18n";
+import { pickLocalized, resolveLang } from "~/lib/i18n";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { GetEventBySlugResponseSchema } from "~/routes/api/events/by-slug/[slug].schema";
 import {
@@ -131,11 +131,12 @@ export default function EventDetailPage() {
   async function onDelete() {
     const currentEvent = event();
     if (!currentEvent) return;
+    const title = pickLocalized(currentEvent.titleNl, currentEvent.titleEn, lang());
     if (
       !window.confirm(
         t(
-          `"${currentEvent.title}" verwijderen? Dit kan niet ongedaan worden gemaakt.`,
-          `Delete "${currentEvent.title}"? This can't be undone.`,
+          `"${title}" verwijderen? Dit kan niet ongedaan worden gemaakt.`,
+          `Delete "${title}"? This can't be undone.`,
         ),
       )
     ) {
@@ -157,9 +158,10 @@ export default function EventDetailPage() {
   async function onSetStatus(status: "hidden" | "visible" | "cancelled") {
     const currentEvent = event();
     if (!currentEvent) return;
+    const title = pickLocalized(currentEvent.titleNl, currentEvent.titleEn, lang());
     if (
       status === "cancelled" &&
-      !window.confirm(t(`"${currentEvent.title}" annuleren?`, `Cancel "${currentEvent.title}"?`))
+      !window.confirm(t(`"${title}" annuleren?`, `Cancel "${title}"?`))
     ) {
       return;
     }
@@ -191,8 +193,13 @@ export default function EventDetailPage() {
         >
           {(currentEvent) => (
             <>
-              <Title>{currentEvent().title} — Vegan Activists NL</Title>
-              <h1 class="mb-2 text-2xl font-semibold">{currentEvent().title}</h1>
+              <Title>
+                {pickLocalized(currentEvent().titleNl, currentEvent().titleEn, lang())} — Vegan
+                Activists NL
+              </Title>
+              <h1 class="mb-2 text-2xl font-semibold">
+                {pickLocalized(currentEvent().titleNl, currentEvent().titleEn, lang())}
+              </h1>
               <Show when={currentEvent().status !== "visible"}>
                 <p class="mb-4 inline-block rounded bg-amber-100 px-2 py-1 text-sm text-amber-800">
                   {currentEvent().status === "cancelled"
@@ -213,7 +220,9 @@ export default function EventDetailPage() {
                   </>
                 </Show>
               </p>
-              <p class="mb-6 whitespace-pre-wrap">{currentEvent().description}</p>
+              <p class="mb-6 whitespace-pre-wrap">
+                {pickLocalized(currentEvent().descriptionNl, currentEvent().descriptionEn, lang())}
+              </p>
 
               <Show when={currentEvent().mapUrl}>
                 <p class="mb-2">
@@ -251,16 +260,6 @@ export default function EventDetailPage() {
                   </a>
                 </p>
               </Show>
-              <Show when={currentEvent().registrationInstructions}>
-                <p class="mb-2 whitespace-pre-wrap">{currentEvent().registrationInstructions}</p>
-              </Show>
-              <Show when={currentEvent().contactInfo}>
-                <p class="mb-2 text-sm text-zinc-600">
-                  {t("Contact: ", "Contact: ")}
-                  {currentEvent().contactInfo}
-                </p>
-              </Show>
-
               <Show when={actionError()}>
                 {(message) => <p class="mt-4 text-red-700">{message()}</p>}
               </Show>

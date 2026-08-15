@@ -58,14 +58,13 @@ All primary keys are surrogate UUIDs. Business-facing identifiers (`account_name
 *Ships incrementally per the milestone plan: Milestone 3 introduces this table with individual publishing only (`publisher_user_id`, not-null); Milestone 5 adds `publisher_org_id` and the exactly-one-publisher `CHECK` once Organizations exist; Milestone 6 wires up the flyer image fields. The shape below is the target state.*
 
 - `id`, `slug` (unique, immutable, human-readable-title + short random suffix)
-- `title`, `description`
+- `title_nl`, `title_en`, `description_nl`, `description_en` (bilingual - a publisher fills in either language or both; `CHECK` requires at least one of each pair non-null. Display prefers the viewer's current locale, falling back to whichever language is present - an event is always shown regardless of which language it was written in.)
 - `start_at` (timestamptz, stored as unix epoch, entered/rendered in `Europe/Amsterdam`)
 - `end_at` (nullable, same rules; validated `end_at > start_at` when present)
 - `location_kind` (enum: `precise_address`, `meeting_point_city_only`)
 - `place_id` (fk to Place, not null — every event has at least a canonical city; for `precise_address`, resolved server-side from the PDOK address lookup rather than chosen directly by the publisher)
 - `location_description` (text, not null — free text for `meeting_point_city_only`; for `precise_address` it's the PDOK-resolved address string, since the PDOK free-text search is the only way a publisher specifies that kind of location)
 - `map_url` (nullable, validated URL)
-- `contact_info`, `registration_instructions` (nullable text)
 - `external_event_url`, `registration_url` (nullable, validated URLs)
 - `flyer_full_image_id`, `flyer_preview_image_id` (nullable fks)
 - `publisher_user_id` XOR `publisher_org_id` (exactly one set — enforced by `CHECK`)

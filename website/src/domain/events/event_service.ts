@@ -21,8 +21,11 @@ export type ActingUser = { readonly id: UserId; readonly isSiteAdmin: boolean };
  * startAt, valid URLs), the same division of labor as auth_service.ts.
  */
 export type EventInput = {
-  title: string;
-  description: string;
+  /** Bilingual: a publisher fills in either language or both - at least one of each pair is required. */
+  titleNl: string | null;
+  titleEn: string | null;
+  descriptionNl: string | null;
+  descriptionEn: string | null;
   startAt: Date;
   endAt: Date | null;
   locationKind: EventLocationKind;
@@ -32,16 +35,21 @@ export type EventInput = {
   /** Required when locationKind = precise_address - the selected PDOK suggestion's id. Ignored otherwise. */
   pdokAddressId: string | null;
   mapUrl: string | null;
-  contactInfo: string | null;
-  registrationInstructions: string | null;
   externalEventUrl: string | null;
   registrationUrl: string | null;
 };
 
+const nullableTrimmed = z
+  .string()
+  .nullable()
+  .transform((v) => v?.trim() || null);
+
 const EventInputSchema = z
   .object({
-    title: z.string().trim().min(1),
-    description: z.string().trim().min(1),
+    titleNl: nullableTrimmed,
+    titleEn: nullableTrimmed,
+    descriptionNl: nullableTrimmed,
+    descriptionEn: nullableTrimmed,
     startAt: z.date(),
     endAt: z.date().nullable(),
     locationKind: z.enum(["precise_address", "meeting_point_city_only"]),
@@ -49,8 +57,6 @@ const EventInputSchema = z
     locationDescription: z.string().trim().min(1),
     pdokAddressId: z.string().nullable(),
     mapUrl: z.string().trim().url().nullable(),
-    contactInfo: z.string().nullable(),
-    registrationInstructions: z.string().nullable(),
     externalEventUrl: z.string().trim().url().nullable(),
     registrationUrl: z.string().trim().url().nullable(),
   })
@@ -65,6 +71,14 @@ const EventInputSchema = z
   .refine((data) => data.locationKind !== "precise_address" || data.pdokAddressId !== null, {
     message: "pdokAddressId is required when locationKind is precise_address",
     path: ["pdokAddressId"],
+  })
+  .refine((data) => data.titleNl !== null || data.titleEn !== null, {
+    message: "at least one of titleNl/titleEn is required",
+    path: ["titleNl"],
+  })
+  .refine((data) => data.descriptionNl !== null || data.descriptionEn !== null, {
+    message: "at least one of descriptionNl/descriptionEn is required",
+    path: ["descriptionNl"],
   });
 
 export type CreateEventError = "validation" | "internal_error";
@@ -107,17 +121,17 @@ export class EventService {
     return this.resolveLocationFields(parsed.data).andThen((locationFields) =>
       this.repository
         .createEvent({
-          slug: generateSlug(parsed.data.title),
-          title: parsed.data.title,
-          description: parsed.data.description,
+          slug: generateSlug(parsed.data.titleNl ?? parsed.data.titleEn ?? ""),
+          titleNl: parsed.data.titleNl,
+          titleEn: parsed.data.titleEn,
+          descriptionNl: parsed.data.descriptionNl,
+          descriptionEn: parsed.data.descriptionEn,
           startAt: parsed.data.startAt,
           endAt: parsed.data.endAt,
           locationKind: parsed.data.locationKind,
           locationDescription: parsed.data.locationDescription,
           ...locationFields,
           mapUrl: parsed.data.mapUrl,
-          contactInfo: parsed.data.contactInfo,
-          registrationInstructions: parsed.data.registrationInstructions,
           externalEventUrl: parsed.data.externalEventUrl,
           registrationUrl: parsed.data.registrationUrl,
           publisherUserId,
@@ -167,16 +181,16 @@ export class EventService {
       }
       return this.resolveLocationFields(parsed.data).andThen((locationFields) => {
         const fields: EditableEventFields = {
-          title: parsed.data.title,
-          description: parsed.data.description,
+          titleNl: parsed.data.titleNl,
+          titleEn: parsed.data.titleEn,
+          descriptionNl: parsed.data.descriptionNl,
+          descriptionEn: parsed.data.descriptionEn,
           startAt: parsed.data.startAt,
           endAt: parsed.data.endAt,
           locationKind: parsed.data.locationKind,
           locationDescription: parsed.data.locationDescription,
           ...locationFields,
           mapUrl: parsed.data.mapUrl,
-          contactInfo: parsed.data.contactInfo,
-          registrationInstructions: parsed.data.registrationInstructions,
           externalEventUrl: parsed.data.externalEventUrl,
           registrationUrl: parsed.data.registrationUrl,
         };

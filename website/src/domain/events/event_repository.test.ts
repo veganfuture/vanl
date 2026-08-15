@@ -34,8 +34,10 @@ function baseEventInput(overrides: Partial<NewEventInput> = {}): NewEventInput {
   const now = new Date();
   return {
     slug: `test-event-${crypto.randomUUID()}`,
-    title: "Test Event",
-    description: "A test event",
+    titleNl: "Test Evenement",
+    titleEn: "Test Event",
+    descriptionNl: "Een test evenement",
+    descriptionEn: "A test event",
     startAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
     endAt: null,
     locationKind: "meeting_point_city_only",
@@ -48,8 +50,6 @@ function baseEventInput(overrides: Partial<NewEventInput> = {}): NewEventInput {
     locationLng: null,
     locationPdokId: null,
     mapUrl: null,
-    contactInfo: null,
-    registrationInstructions: null,
     externalEventUrl: null,
     registrationUrl: null,
     publisherUserId: overrides.publisherUserId!,
@@ -85,7 +85,8 @@ describe("createEvent", () => {
     );
 
     const event = result._unsafeUnwrap();
-    expect(event.title).toBe("Test Event");
+    expect(event.titleNl).toBe("Test Evenement");
+    expect(event.titleEn).toBe("Test Event");
     expect(event.slug).toBe("alice-event");
     expect(event.publisherUserId.equals(publisher)).toBe(true);
     expect(event.status).toBe("visible");
@@ -177,12 +178,12 @@ describe("updateEvent", () => {
     const updated = (
       await repository.updateEvent(
         created.id,
-        { ...baseEventInput({ publisherUserId: publisher }), title: "Updated Title" },
+        { ...baseEventInput({ publisherUserId: publisher }), titleEn: "Updated Title" },
         publisher,
       )
     )._unsafeUnwrap();
 
-    expect(updated.title).toBe("Updated Title");
+    expect(updated.titleEn).toBe("Updated Title");
     expect(updated.updatedBy.equals(publisher)).toBe(true);
   });
 });

@@ -3,7 +3,7 @@ import { Title } from "@solidjs/meta";
 import { createResource, For, Show } from "solid-js";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch } from "~/lib/api-fetch";
-import { resolveLang } from "~/lib/i18n";
+import { pickLocalized, resolveLang } from "~/lib/i18n";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
 
@@ -97,7 +97,7 @@ export default function MyEventsPage() {
                         href={`/${lang()}/events/${event.slug}`}
                         class="text-lg font-semibold hover:underline"
                       >
-                        {event.title}
+                        {pickLocalized(event.titleNl, event.titleEn, lang())}
                       </a>
                       <Show when={statusLabels[event.status]}>
                         <span class="ml-2 inline-block rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">

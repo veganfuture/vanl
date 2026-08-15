@@ -10,8 +10,11 @@ export type EventSource = "manual" | "signal_import" | "partner_import";
 export type Event = {
   id: EventId;
   slug: string;
-  title: string;
-  description: string;
+  /** Bilingual: a publisher fills in either language or both - never both null. */
+  titleNl: string | null;
+  titleEn: string | null;
+  descriptionNl: string | null;
+  descriptionEn: string | null;
   startAt: Date;
   endAt: Date | null;
   locationKind: EventLocationKind;
@@ -26,8 +29,6 @@ export type Event = {
   locationLng: number | null;
   locationPdokId: string | null;
   mapUrl: string | null;
-  contactInfo: string | null;
-  registrationInstructions: string | null;
   externalEventUrl: string | null;
   registrationUrl: string | null;
   publisherUserId: UserId;

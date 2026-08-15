@@ -32,8 +32,16 @@ create table events (
   id uuid primary key default gen_random_uuid(),
   slug text not null unique,
 
-  title text not null,
-  description text not null,
+  -- Bilingual: a publisher fills in either language or both. Never both
+  -- null - see events_title_present/events_description_present below.
+  title_nl text,
+  title_en text,
+  description_nl text,
+  description_en text,
+  constraint events_title_present check (title_nl is not null or title_en is not null),
+  constraint events_description_present check (
+    description_nl is not null or description_en is not null
+  ),
 
   start_at timestamptz not null,
   end_at timestamptz,
@@ -63,8 +71,6 @@ create table events (
   ),
 
   map_url text,
-  contact_info text,
-  registration_instructions text,
   external_event_url text,
   registration_url text,
 

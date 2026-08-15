@@ -15,8 +15,10 @@ export type DbError = { readonly message: string; readonly cause: unknown };
 const EventRowSchema = z.object({
   id: z.string(),
   slug: z.string(),
-  title: z.string(),
-  description: z.string(),
+  title_nl: z.string().nullable(),
+  title_en: z.string().nullable(),
+  description_nl: z.string().nullable(),
+  description_en: z.string().nullable(),
   start_at: z.coerce.date(),
   end_at: z.coerce.date().nullable(),
   location_kind: z.enum(["precise_address", "meeting_point_city_only"]),
@@ -29,8 +31,6 @@ const EventRowSchema = z.object({
   location_lng: z.number().nullable(),
   location_pdok_id: z.string().nullable(),
   map_url: z.string().nullable(),
-  contact_info: z.string().nullable(),
-  registration_instructions: z.string().nullable(),
   external_event_url: z.string().nullable(),
   registration_url: z.string().nullable(),
   publisher_user_id: z.string(),
@@ -91,8 +91,10 @@ function mapEventRow(row: unknown): Result<Event, DbError> {
   return ok({
     id: idResult.value,
     slug: parsed.slug,
-    title: parsed.title,
-    description: parsed.description,
+    titleNl: parsed.title_nl,
+    titleEn: parsed.title_en,
+    descriptionNl: parsed.description_nl,
+    descriptionEn: parsed.description_en,
     startAt: parsed.start_at,
     endAt: parsed.end_at,
     locationKind: parsed.location_kind,
@@ -105,8 +107,6 @@ function mapEventRow(row: unknown): Result<Event, DbError> {
     locationLng: parsed.location_lng,
     locationPdokId: parsed.location_pdok_id,
     mapUrl: parsed.map_url,
-    contactInfo: parsed.contact_info,
-    registrationInstructions: parsed.registration_instructions,
     externalEventUrl: parsed.external_event_url,
     registrationUrl: parsed.registration_url,
     publisherUserId: publisherUserIdResult.value,
@@ -125,8 +125,10 @@ function mapEventRow(row: unknown): Result<Event, DbError> {
 
 export type NewEventInput = {
   slug: string;
-  title: string;
-  description: string;
+  titleNl: string | null;
+  titleEn: string | null;
+  descriptionNl: string | null;
+  descriptionEn: string | null;
   startAt: Date;
   endAt: Date | null;
   locationKind: EventLocationKind;
@@ -139,8 +141,6 @@ export type NewEventInput = {
   locationLng: number | null;
   locationPdokId: string | null;
   mapUrl: string | null;
-  contactInfo: string | null;
-  registrationInstructions: string | null;
   externalEventUrl: string | null;
   registrationUrl: string | null;
   publisherUserId: UserId;
@@ -156,18 +156,18 @@ export class EventRepository {
     return ResultAsync.fromPromise(
       this.sql`
         insert into events (
-          slug, title, description, start_at, end_at, location_kind, place_id,
-          location_description, location_street, location_house_number,
-          location_postcode, location_lat, location_lng, location_pdok_id,
-          map_url, contact_info, registration_instructions, external_event_url,
-          registration_url, publisher_user_id, created_by, updated_by
+          slug, title_nl, title_en, description_nl, description_en, start_at, end_at,
+          location_kind, place_id, location_description, location_street,
+          location_house_number, location_postcode, location_lat, location_lng,
+          location_pdok_id, map_url, external_event_url, registration_url,
+          publisher_user_id, created_by, updated_by
         )
         values (
-          ${input.slug}, ${input.title}, ${input.description}, ${input.startAt}, ${input.endAt},
-          ${input.locationKind}, ${input.placeId}, ${input.locationDescription},
-          ${input.locationStreet}, ${input.locationHouseNumber}, ${input.locationPostcode},
-          ${input.locationLat}, ${input.locationLng}, ${input.locationPdokId},
-          ${input.mapUrl}, ${input.contactInfo}, ${input.registrationInstructions},
+          ${input.slug}, ${input.titleNl}, ${input.titleEn}, ${input.descriptionNl},
+          ${input.descriptionEn}, ${input.startAt}, ${input.endAt}, ${input.locationKind},
+          ${input.placeId}, ${input.locationDescription}, ${input.locationStreet},
+          ${input.locationHouseNumber}, ${input.locationPostcode}, ${input.locationLat},
+          ${input.locationLng}, ${input.locationPdokId}, ${input.mapUrl},
           ${input.externalEventUrl}, ${input.registrationUrl}, ${input.publisherUserId.value},
           ${input.createdBy.value}, ${input.createdBy.value}
         )
@@ -241,8 +241,10 @@ export class EventRepository {
     return ResultAsync.fromPromise(
       this.sql`
         update events set
-          title = ${fields.title},
-          description = ${fields.description},
+          title_nl = ${fields.titleNl},
+          title_en = ${fields.titleEn},
+          description_nl = ${fields.descriptionNl},
+          description_en = ${fields.descriptionEn},
           start_at = ${fields.startAt},
           end_at = ${fields.endAt},
           location_kind = ${fields.locationKind},
@@ -255,8 +257,6 @@ export class EventRepository {
           location_lng = ${fields.locationLng},
           location_pdok_id = ${fields.locationPdokId},
           map_url = ${fields.mapUrl},
-          contact_info = ${fields.contactInfo},
-          registration_instructions = ${fields.registrationInstructions},
           external_event_url = ${fields.externalEventUrl},
           registration_url = ${fields.registrationUrl},
           updated_by = ${updatedBy.value},

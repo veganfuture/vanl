@@ -49,8 +49,10 @@ function actingAs(userId: UserId, isSiteAdmin = false): ActingUser {
 
 function baseInput(overrides: Partial<EventInput> = {}): EventInput {
   return {
-    title: "Test Event",
-    description: "A test event",
+    titleNl: null,
+    titleEn: "Test Event",
+    descriptionNl: null,
+    descriptionEn: "A test event",
     startAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     endAt: null,
     locationKind: "meeting_point_city_only",
@@ -58,8 +60,6 @@ function baseInput(overrides: Partial<EventInput> = {}): EventInput {
     locationDescription: "Somewhere in town",
     pdokAddressId: null,
     mapUrl: null,
-    contactInfo: null,
-    registrationInstructions: null,
     externalEventUrl: null,
     registrationUrl: null,
     ...overrides,
@@ -99,10 +99,34 @@ describe("createEvent", () => {
     expect(event.slug).toMatch(/^test-event-[0-9a-f]{8}$/);
   });
 
-  it("rejects an empty title", async () => {
+  it("rejects when neither titleNl nor titleEn is given", async () => {
     const publisher = await makeUser("publisher-with-bad-title");
-    const result = await service.createEvent(publisher, baseInput({ title: "   " }));
+    const result = await service.createEvent(
+      publisher,
+      baseInput({ titleNl: "   ", titleEn: null }),
+    );
     expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
+  it("rejects when neither descriptionNl nor descriptionEn is given", async () => {
+    const publisher = await makeUser("publisher-with-bad-description");
+    const result = await service.createEvent(
+      publisher,
+      baseInput({ descriptionNl: null, descriptionEn: "   " }),
+    );
+    expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
+  it("accepts a title/description given in only one language", async () => {
+    const publisher = await makeUser("publisher-with-nl-only");
+    const result = await service.createEvent(
+      publisher,
+      baseInput({ titleNl: "Alleen Nederlands", titleEn: null }),
+    );
+
+    const event = result._unsafeUnwrap();
+    expect(event.titleNl).toBe("Alleen Nederlands");
+    expect(event.titleEn).toBeNull();
   });
 
   it("rejects endAt before startAt", async () => {
@@ -220,10 +244,10 @@ describe("edit/delete/cancel own event (Editor row of the permission matrix)", (
     const result = await service.updateEvent(
       actingAs(publisher),
       created.id,
-      baseInput({ title: "Updated by owner" }),
+      baseInput({ titleEn: "Updated by owner" }),
     );
 
-    expect(result._unsafeUnwrap().title).toBe("Updated by owner");
+    expect(result._unsafeUnwrap().titleEn).toBe("Updated by owner");
   });
 
   it("a different, non-admin user cannot update someone else's event", async () => {
