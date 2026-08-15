@@ -19,15 +19,21 @@ const REQUIRED_ENV_VARS = [
 export default definePlugin(() => {
   checkRequiredEnv();
 
-  void checkDatabaseConnection().catch((cause: unknown) => {
-    logger.fatal(
-      { cause },
-      "Could not connect to the database — refusing to start. Is the dev " +
-        "Postgres instance running? Start it with `nix run .#devdb-start`. " +
-        'See README.md, section "Database", for details.',
-    );
-    process.exit(1);
-  });
+  logger.info("Checking database connectivity...");
+  void checkDatabaseConnection().then(
+    () => {
+      logger.info("Database connectivity check succeeded");
+    },
+    (cause: unknown) => {
+      logger.fatal(
+        { cause },
+        "Could not connect to the database — refusing to start. Is the dev " +
+          "Postgres instance running? Start it with `nix run .#devdb-start`. " +
+          'See README.md, section "Database", for details.',
+      );
+      process.exit(1);
+    },
+  );
 });
 
 function checkRequiredEnv(): void {
