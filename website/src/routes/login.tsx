@@ -15,13 +15,7 @@ import {
 
 type Step = "account" | "code";
 
-const LOGIN_START_ERROR_MESSAGES: ErrorMessagesFor<LoginStartResponse> = {
-  account_not_found: { message: "No account found with that name.", isWarn: true },
-  validation: { message: "Please check the form and try again.", isWarn: false },
-  internal_error: { message: "Something went wrong. Please try again.", isWarn: false },
-};
-
-const LOGIN_VERIFY_ERROR_MESSAGES: ErrorMessagesFor<LoginVerifyResponse> = {
+const LOGIN_ERROR_MESSAGES: ErrorMessagesFor<LoginStartResponse | LoginVerifyResponse> = {
   account_not_found: { message: "No account found with that name.", isWarn: true },
   no_active_challenge: { message: "Your code expired — request a new one.", isWarn: true },
   wrong_code: { message: "That code is incorrect. Try again.", isWarn: true },
@@ -62,12 +56,12 @@ export default function LoginPage() {
       result.match(
         (data) => {
           if ("error" in data) {
-            setError(describeApiError(data, LOGIN_START_ERROR_MESSAGES));
+            setError(describeApiError(data, LOGIN_ERROR_MESSAGES));
             return;
           }
           setStep("code");
         },
-        (fetchError) => setError(describeApiError(fetchError, LOGIN_START_ERROR_MESSAGES)),
+        (fetchError) => setError(describeApiError(fetchError, LOGIN_ERROR_MESSAGES)),
       );
     } finally {
       setSubmitting(false);
@@ -87,12 +81,12 @@ export default function LoginPage() {
       result.match(
         (data) => {
           if ("error" in data) {
-            setError(describeApiError(data, LOGIN_VERIFY_ERROR_MESSAGES));
+            setError(describeApiError(data, LOGIN_ERROR_MESSAGES));
             return;
           }
           window.location.href = "/";
         },
-        (fetchError) => setError(describeApiError(fetchError, LOGIN_VERIFY_ERROR_MESSAGES)),
+        (fetchError) => setError(describeApiError(fetchError, LOGIN_ERROR_MESSAGES)),
       );
     } finally {
       setSubmitting(false);

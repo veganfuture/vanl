@@ -16,16 +16,11 @@ function firstParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
-const SIGNUP_INSPECT_ERROR_MESSAGES: ErrorMessagesFor<SignupInspectResponse> = {
+const SIGNUP_ERROR_MESSAGES: ErrorMessagesFor<SignupInspectResponse | SignupResponse> = {
   invalid: {
     message: "This signup link is invalid or has expired. Message the bot again for a new one.",
     isWarn: true,
   },
-  already_used: { message: "This signup link has already been used.", isWarn: true },
-  internal_error: { message: "Something went wrong. Please try again.", isWarn: false },
-};
-
-const SIGNUP_ERROR_MESSAGES: ErrorMessagesFor<SignupResponse> = {
   invalid_token: {
     message: "This signup link is invalid or has expired. Message the bot again for a new one.",
     isWarn: true,
@@ -47,16 +42,15 @@ export default function SignupPage() {
     token,
     async (tokenValue): Promise<string | undefined> => {
       if (!tokenValue) {
-        return describeApiError({ error: "invalid" as const }, SIGNUP_INSPECT_ERROR_MESSAGES);
+        return describeApiError({ error: "invalid" as const }, SIGNUP_ERROR_MESSAGES);
       }
       const result = await apiFetch(
         `/api/auth/signup/inspect?token=${encodeURIComponent(tokenValue)}`,
         { response: SignupInspectResponseSchema },
       );
       return result.match(
-        (data) =>
-          "error" in data ? describeApiError(data, SIGNUP_INSPECT_ERROR_MESSAGES) : undefined,
-        (fetchError) => describeApiError(fetchError, SIGNUP_INSPECT_ERROR_MESSAGES),
+        (data) => ("error" in data ? describeApiError(data, SIGNUP_ERROR_MESSAGES) : undefined),
+        (fetchError) => describeApiError(fetchError, SIGNUP_ERROR_MESSAGES),
       );
     },
   );
