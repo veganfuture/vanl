@@ -1,4 +1,5 @@
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { getRequestEvent, isServer } from "solid-js/web";
 import type { ZodType, z } from "zod";
 import { apiUrl } from "./api-url";
 
@@ -74,10 +75,25 @@ export function apiFetch<
     }
   }
 
+  const headers: Record<string, string> = {};
+  if (body !== undefined) {
+    headers["content-type"] = "application/json";
+  }
+  if (isServer) {
+    // A server-side createResource fetcher's `fetch` is a brand new outgoing
+    // HTTP request, not the browser's - it has no ambient cookie jar, so the
+    // session cookie has to be forwarded by hand or every SSR render would
+    // see every visitor as logged out.
+    const cookie = getRequestEvent()?.request.headers.get("cookie");
+    if (cookie) {
+      headers.cookie = cookie;
+    }
+  }
+
   return ResultAsync.fromPromise(
     fetch(apiUrl(path), {
       method: method ?? (body !== undefined ? "POST" : "GET"),
-      headers: body !== undefined ? { "content-type": "application/json" } : undefined,
+      headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     }),
     (cause) => apiFetchError(cause),
