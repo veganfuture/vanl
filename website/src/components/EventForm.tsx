@@ -1,4 +1,5 @@
 import { createSignal, For, Show } from "solid-js";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { validateEvent, type ValidatableEvent } from "~/shared/events/event_validation";
 import { apiFetch, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { makeT, type Locale } from "~/lib/i18n";
@@ -86,25 +87,35 @@ export function emptyEventFormValues(): EventFormValues {
   };
 }
 
-/** Converts a `<input type="datetime-local">` value (no timezone) to a full ISO instant. */
+// Every date/time in this form is entered and displayed as Dutch wall-clock
+// time (Europe/Amsterdam), regardless of the visitor's own device/browser
+// timezone - a `<input type="datetime-local">` value has no timezone of its
+// own, so treating it as the *browser's* local time (as a bare `new
+// Date(value)` would) silently gives the wrong instant for anyone not
+// currently in the Netherlands. date-fns-tz handles the IANA-timezone-aware
+// conversion (Amsterdam's UTC offset isn't fixed - CET/CEST - and there's a
+// genuinely ambiguous hour each October when clocks go back).
+const AMSTERDAM_TZ = "Europe/Amsterdam";
+
+/** Converts a `<input type="datetime-local">` value, read as Amsterdam wall-clock time, to a full UTC ISO instant. */
 function localDateTimeToIso(value: string): string | null {
   if (!value) {
     return null;
   }
-  const date = new Date(value);
+  const date = fromZonedTime(value, AMSTERDAM_TZ);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-/** Converts a stored ISO instant back to the value a datetime-local input expects. */
+/** Converts a stored UTC ISO instant back to the value a datetime-local input expects, in Amsterdam wall-clock time. */
 function isoToLocalDateTime(iso: string | null): string {
   if (!iso) {
     return "";
   }
-  const date = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
-    date.getHours(),
-  )}:${pad(date.getMinutes())}`;
+  return formatInTimeZone(new Date(iso), AMSTERDAM_TZ, "yyyy-MM-dd'T'HH:mm");
+}
+
+function toDate(iso: string | null): Date | null {
+  return iso ? new Date(iso) : null;
 }
 
 export function eventFormValuesFromEvent(event: EventJson, placeLabel: string): EventFormValues {
@@ -136,8 +147,8 @@ function toValidatableEvent(values: EventFormValues): ValidatableEvent {
     titleEn: values.titleEn.trim() || null,
     descriptionNl: values.descriptionNl.trim() || null,
     descriptionEn: values.descriptionEn.trim() || null,
-    startAt: values.startAt ? new Date(values.startAt) : null,
-    endAt: values.endAt ? new Date(values.endAt) : null,
+    startAt: toDate(localDateTimeToIso(values.startAt)),
+    endAt: toDate(localDateTimeToIso(values.endAt)),
     locationKind: values.locationKind,
     placeId: values.locationKind === "precise_address" ? null : values.placeId || null,
     locationDescription: values.locationDescription.trim(),
@@ -285,9 +296,18 @@ export function EventForm(props: {
         </label>
       </div>
 
+      <p class="text-xs text-zinc-500">
+        {t(
+          "Tijden hieronder zijn in Nederlandse tijd (Europe/Amsterdam), ongeacht je eigen tijdzone.",
+          "Times below are in Dutch time (Europe/Amsterdam), regardless of your own timezone.",
+        )}
+      </p>
+
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="block">
-          <span class="block text-sm font-medium">{t("Begint om", "Starts at")}</span>
+          <span class="block text-sm font-medium">
+            {t("Begint om", "Starts at")} <span class="font-normal text-zinc-400">(NL)</span>
+          </span>
           <input
             type="datetime-local"
             class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
@@ -301,7 +321,8 @@ export function EventForm(props: {
         </label>
         <label class="block">
           <span class="block text-sm font-medium">
-            {t("Eindigt om (optioneel)", "Ends at (optional)")}
+            {t("Eindigt om (optioneel)", "Ends at (optional)")}{" "}
+            <span class="font-normal text-zinc-400">(NL)</span>
           </span>
           <input
             type="datetime-local"
