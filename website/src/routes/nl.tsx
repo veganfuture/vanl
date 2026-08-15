@@ -1,7 +1,6 @@
 import { Link, Meta, Title } from "@solidjs/meta";
 import { GROUPS } from "~/lib/groups";
 import { Landing } from "~/components/Landing";
-import { Navbar } from "~/components/Navbar";
 import { BASE_URL } from "~/lib/metadata";
 
 export default function PageNL() {
@@ -11,12 +10,9 @@ export default function PageNL() {
       <Meta property="og:locale" content="nl_NL" />
       <Link rel="alternate" hreflang="en" href={`${BASE_URL}/en`} />
       <Link rel="alternate" hreflang="nl" href={`${BASE_URL}/nl`} />
-      <Navbar />
       <Landing
         locale="nl"
         dict={{
-          siteTitle: "VeganActivists.nl",
-          siteTag: "Samen sterk voor dierenrechten • Nederland",
           heroTitleA: "Sluit je aan bij de",
           heroTitleB: "Signal-groepen",
           heroBody:

@@ -1,6 +1,5 @@
 import { Title } from "@solidjs/meta";
 import { createSignal, onMount, Show } from "solid-js";
-import { Navbar } from "~/components/Navbar";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { REMEMBERED_ACCOUNT_COOKIE_NAME } from "~/domain/auth/cookies";
 import {
@@ -85,59 +84,56 @@ export default function LoginPage() {
   }
 
   return (
-    <>
-      <Navbar />
-      <main class="mx-auto max-w-md px-6 py-12">
-        <Title>Log in — Vegan Activists NL</Title>
-        <h1 class="mb-4 text-2xl font-semibold">Log in</h1>
+    <main class="mx-auto max-w-md px-6 py-12">
+      <Title>Log in — Vegan Activists NL</Title>
+      <h1 class="mb-4 text-2xl font-semibold">Log in</h1>
 
-        <Show when={step() === "account"}>
-          <form class="space-y-4" onSubmit={onStartSubmit}>
-            <label class="block">
-              <span class="block text-sm font-medium">Account name</span>
-              <input
-                class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
-                required
-                value={accountName()}
-                onInput={(event) => setAccountName(event.currentTarget.value)}
-              />
-            </label>
-            <Show when={error()}>{(message) => <p class="text-red-700">{message()}</p>}</Show>
-            <button
-              type="submit"
-              disabled={submitting()}
-              class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
-            >
-              {submitting() ? "Sending…" : "Send login code"}
-            </button>
-          </form>
-        </Show>
+      <Show when={step() === "account"}>
+        <form class="space-y-4" onSubmit={onStartSubmit}>
+          <label class="block">
+            <span class="block text-sm font-medium">Account name</span>
+            <input
+              class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+              required
+              value={accountName()}
+              onInput={(event) => setAccountName(event.currentTarget.value)}
+            />
+          </label>
+          <Show when={error()}>{(message) => <p class="text-red-700">{message()}</p>}</Show>
+          <button
+            type="submit"
+            disabled={submitting()}
+            class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {submitting() ? "Sending…" : "Send login code"}
+          </button>
+        </form>
+      </Show>
 
-        <Show when={step() === "code"}>
-          <form class="space-y-4" onSubmit={onCodeSubmit}>
-            <p class="text-sm text-zinc-600">We sent a 6-digit code to you on Signal.</p>
-            <label class="block">
-              <span class="block text-sm font-medium">Code</span>
-              <input
-                class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
-                required
-                maxlength={6}
-                inputmode="numeric"
-                value={code()}
-                onInput={(event) => setCode(event.currentTarget.value)}
-              />
-            </label>
-            <Show when={error()}>{(message) => <p class="text-red-700">{message()}</p>}</Show>
-            <button
-              type="submit"
-              disabled={submitting()}
-              class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
-            >
-              {submitting() ? "Verifying…" : "Log in"}
-            </button>
-          </form>
-        </Show>
-      </main>
-    </>
+      <Show when={step() === "code"}>
+        <form class="space-y-4" onSubmit={onCodeSubmit}>
+          <p class="text-sm text-zinc-600">We sent a 6-digit code to you on Signal.</p>
+          <label class="block">
+            <span class="block text-sm font-medium">Code</span>
+            <input
+              class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+              required
+              maxlength={6}
+              inputmode="numeric"
+              value={code()}
+              onInput={(event) => setCode(event.currentTarget.value)}
+            />
+          </label>
+          <Show when={error()}>{(message) => <p class="text-red-700">{message()}</p>}</Show>
+          <button
+            type="submit"
+            disabled={submitting()}
+            class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {submitting() ? "Verifying…" : "Log in"}
+          </button>
+        </form>
+      </Show>
+    </main>
   );
 }

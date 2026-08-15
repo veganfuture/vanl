@@ -4,8 +4,48 @@ import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 
 type NavLink = { label: string; href: string };
 
+const SITE_TITLE = "VeganActivists.nl";
+const SITE_TAG = "Together united for animal rights • Netherlands";
+
 const linkClass =
   "block rounded-md px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900";
+
+function LanguageSwitcher(props: { onNavigate?: () => void }) {
+  return (
+    <details class="relative group">
+      <summary class="list-none flex cursor-pointer items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm hover:border-zinc-400">
+        <span>🌐 Language</span>
+        <svg
+          class="h-3 w-3 text-zinc-500 transition-transform duration-200 group-open:rotate-180"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </summary>
+
+      <div class="absolute right-0 z-10 mt-2 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
+        <a
+          href="/nl"
+          class="block px-3 py-2 text-sm text-zinc-800 no-underline hover:bg-zinc-50"
+          onClick={() => props.onNavigate?.()}
+        >
+          🇳🇱 Nederlands
+        </a>
+        <a
+          href="/en"
+          class="block px-3 py-2 text-sm text-zinc-800 no-underline hover:bg-zinc-50"
+          onClick={() => props.onNavigate?.()}
+        >
+          🇬🇧 English
+        </a>
+      </div>
+    </details>
+  );
+}
 
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = createSignal(false);
@@ -31,10 +71,7 @@ export function Navbar() {
   }
 
   const links = (): NavLink[] => {
-    const base: NavLink[] = [
-      { label: "Home", href: "/" },
-      { label: "Events", href: "/events" },
-    ];
+    const base: NavLink[] = [{ label: "Events", href: "/events" }];
     if (me()) {
       base.push({ label: "My events", href: "/events/mine" });
     }
@@ -44,8 +81,14 @@ export function Navbar() {
   return (
     <nav class="border-b border-zinc-200 bg-white">
       <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-        <a href="/" class="text-sm font-semibold text-zinc-900 no-underline">
-          Vegan Activists NL
+        <a href="/" class="flex items-center gap-3 no-underline">
+          <span class="inline-flex">
+            <img src="/apple-touch-icon.png" width={40} height={40} alt="Vegan Activists NL logo" />
+          </span>
+          <div>
+            <p class="text-sm font-semibold leading-tight text-zinc-900">{SITE_TITLE}</p>
+            <p class="text-xs text-zinc-600">{SITE_TAG}</p>
+          </div>
         </a>
 
         <div class="hidden items-center gap-1 md:flex">
@@ -75,6 +118,7 @@ export function Navbar() {
               {loggingOut() ? "Logging out…" : "Logout"}
             </button>
           </Show>
+          <LanguageSwitcher />
         </div>
 
         <button
@@ -132,6 +176,9 @@ export function Navbar() {
               {loggingOut() ? "Logging out…" : "Logout"}
             </button>
           </Show>
+          <div class="px-3 py-2">
+            <LanguageSwitcher onNavigate={() => setMobileOpen(false)} />
+          </div>
         </div>
       </Show>
     </nav>

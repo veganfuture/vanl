@@ -3,6 +3,7 @@ import { Router } from "@solidjs/router";
 import { FileRoutes } from "@solidjs/start/router";
 import { ErrorBoundary, Suspense } from "solid-js";
 import { ErrorFallback } from "~/components/ErrorFallback";
+import { Navbar } from "~/components/Navbar";
 import "./app.css";
 
 const SITE_DESCRIPTION = "The #1 vegan activists group in the Netherlands ✊";
@@ -16,6 +17,9 @@ export default function App() {
       <Router
         root={(props) => (
           <ErrorBoundary fallback={(err, reset) => <ErrorFallback error={err} reset={reset} />}>
+            <Suspense>
+              <Navbar />
+            </Suspense>
             <Suspense>{props.children}</Suspense>
           </ErrorBoundary>
         )}
