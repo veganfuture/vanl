@@ -22,10 +22,13 @@ export type ResolvedAddress = {
   readonly pdokId: string;
   readonly street: string;
   readonly houseNumber: string;
-  readonly postcode: string;
+  /** Null for the rare PDOK address doc that genuinely has none (seen on some border-adjacent addresses). */
+  readonly postcode: string | null;
   readonly woonplaatsNaam: string;
   readonly lat: number;
   readonly lng: number;
+  /** PDOK's own human-readable display string, e.g. "18 Septemberplein 35, 5611AL Eindhoven". */
+  readonly label: string;
 };
 
 const SuggestResponseSchema = z.object({
@@ -41,36 +44,59 @@ const SuggestResponseSchema = z.object({
 
 const WGS84_POINT_RE = /^POINT\(([-\d.]+) ([-\d.]+)\)$/;
 
-const LookupDocSchema = z
-  .object({
-    id: z.string(),
-    straatnaam: z.string(),
-    huisnummer: z.number(),
-    huisletter: z.string().optional(),
-    huisnummertoevoeging: z.string().optional(),
-    postcode: z.string(),
-    woonplaatsnaam: z.string(),
-    centroide_ll: z.string().regex(WGS84_POINT_RE, "expected a WGS84 WKT POINT"),
-  })
-  .transform((doc): ResolvedAddress => {
-    // Already validated by the schema's .regex() above - exec() cannot fail here.
-    const [, lngText, latText] = WGS84_POINT_RE.exec(doc.centroide_ll)!;
-    return {
-      pdokId: doc.id,
-      street: doc.straatnaam,
-      houseNumber: `${doc.huisnummer}${doc.huisletter ?? ""}${
-        doc.huisnummertoevoeging ? `-${doc.huisnummertoevoeging}` : ""
-      }`,
-      postcode: doc.postcode,
-      woonplaatsNaam: doc.woonplaatsnaam,
-      lat: Number(latText),
-      lng: Number(lngText),
-    };
-  });
+const AddressDocFields = z.object({
+  id: z.string(),
+  straatnaam: z.string(),
+  huisnummer: z.number(),
+  huisletter: z.string().optional(),
+  huisnummertoevoeging: z.string().optional(),
+  postcode: z.string().optional(),
+  woonplaatsnaam: z.string(),
+  centroide_ll: z.string().regex(WGS84_POINT_RE, "expected a WGS84 WKT POINT"),
+  weergavenaam: z.string(),
+});
+
+function toResolvedAddress(doc: z.infer<typeof AddressDocFields>): ResolvedAddress {
+  // Already validated by AddressDocFields's .regex() above - exec() cannot fail here.
+  const [, lngText, latText] = WGS84_POINT_RE.exec(doc.centroide_ll)!;
+  return {
+    pdokId: doc.id,
+    street: doc.straatnaam,
+    houseNumber: `${doc.huisnummer}${doc.huisletter ?? ""}${
+      doc.huisnummertoevoeging ? `-${doc.huisnummertoevoeging}` : ""
+    }`,
+    postcode: doc.postcode ?? null,
+    woonplaatsNaam: doc.woonplaatsnaam,
+    lat: Number(latText),
+    lng: Number(lngText),
+    label: doc.weergavenaam,
+  };
+}
+
+const LookupDocSchema = AddressDocFields.transform(toResolvedAddress);
 
 const LookupResponseSchema = z.object({
   response: z.object({
     docs: z.array(LookupDocSchema),
+  }),
+});
+
+export type ReverseGeocodeResult = {
+  readonly address: ResolvedAddress;
+  /** Distance in meters from the queried point to this (nearest) address. */
+  readonly distanceMeters: number;
+};
+
+const ReverseDocSchema = AddressDocFields.extend({ afstand: z.number() }).transform(
+  (doc): ReverseGeocodeResult => ({
+    address: toResolvedAddress(doc),
+    distanceMeters: doc.afstand,
+  }),
+);
+
+const ReverseResponseSchema = z.object({
+  response: z.object({
+    docs: z.array(ReverseDocSchema),
   }),
 });
 
@@ -130,5 +156,37 @@ export function lookupAddress(pdokId: string): ResultAsync<ResolvedAddress, Pdok
       });
     }
     return okAsync(doc);
+  });
+}
+
+/**
+ * Finds the nearest Dutch address to a coordinate, plus its distance -
+ * PDOK's index only covers the Netherlands, so a large distance reliably
+ * signals the coordinate itself lies outside it (used by
+ * scripts/import-arc-events.ts to filter out German/Belgian events).
+ * Resolves to null, not a PdokError, when PDOK simply has no match.
+ */
+export function reverseGeocode(
+  lat: number,
+  lng: number,
+): ResultAsync<ReverseGeocodeResult | null, PdokError> {
+  const url = new URL(`${PDOK_BASE_URL}/reverse`);
+  url.searchParams.set("lat", String(lat));
+  url.searchParams.set("lon", String(lng));
+  url.searchParams.set("rows", "1");
+  url.searchParams.set("fq", "type:adres");
+  url.searchParams.set(
+    "fl",
+    "id,straatnaam,huisnummer,huisletter,huisnummertoevoeging,postcode,woonplaatsnaam,centroide_ll,afstand,weergavenaam",
+  );
+
+  return fetchJson(url).andThen((raw) => {
+    const parsed = ReverseResponseSchema.safeParse(raw);
+    if (!parsed.success) {
+      return errAsync<ReverseGeocodeResult | null, PdokError>({
+        message: `Unexpected PDOK reverse response shape: ${parsed.error.message}`,
+      });
+    }
+    return okAsync(parsed.data.response.docs[0] ?? null);
   });
 }

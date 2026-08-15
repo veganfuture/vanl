@@ -177,6 +177,7 @@ describe("createEvent", () => {
         woonplaatsNaam: "Test Fixture City",
         lat: 52.06,
         lng: 5.1,
+        label: "Europalaan 93, 3526KP Test Fixture City",
       }),
     );
 
@@ -218,6 +219,7 @@ describe("createEvent", () => {
         woonplaatsNaam: "Nonexistent Place That Was Never Seeded",
         lat: 0,
         lng: 0,
+        label: "Nergensweg 1, 0000AA Nonexistent Place That Was Never Seeded",
       }),
     );
 

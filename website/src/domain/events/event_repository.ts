@@ -2,7 +2,7 @@ import { err, ok, ResultAsync, type Result } from "neverthrow";
 import type postgres from "postgres";
 import { z } from "zod";
 import { UserId } from "../auth/user_id";
-import type { Event, EventLocationKind, EventStatus } from "./event";
+import type { Event, EventLocationKind, EventSource, EventStatus } from "./event";
 import { EventId } from "./event_id";
 
 /**
@@ -33,12 +33,13 @@ const EventRowSchema = z.object({
   map_url: z.string().nullable(),
   external_event_url: z.string().nullable(),
   registration_url: z.string().nullable(),
+  organizer_name: z.string().nullable(),
   publisher_user_id: z.string(),
   publisher_user_visible: z.boolean(),
   status: z.enum(["hidden", "visible", "cancelled"]),
   cancel_reason: z.string().nullable(),
   is_featured: z.boolean(),
-  source: z.enum(["manual", "signal_import", "partner_import"]),
+  source: z.enum(["manual", "signal_import", "animalrightscalendar.com"]),
   external_source_id: z.string().nullable(),
   created_by: z.string(),
   updated_by: z.string(),
@@ -109,6 +110,7 @@ function mapEventRow(row: unknown): Result<Event, DbError> {
     mapUrl: parsed.map_url,
     externalEventUrl: parsed.external_event_url,
     registrationUrl: parsed.registration_url,
+    organizerName: parsed.organizer_name,
     publisherUserId: publisherUserIdResult.value,
     publisherUserVisible: parsed.publisher_user_visible,
     status: parsed.status,
@@ -143,11 +145,17 @@ export type NewEventInput = {
   mapUrl: string | null;
   externalEventUrl: string | null;
   registrationUrl: string | null;
+  organizerName: string | null;
   publisherUserId: UserId;
   createdBy: UserId;
+  source: EventSource;
+  externalSourceId: string | null;
 };
 
-export type EditableEventFields = Omit<NewEventInput, "slug" | "publisherUserId" | "createdBy">;
+export type EditableEventFields = Omit<
+  NewEventInput,
+  "slug" | "publisherUserId" | "createdBy" | "source" | "externalSourceId" | "organizerName"
+>;
 
 export class EventRepository {
   constructor(private readonly sql: postgres.Sql) {}
@@ -159,8 +167,8 @@ export class EventRepository {
           slug, title_nl, title_en, description_nl, description_en, start_at, end_at,
           location_kind, place_id, location_description, location_street,
           location_house_number, location_postcode, location_lat, location_lng,
-          location_pdok_id, map_url, external_event_url, registration_url,
-          publisher_user_id, created_by, updated_by
+          location_pdok_id, map_url, external_event_url, registration_url, organizer_name,
+          publisher_user_id, created_by, updated_by, source, external_source_id
         )
         values (
           ${input.slug}, ${input.titleNl}, ${input.titleEn}, ${input.descriptionNl},
@@ -168,13 +176,26 @@ export class EventRepository {
           ${input.placeId}, ${input.locationDescription}, ${input.locationStreet},
           ${input.locationHouseNumber}, ${input.locationPostcode}, ${input.locationLat},
           ${input.locationLng}, ${input.locationPdokId}, ${input.mapUrl},
-          ${input.externalEventUrl}, ${input.registrationUrl}, ${input.publisherUserId.value},
-          ${input.createdBy.value}, ${input.createdBy.value}
+          ${input.externalEventUrl}, ${input.registrationUrl}, ${input.organizerName},
+          ${input.publisherUserId.value}, ${input.createdBy.value}, ${input.createdBy.value},
+          ${input.source}, ${input.externalSourceId}
         )
         returning *
       `,
       (cause): DbError => ({ message: "Failed to create event", cause }),
     ).andThen((rows) => mapEventRow(rows[0]));
+  }
+
+  findEventBySourceAndExternalId(
+    source: EventSource,
+    externalSourceId: string,
+  ): ResultAsync<Event | null, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        select * from events where source = ${source} and external_source_id = ${externalSourceId}
+      `,
+      (cause): DbError => ({ message: "Failed to find event by source and external id", cause }),
+    ).andThen((rows): Result<Event | null, DbError> => (rows[0] ? mapEventRow(rows[0]) : ok(null)));
   }
 
   findEventBySlug(slug: string): ResultAsync<Event | null, DbError> {

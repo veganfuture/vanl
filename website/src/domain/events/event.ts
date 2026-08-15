@@ -5,7 +5,7 @@ export type EventLocationKind = "precise_address" | "meeting_point_city_only";
 
 export type EventStatus = "hidden" | "visible" | "cancelled";
 
-export type EventSource = "manual" | "signal_import" | "partner_import";
+export type EventSource = "manual" | "signal_import" | "animalrightscalendar.com";
 
 export type Event = {
   id: EventId;
@@ -31,6 +31,8 @@ export type Event = {
   mapUrl: string | null;
   externalEventUrl: string | null;
   registrationUrl: string | null;
+  /** Which real-world organization runs this event - only ever set by an import script, never by a human publisher. */
+  organizerName: string | null;
   publisherUserId: UserId;
   publisherUserVisible: boolean;
   status: EventStatus;

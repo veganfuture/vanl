@@ -157,6 +157,26 @@ export class AuthRepository {
     );
   }
 
+  /**
+   * Plain user creation, bypassing the signup-nonce/first-user-is-admin
+   * flow in createUserFromSignup - for system accounts (e.g.
+   * scripts/import-arc-events.ts's publisher user) that never go through
+   * signup at all.
+   */
+  createUser(input: NewUserInput): ResultAsync<User, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        insert into users (signal_aci, account_name, email, display_name, affiliations_note)
+        values (
+          ${input.signalAci.value}, ${input.accountName.value}, ${input.email},
+          ${input.displayName}, ${input.affiliationsNote}
+        )
+        returning *
+      `,
+      (cause): DbError => ({ message: "Failed to create user", cause }),
+    ).andThen((rows) => mapUserRow(rows[0]));
+  }
+
   findUserByAccountName(accountName: string): ResultAsync<User | null, DbError> {
     return ResultAsync.fromPromise(
       this.sql`

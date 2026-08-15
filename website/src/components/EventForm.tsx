@@ -306,7 +306,8 @@ export function EventForm(props: {
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="block">
           <span class="block text-sm font-medium">
-            {t("Begint om", "Starts at")} <span class="font-normal text-zinc-400">(NL)</span>
+            {t("Begint om", "Starts at")}{" "}
+            <span class="font-normal text-zinc-400">{t("(NL tijd)", "(NL time)")}</span>
           </span>
           <input
             type="datetime-local"
@@ -322,7 +323,7 @@ export function EventForm(props: {
         <label class="block">
           <span class="block text-sm font-medium">
             {t("Eindigt om (optioneel)", "Ends at (optional)")}{" "}
-            <span class="font-normal text-zinc-400">(NL)</span>
+            <span class="font-normal text-zinc-400">{t("(NL tijd)", "(NL time)")}</span>
           </span>
           <input
             type="datetime-local"

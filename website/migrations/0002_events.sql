@@ -26,7 +26,7 @@ create type event_location_kind as enum (
 
 create type event_status as enum ('hidden', 'visible', 'cancelled');
 
-create type event_source as enum ('manual', 'signal_import', 'partner_import');
+create type event_source as enum ('manual', 'signal_import', 'animalrightscalendar.com');
 
 create table events (
   id uuid primary key default gen_random_uuid(),
@@ -74,6 +74,14 @@ create table events (
   external_event_url text,
   registration_url text,
 
+  -- Which real-world organization runs this event, e.g. "Anonymous for the
+  -- Voiceless" - never set by a human publisher (nullable, no CHECK), only
+  -- ever populated at creation by an import script's own heuristics (see
+  -- scripts/import-arc-events.ts's detectOrganizer). Deliberately excluded
+  -- from the human edit path so it's never silently wiped by an unrelated
+  -- edit - same reasoning as source/external_source_id below.
+  organizer_name text,
+
   publisher_user_id uuid not null references users (id),
   publisher_user_visible boolean not null default true,
 
@@ -87,6 +95,10 @@ create table events (
 
   source event_source not null default 'manual',
   external_source_id text,
+  -- Nulls are distinct under a unique index, so 'manual' events (always
+  -- null) are unaffected; this only enforces one row per (source, id) for
+  -- imports, which is what makes re-running an import script idempotent.
+  constraint events_external_source_id_unique unique (source, external_source_id),
   recurrence_rule jsonb,
 
   created_by uuid not null references users (id),

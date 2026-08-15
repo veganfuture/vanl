@@ -1,6 +1,7 @@
 import { useParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
 import { createResource, createSignal, Show } from "solid-js";
+import { LinkifiedText } from "~/components/LinkifiedText";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { pickLocalized, resolveLang } from "~/lib/i18n";
@@ -220,8 +221,19 @@ export default function EventDetailPage() {
                   </>
                 </Show>
               </p>
+              <Show when={currentEvent().organizerName}>
+                <p class="mb-4 text-zinc-600">
+                  {t("Georganiseerd door", "Organized by")} {currentEvent().organizerName}
+                </p>
+              </Show>
               <p class="mb-6 whitespace-pre-wrap">
-                {pickLocalized(currentEvent().descriptionNl, currentEvent().descriptionEn, lang())}
+                <LinkifiedText
+                  text={pickLocalized(
+                    currentEvent().descriptionNl,
+                    currentEvent().descriptionEn,
+                    lang(),
+                  )}
+                />
               </p>
 
               <Show when={currentEvent().mapUrl}>

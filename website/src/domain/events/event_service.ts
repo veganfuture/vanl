@@ -127,8 +127,11 @@ export class EventService {
           mapUrl: parsed.data.mapUrl,
           externalEventUrl: parsed.data.externalEventUrl,
           registrationUrl: parsed.data.registrationUrl,
+          organizerName: null,
           publisherUserId,
           createdBy: publisherUserId,
+          source: "manual",
+          externalSourceId: null,
         })
         .mapErr((dbError): CreateEventError => {
           logger.error({ err: dbError }, "failed to create event");

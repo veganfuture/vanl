@@ -52,8 +52,11 @@ function baseEventInput(overrides: Partial<NewEventInput> = {}): NewEventInput {
     mapUrl: null,
     externalEventUrl: null,
     registrationUrl: null,
+    organizerName: null,
     publisherUserId: overrides.publisherUserId!,
     createdBy: overrides.createdBy ?? overrides.publisherUserId!,
+    source: "manual",
+    externalSourceId: null,
     ...overrides,
   };
 }

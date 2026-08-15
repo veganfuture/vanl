@@ -33,3 +33,15 @@ export class AccountName {
     return this.value;
   }
 }
+
+/**
+ * Names reserved for system accounts (e.g. scripts/import-arc-events.ts's
+ * publisher user) - a real signup must never be able to claim one. Checked
+ * case-insensitively to match `users.account_name`'s citext column, which
+ * is where uniqueness is actually enforced.
+ */
+const RESERVED_ACCOUNT_NAMES: ReadonlySet<string> = new Set(["arc-import"]);
+
+export function isReservedAccountName(name: AccountName): boolean {
+  return RESERVED_ACCOUNT_NAMES.has(name.value.toLowerCase());
+}

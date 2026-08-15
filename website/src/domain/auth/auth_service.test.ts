@@ -155,6 +155,18 @@ describe("completeSignup", () => {
 
     expect(result._unsafeUnwrapErr()).toBe("account_name_taken");
   });
+
+  it("rejects a reserved account name", async () => {
+    const result = await service.completeSignup({
+      token: signWithDevKey("77777777-7777-7777-7777-777777777701"),
+      accountName: "arc-import",
+      email: "someone@example.com",
+      displayName: "Someone",
+      affiliationsNote: null,
+    });
+
+    expect(result._unsafeUnwrapErr()).toBe("account_name_taken");
+  });
 });
 
 describe("login", () => {

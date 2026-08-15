@@ -3,7 +3,7 @@ import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { loadConfig, type AppConfig } from "~/lib/config";
 import { sql } from "~/lib/db";
 import { logger } from "~/lib/logger";
-import { AccountName } from "./account_name";
+import { AccountName, isReservedAccountName } from "./account_name";
 import { AuthRepository, type ActiveLoginChallenge, type DbError } from "./auth_repository";
 import { sendOtpViaBot } from "./bot-client";
 import {
@@ -108,6 +108,15 @@ export class AuthService {
         if (accountNameResult.isErr()) {
           logger.warn({ err: accountNameResult.error }, "signup rejected: invalid account name");
           return errAsync<never, CompleteSignupError>("validation");
+        }
+        if (isReservedAccountName(accountNameResult.value)) {
+          // Indistinguishable from "already taken" to the caller - a signup
+          // has no legitimate reason to know reserved names exist at all.
+          logger.warn(
+            { accountName: accountNameResult.value.value },
+            "signup rejected: reserved account name",
+          );
+          return errAsync<never, CompleteSignupError>("account_name_taken");
         }
 
         if (!input.email.trim() || !input.displayName.trim()) {
