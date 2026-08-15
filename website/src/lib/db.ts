@@ -14,7 +14,19 @@ function createSqlClient() {
     database: config.database.database,
     username: config.database.user,
     password: process.env.VANL_DATABASE_PASSWORD ?? "",
+    connect_timeout: 10,
   });
 }
 
 export const sql = createSqlClient();
+
+/**
+ * Runs a trivial query to confirm the database is actually reachable.
+ * `postgres()` connects lazily, so nothing above this line has attempted a
+ * real connection yet — used at server startup (see
+ * server/plugins/check-database-connection.ts) to fail fast with a clear
+ * error instead of only discovering the problem on the first request.
+ */
+export async function checkDatabaseConnection(): Promise<void> {
+  await sql`select 1`;
+}
