@@ -1,6 +1,11 @@
 import { Title } from "@solidjs/meta";
 import { createSignal, onMount, Show } from "solid-js";
-import { apiFetch, isApiFetchError } from "~/lib/api-fetch";
+import {
+  apiFetch,
+  describeApiError,
+  isApiFetchError,
+  type ErrorMessagesFor,
+} from "~/lib/api-fetch";
 import { REMEMBERED_ACCOUNT_COOKIE_NAME } from "~/domain/auth/cookies";
 import {
   LoginStartRequestSchema,
@@ -15,26 +20,23 @@ import {
 
 type Step = "account" | "code";
 
-type LoginError =
-  | Extract<LoginStartResponse, { error: string }>["error"]
-  | Extract<LoginVerifyResponse, { error: string }>["error"];
+const LOGIN_START_ERROR_MESSAGES: ErrorMessagesFor<LoginStartResponse> = {
+  account_not_found: { message: "No account found with that name.", isWarn: true },
+  validation: { message: "Please check the form and try again.", isWarn: false },
+  internal_error: { message: "Something went wrong. Please try again.", isWarn: false },
+};
 
-function describeError(error: LoginError | undefined): string {
-  switch (error) {
-    case "account_not_found":
-      return "No account found with that name.";
-    case "no_active_challenge":
-      return "Your code expired — request a new one.";
-    case "wrong_code":
-      return "That code is incorrect. Try again.";
-    case "attempts_exhausted":
-      return "Too many incorrect attempts — request a new code.";
-    case "validation":
-      return "Please check the form and try again.";
-    default:
-      return "Something went wrong. Please try again.";
-  }
-}
+const LOGIN_VERIFY_ERROR_MESSAGES: ErrorMessagesFor<LoginVerifyResponse> = {
+  account_not_found: { message: "No account found with that name.", isWarn: true },
+  no_active_challenge: { message: "Your code expired — request a new one.", isWarn: true },
+  wrong_code: { message: "That code is incorrect. Try again.", isWarn: true },
+  attempts_exhausted: {
+    message: "Too many incorrect attempts — request a new code.",
+    isWarn: true,
+  },
+  validation: { message: "Please check the form and try again.", isWarn: false },
+  internal_error: { message: "Something went wrong. Please try again.", isWarn: false },
+};
 
 export default function LoginPage() {
   const [step, setStep] = createSignal<Step>("account");
@@ -63,7 +65,7 @@ export default function LoginPage() {
         response: LoginStartResponseSchema,
       });
       if (isApiFetchError(result) || "error" in result) {
-        setError(describeError(isApiFetchError(result) ? undefined : result.error));
+        setError(describeApiError(result, LOGIN_START_ERROR_MESSAGES));
         return;
       }
       setStep("code");
@@ -83,7 +85,7 @@ export default function LoginPage() {
         response: LoginVerifyResponseSchema,
       });
       if (isApiFetchError(result) || "error" in result) {
-        setError(describeError(isApiFetchError(result) ? undefined : result.error));
+        setError(describeApiError(result, LOGIN_VERIFY_ERROR_MESSAGES));
         return;
       }
       window.location.href = "/";

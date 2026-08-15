@@ -90,3 +90,42 @@ export async function apiFetch<
   }
   return parsed.data as TRes extends ZodType ? z.infer<TRes> : undefined;
 }
+
+export type ApiErrorMessage = {
+  readonly message: string;
+  /** true: console.warn (expected, user-caused). false: console.error (a bug). */
+  readonly isWarn: boolean;
+};
+
+/** Extracts the `error` union out of a `SuccessShape | { error: ... }` response type. */
+export type ApiErrorOf<TResponse> = Extract<TResponse, { error: string }>["error"];
+
+/** The `messages` shape `describeApiError` needs for a given response type. */
+export type ErrorMessagesFor<TResponse> = Record<ApiErrorOf<TResponse>, ApiErrorMessage>;
+
+/**
+ * Turn an already-known-to-be-an-error apiFetch result into a message to
+ * show the user, logging it along the way (console.error for ApiFetchError
+ * and any message marked `isWarn: false`, console.warn otherwise).
+ *
+ * `messages` must cover every value of `TError` — inferred from `result` —
+ * so adding a new error code to a response schema without adding its
+ * message here is a compile error, not a silent generic fallback at
+ * runtime.
+ */
+export function describeApiError<TError extends string>(
+  result: ApiFetchError | { error: TError },
+  messages: Record<TError, ApiErrorMessage>,
+): string {
+  if (isApiFetchError(result)) {
+    console.error("API request failed:", result.cause, result.status);
+    return "Something went wrong. Please try again.";
+  }
+  const entry = messages[result.error];
+  if (entry.isWarn) {
+    console.warn("API returned error:", result.error);
+  } else {
+    console.error("API returned error:", result.error);
+  }
+  return entry.message;
+}

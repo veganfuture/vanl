@@ -1,7 +1,12 @@
 import { useSearchParams } from "@solidjs/router";
 import { createResource, createSignal, Show } from "solid-js";
 import { Title } from "@solidjs/meta";
-import { apiFetch, isApiFetchError } from "~/lib/api-fetch";
+import {
+  apiFetch,
+  describeApiError,
+  isApiFetchError,
+  type ErrorMessagesFor,
+} from "~/lib/api-fetch";
 import {
   SignupInspectResponseSchema,
   type SignupInspectResponse,
@@ -16,44 +21,49 @@ function firstParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
-type SignupError =
-  | Extract<SignupInspectResponse, { error: string }>["error"]
-  | Extract<SignupResponse, { error: string }>["error"];
+const SIGNUP_INSPECT_ERROR_MESSAGES: ErrorMessagesFor<SignupInspectResponse> = {
+  invalid: {
+    message: "This signup link is invalid or has expired. Message the bot again for a new one.",
+    isWarn: true,
+  },
+  already_used: { message: "This signup link has already been used.", isWarn: true },
+  internal_error: { message: "Something went wrong. Please try again.", isWarn: false },
+};
 
-function describeError(error: SignupError | undefined): string {
-  switch (error) {
-    case "already_used":
-      return "This signup link has already been used.";
-    case "invalid_token":
-    case "invalid":
-      return "This signup link is invalid or has expired. Message the bot again for a new one.";
-    case "account_name_taken":
-      return "That account name is already taken — please choose another.";
-    case "validation":
-      return "Please check the form and try again.";
-    default:
-      return "Something went wrong. Please try again.";
-  }
-}
-
-function errorOf(result: SignupInspectResponse | undefined): SignupError | undefined {
-  return result && "error" in result ? result.error : undefined;
-}
+const SIGNUP_ERROR_MESSAGES: ErrorMessagesFor<SignupResponse> = {
+  invalid_token: {
+    message: "This signup link is invalid or has expired. Message the bot again for a new one.",
+    isWarn: true,
+  },
+  already_used: { message: "This signup link has already been used.", isWarn: true },
+  account_name_taken: {
+    message: "That account name is already taken — please choose another.",
+    isWarn: true,
+  },
+  validation: { message: "Please check the form and try again.", isWarn: false },
+  internal_error: { message: "Something went wrong. Please try again.", isWarn: false },
+};
 
 export default function SignupPage() {
   const [searchParams] = useSearchParams();
   const token = () => firstParam(searchParams.token);
 
-  const [inspection] = createResource(token, async (tokenValue): Promise<SignupInspectResponse> => {
-    if (!tokenValue) {
-      return { error: "invalid" };
-    }
-    const result = await apiFetch(
-      `/api/auth/signup/inspect?token=${encodeURIComponent(tokenValue)}`,
-      { response: SignupInspectResponseSchema },
-    );
-    return isApiFetchError(result) ? { error: "invalid" } : result;
-  });
+  const [inspectionError] = createResource(
+    token,
+    async (tokenValue): Promise<string | undefined> => {
+      if (!tokenValue) {
+        return describeApiError({ error: "invalid" as const }, SIGNUP_INSPECT_ERROR_MESSAGES);
+      }
+      const result = await apiFetch(
+        `/api/auth/signup/inspect?token=${encodeURIComponent(tokenValue)}`,
+        { response: SignupInspectResponseSchema },
+      );
+      if (isApiFetchError(result) || "error" in result) {
+        return describeApiError(result, SIGNUP_INSPECT_ERROR_MESSAGES);
+      }
+      return undefined;
+    },
+  );
 
   const [accountName, setAccountName] = createSignal("");
   const [email, setEmail] = createSignal("");
@@ -80,7 +90,7 @@ export default function SignupPage() {
         response: SignupResponseSchema,
       });
       if (isApiFetchError(result) || "error" in result) {
-        setSubmitError(describeError(isApiFetchError(result) ? undefined : result.error));
+        setSubmitError(describeApiError(result, SIGNUP_ERROR_MESSAGES));
         return;
       }
       setSuccess(true);
@@ -92,11 +102,11 @@ export default function SignupPage() {
   return (
     <main class="mx-auto max-w-md px-6 py-12">
       <Title>Set up your account — Vegan Activists NL</Title>
-      <Show when={!inspection.loading} fallback={<p class="text-zinc-600">Checking your link…</p>}>
-        <Show
-          when={inspection() && !("error" in inspection()!)}
-          fallback={<p class="text-red-700">{describeError(errorOf(inspection()))}</p>}
-        >
+      <Show
+        when={!inspectionError.loading}
+        fallback={<p class="text-zinc-600">Checking your link…</p>}
+      >
+        <Show when={!inspectionError()} fallback={<p class="text-red-700">{inspectionError()}</p>}>
           <Show
             when={!success()}
             fallback={
