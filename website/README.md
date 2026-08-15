@@ -59,6 +59,15 @@ VANL_CONFIG_PATH=configs/dev.toml VANL_DATABASE_PASSWORD= bun run migrate
 (`VANL_DATABASE_PASSWORD` is empty because the dev database is started with `--auth=trust` —
 password-less, loopback-only. Never do this in production.)
 
+### Check whether it's running
+
+```bash
+nix run .#devdb-status
+```
+
+Exits 0 and prints `Dev Postgres is running on 127.0.0.1:54329.` if it is; exits 1 with a
+message otherwise.
+
 ### Stop it
 
 ```bash

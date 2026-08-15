@@ -93,6 +93,29 @@
         }
       '';
 
+      devDbStatus = pkgs.writeScriptBin "devdb-status" ''
+        ${nuShellScript}
+
+        def main [--repo-dir: string = "."] {
+          let repo_dir = ($repo_dir | path expand)
+          let data_dir = ($repo_dir | path join ".devdb" "data")
+          let pid_file = ($data_dir | path join "postmaster.pid")
+
+          if not ($pid_file | path exists) {
+            print "Dev Postgres is not running."
+            exit 1
+          }
+
+          let result = (^${pkgs.postgresql}/bin/pg_ctl status -D $data_dir | complete)
+          if $result.exit_code == 0 {
+            print $"Dev Postgres is running on 127.0.0.1:${toString devDbPort}."
+          } else {
+            print "Dev Postgres is not running (stale postmaster.pid?)."
+            exit 1
+          }
+        }
+      '';
+
       devDbStop = pkgs.writeScriptBin "devdb-stop" ''
         ${nuShellScript}
 
@@ -264,6 +287,10 @@
         devdb-start = {
           type = "app";
           program = "${devDbStart}/bin/devdb-start";
+        };
+        devdb-status = {
+          type = "app";
+          program = "${devDbStatus}/bin/devdb-status";
         };
         devdb-stop = {
           type = "app";
