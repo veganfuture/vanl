@@ -30,3 +30,13 @@ export const sql = createSqlClient();
 export async function checkDatabaseConnection(): Promise<void> {
   await sql`select 1`;
 }
+
+/** True when a repository DbError's `cause` is a Postgres unique-constraint violation (code 23505). */
+export function isUniqueViolation(cause: unknown): boolean {
+  return (
+    typeof cause === "object" &&
+    cause !== null &&
+    "code" in cause &&
+    (cause as { code: unknown }).code === "23505"
+  );
+}

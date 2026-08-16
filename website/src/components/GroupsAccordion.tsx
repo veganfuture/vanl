@@ -1,5 +1,6 @@
 import { createSignal, createUniqueId, For } from "solid-js";
 import { CopyButton } from "./CopyButton";
+import { SignalLink } from "./SignalLink";
 import type { GroupInfo } from "~/lib/groups";
 import type { Locale } from "~/lib/i18n";
 
@@ -63,27 +64,26 @@ export function GroupsAccordion(props: {
                     </div>
 
                     <div class="flex flex-col items-start gap-3">
-                      <a
-                        href={g.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 no-underline"
-                      >
-                        Open in Signal
-                      </a>
+                      <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <a
+                          href={g.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 no-underline"
+                        >
+                          Open in Signal
+                        </a>
+                        <span class="text-sm text-zinc-600">
+                          ({t("Nog geen Signal? ", "No Signal yet? ")}
+                          <SignalLink lang={props.lang} />)
+                        </span>
+                      </div>
                       <CopyButton
                         text={g.url}
                         label={t("Link kopiëren", "Copy link")}
                         success={t("Link gekopieerd!", "Link copied!")}
                         class="inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm transition hover:border-zinc-400 no-underline"
                       />
-                      <a
-                        href={g.qrImage}
-                        download=""
-                        class="inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm transition hover:border-zinc-400 no-underline"
-                      >
-                        {t("Download QR-code", "Download QR code")}
-                      </a>
                     </div>
                   </div>
                 </div>

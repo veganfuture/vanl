@@ -1,9 +1,8 @@
-import { useParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
 import { createSignal, onMount, Show } from "solid-js";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
-import { resolveLang } from "~/lib/i18n";
+import { useLang } from "~/lib/i18n";
 import { REMEMBERED_ACCOUNT_COOKIE_NAME } from "~/domain/auth/cookies";
 import {
   LoginStartRequestSchema,
@@ -19,9 +18,7 @@ import {
 type Step = "account" | "code";
 
 export default function LoginPage() {
-  const params = useParams<{ lang: string }>();
-  const lang = () => resolveLang(params.lang);
-  const t = (nl: string, en: string) => (lang() === "nl" ? nl : en);
+  const { lang, t } = useLang();
 
   const LOGIN_ERROR_MESSAGES: ErrorMessagesFor<LoginStartResponse | LoginVerifyResponse> = {
     account_not_found: {
@@ -30,8 +27,8 @@ export default function LoginPage() {
     },
     no_active_challenge: {
       message: t(
-        "Je code is verlopen — vraag een nieuwe aan.",
-        "Your code expired — request a new one.",
+        "Je code is verlopen. Vraag een nieuwe aan.",
+        "Your code expired. Request a new one.",
       ),
       isWarn: true,
     },
@@ -41,8 +38,15 @@ export default function LoginPage() {
     },
     attempts_exhausted: {
       message: t(
-        "Te veel foute pogingen — vraag een nieuwe code aan.",
-        "Too many incorrect attempts — request a new code.",
+        "Te veel foute pogingen. Vraag om een nieuwe code.",
+        "Too many incorrect attempts. Request a new code.",
+      ),
+      isWarn: true,
+    },
+    rate_limited: {
+      message: t(
+        "Te veel codes aangevraagd. Probeer het over een paar uur opnieuw.",
+        "Too many codes requested. Please try again in a few hours.",
       ),
       isWarn: true,
     },
@@ -67,6 +71,12 @@ export default function LoginPage() {
   const [code, setCode] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
   const [submitting, setSubmitting] = createSignal(false);
+  const [resending, setResending] = createSignal(false);
+  const [resendMessage, setResendMessage] = createSignal<string | null>(null);
+  // Once a resend hits the rate limit, the button stops working for the
+  // rest of this page session rather than letting the user hammer it -
+  // there's no point re-attempting until the 12h window rolls forward.
+  const [rateLimited, setRateLimited] = createSignal(false);
 
   onMount(() => {
     const match = document.cookie.match(
@@ -77,22 +87,52 @@ export default function LoginPage() {
     }
   });
 
+  async function sendCode(): Promise<{ ok: true } | { ok: false; message: string }> {
+    const result = await apiFetch("/api/auth/login/start", {
+      request: LoginStartRequestSchema,
+      body: { accountName: accountName() },
+      response: LoginStartResponseSchema,
+    });
+    return result.match(
+      () => ({ ok: true as const }),
+      (apiError) => {
+        if ("error" in apiError && apiError.error === "rate_limited") {
+          setRateLimited(true);
+        }
+        return { ok: false as const, message: describeApiError(apiError, LOGIN_ERROR_MESSAGES) };
+      },
+    );
+  }
+
   async function onStartSubmit(event: SubmitEvent) {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      const result = await apiFetch("/api/auth/login/start", {
-        request: LoginStartRequestSchema,
-        body: { accountName: accountName() },
-        response: LoginStartResponseSchema,
-      });
-      result.match(
-        () => setStep("code"),
-        (error) => setError(describeApiError(error, LOGIN_ERROR_MESSAGES)),
-      );
+      const outcome = await sendCode();
+      if (outcome.ok) {
+        setStep("code");
+      } else {
+        setError(outcome.message);
+      }
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function onResend() {
+    setResending(true);
+    setError(null);
+    setResendMessage(null);
+    try {
+      const outcome = await sendCode();
+      if (outcome.ok) {
+        setResendMessage(t("Nieuwe code verstuurd.", "New code sent."));
+      } else {
+        setError(outcome.message);
+      }
+    } finally {
+      setResending(false);
     }
   }
 
@@ -167,12 +207,25 @@ export default function LoginPage() {
             />
           </label>
           <Show when={error()}>{(message) => <p class="text-red-700">{message()}</p>}</Show>
+          <Show when={!error() && resendMessage()}>
+            {(message) => <p class="text-emerald-700">{message()}</p>}
+          </Show>
           <button
             type="submit"
             disabled={submitting()}
             class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
           >
             {submitting() ? t("Bezig met verifiëren…", "Verifying…") : t("Inloggen", "Log in")}
+          </button>
+          <button
+            type="button"
+            disabled={resending() || rateLimited()}
+            onClick={onResend}
+            class="block text-sm text-zinc-600 underline disabled:cursor-not-allowed disabled:text-zinc-400 disabled:no-underline"
+          >
+            {resending()
+              ? t("Bezig met versturen…", "Sending…")
+              : t("Geen code ontvangen? Stuur opnieuw", "Didn't get a code? Resend")}
           </button>
         </form>
       </Show>

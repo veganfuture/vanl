@@ -7,6 +7,7 @@ import type { CreateEventResponse, ListEventsResponse } from "./index.schema";
 
 const ERROR_STATUS: Record<string, number> = {
   unauthorized: 401,
+  forbidden: 403,
   validation: 400,
   internal_error: 500,
 };
@@ -34,7 +35,7 @@ export async function POST(event: APIEvent): Promise<Response> {
     });
   }
 
-  const result = await eventService.createEvent(actingUser.id, {
+  const result = await eventService.createEvent(actingUser, {
     ...parsed.data,
     startAt: new Date(parsed.data.startAt),
     endAt: parsed.data.endAt ? new Date(parsed.data.endAt) : null,

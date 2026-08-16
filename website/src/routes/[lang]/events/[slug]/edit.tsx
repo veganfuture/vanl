@@ -10,17 +10,18 @@ import {
 } from "~/components/EventForm";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError } from "~/lib/api-fetch";
-import { resolveLang } from "~/lib/i18n";
+import { useLang } from "~/lib/i18n";
+import { uploadImage } from "~/lib/upload-image";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { GetEventBySlugResponseSchema } from "~/routes/api/events/by-slug/[slug].schema";
 import { EventRequestSchema } from "~/routes/api/events/event.schema";
 import { UpdateEventResponseSchema } from "~/routes/api/events/[id].schema";
 import { GetPlaceResponseSchema } from "~/routes/api/places/[id].schema";
+import { MyOrganizationsResponseSchema } from "~/routes/api/organizations/mine.schema";
 
 export default function EditEventPage() {
-  const params = useParams<{ lang: string; slug: string }>();
-  const lang = () => resolveLang(params.lang);
-  const t = (nl: string, en: string) => (lang() === "nl" ? nl : en);
+  const params = useParams<{ slug: string }>();
+  const { lang, t } = useLang();
 
   const [event] = createResource(
     () => params.slug ?? "",
@@ -54,14 +55,38 @@ export default function EditEventPage() {
     },
   );
 
+  const [myOrgs] = createResource(async () => {
+    const result = await apiFetch("/api/organizations/mine", {
+      response: MyOrganizationsResponseSchema,
+    });
+    return result.match(
+      (data) => data.organizations,
+      () => [],
+    );
+  });
+
+  /**
+   * Client-side gate for showing the form at all - the server
+   * (EventService.loadForModification) is the real authorization boundary,
+   * so this is deliberately a bit permissive: any member of the publishing
+   * org sees the form (matches org_admin's actual permissions exactly;
+   * org_editor sees it too even for events they didn't personally create,
+   * where the server will correctly reject the save with "forbidden").
+   */
   const canEdit = () => {
     const currentUser = me();
     const currentEvent = event();
     if (!currentUser || !currentEvent) return false;
-    return currentUser.isSiteAdmin || currentUser.id === currentEvent.publisherUserId;
+    if (currentUser.isSiteAdmin) return true;
+    if (currentEvent.publisherUserId && currentUser.id === currentEvent.publisherUserId)
+      return true;
+    if (currentEvent.publisherOrgId) {
+      return (myOrgs() ?? []).some((org) => org.id === currentEvent.publisherOrgId);
+    }
+    return false;
   };
 
-  async function onSubmit(values: EventFormValues) {
+  async function onSubmit(values: EventFormValues, flyerFile: File | null) {
     const currentEvent = event();
     if (!currentEvent) {
       return {
@@ -79,14 +104,27 @@ export default function EditEventPage() {
       response: UpdateEventResponseSchema,
     });
     return result.match(
-      (updated) => {
+      async (updated) => {
+        // PATCH is safe to retry (unlike the create flow's POST), so on a
+        // failed flyer upload just report it instead of navigating away -
+        // the rest of the changes are already saved.
+        if (flyerFile && !(await uploadImage(`/api/events/${updated.id}/flyer`, flyerFile))) {
+          return {
+            ok: false as const,
+            message: t(
+              "Wijzigingen opgeslagen, maar de flyer kon niet worden geüpload. Probeer het opnieuw.",
+              "Changes saved, but the flyer failed to upload. Please try again.",
+            ),
+          };
+        }
         window.location.href = `/${lang()}/events/${updated.slug}`;
         return { ok: true as const };
       },
-      (error) => ({
-        ok: false as const,
-        message: describeApiError(error, eventFormErrorMessages(lang())),
-      }),
+      (error) =>
+        Promise.resolve({
+          ok: false as const,
+          message: describeApiError(error, eventFormErrorMessages(lang())),
+        }),
     );
   }
 
@@ -97,7 +135,7 @@ export default function EditEventPage() {
       <h1 class="mb-6 text-2xl font-semibold">{t("Evenement bewerken", "Edit event")}</h1>
 
       <Show
-        when={!event.loading && !me.loading && !placeLabel.loading}
+        when={!event.loading && !me.loading && !placeLabel.loading && !myOrgs.loading}
         fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}
       >
         <Show
@@ -123,6 +161,7 @@ export default function EditEventPage() {
                 initial={eventFormValuesFromEvent(currentEvent(), placeLabel() ?? "")}
                 submitLabel={t("Wijzigingen opslaan", "Save changes")}
                 submittingLabel={t("Bezig met opslaan…", "Saving…")}
+                currentFlyerImageId={currentEvent().flyerThumbnailImageId}
                 onSubmit={onSubmit}
               />
             </Show>

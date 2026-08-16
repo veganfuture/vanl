@@ -1,7 +1,8 @@
-import { err, ok, ResultAsync, type Result } from "neverthrow";
+import { err, ok, okAsync, ResultAsync, type Result } from "neverthrow";
 import type postgres from "postgres";
 import { z } from "zod";
 import { UserId } from "../auth/user_id";
+import { OrganizationId } from "../organizations/organization_id";
 import type { Event, EventLocationKind, EventSource, EventStatus } from "./event";
 import { EventId } from "./event_id";
 
@@ -34,7 +35,11 @@ const EventRowSchema = z.object({
   external_event_url: z.string().nullable(),
   registration_url: z.string().nullable(),
   organizer_name: z.string().nullable(),
-  publisher_user_id: z.string(),
+  flyer_full_image_id: z.string().nullable(),
+  flyer_preview_image_id: z.string().nullable(),
+  flyer_thumbnail_image_id: z.string().nullable(),
+  publisher_user_id: z.string().nullable(),
+  publisher_org_id: z.string().nullable(),
   publisher_user_visible: z.boolean(),
   status: z.enum(["hidden", "visible", "cancelled"]),
   cancel_reason: z.string().nullable(),
@@ -67,12 +72,28 @@ function mapEventRow(row: unknown): Result<Event, DbError> {
   if (idResult.isErr()) {
     return err({ message: `Corrupt events row: ${idResult.error.message}`, cause: idResult.error });
   }
-  const publisherUserIdResult = UserId.from_string(parsed.publisher_user_id);
-  if (publisherUserIdResult.isErr()) {
-    return err({
-      message: `Corrupt events row: ${publisherUserIdResult.error.message}`,
-      cause: publisherUserIdResult.error,
-    });
+  // Exactly one of these is non-null - enforced by the events_exactly_one_publisher CHECK.
+  let publisherUserId: UserId | null = null;
+  if (parsed.publisher_user_id !== null) {
+    const publisherUserIdResult = UserId.from_string(parsed.publisher_user_id);
+    if (publisherUserIdResult.isErr()) {
+      return err({
+        message: `Corrupt events row: ${publisherUserIdResult.error.message}`,
+        cause: publisherUserIdResult.error,
+      });
+    }
+    publisherUserId = publisherUserIdResult.value;
+  }
+  let publisherOrgId: OrganizationId | null = null;
+  if (parsed.publisher_org_id !== null) {
+    const publisherOrgIdResult = OrganizationId.from_string(parsed.publisher_org_id);
+    if (publisherOrgIdResult.isErr()) {
+      return err({
+        message: `Corrupt events row: ${publisherOrgIdResult.error.message}`,
+        cause: publisherOrgIdResult.error,
+      });
+    }
+    publisherOrgId = publisherOrgIdResult.value;
   }
   const createdByResult = UserId.from_string(parsed.created_by);
   if (createdByResult.isErr()) {
@@ -111,7 +132,11 @@ function mapEventRow(row: unknown): Result<Event, DbError> {
     externalEventUrl: parsed.external_event_url,
     registrationUrl: parsed.registration_url,
     organizerName: parsed.organizer_name,
-    publisherUserId: publisherUserIdResult.value,
+    flyerFullImageId: parsed.flyer_full_image_id,
+    flyerPreviewImageId: parsed.flyer_preview_image_id,
+    flyerThumbnailImageId: parsed.flyer_thumbnail_image_id,
+    publisherUserId,
+    publisherOrgId,
     publisherUserVisible: parsed.publisher_user_visible,
     status: parsed.status,
     cancelReason: parsed.cancel_reason,
@@ -146,7 +171,9 @@ export type NewEventInput = {
   externalEventUrl: string | null;
   registrationUrl: string | null;
   organizerName: string | null;
-  publisherUserId: UserId;
+  /** Exactly one of publisherUserId/publisherOrgId must be set - enforced by a DB CHECK. */
+  publisherUserId: UserId | null;
+  publisherOrgId: OrganizationId | null;
   createdBy: UserId;
   source: EventSource;
   externalSourceId: string | null;
@@ -154,7 +181,13 @@ export type NewEventInput = {
 
 export type EditableEventFields = Omit<
   NewEventInput,
-  "slug" | "publisherUserId" | "createdBy" | "source" | "externalSourceId" | "organizerName"
+  | "slug"
+  | "publisherUserId"
+  | "publisherOrgId"
+  | "createdBy"
+  | "source"
+  | "externalSourceId"
+  | "organizerName"
 >;
 
 export class EventRepository {
@@ -168,7 +201,7 @@ export class EventRepository {
           location_kind, place_id, location_description, location_street,
           location_house_number, location_postcode, location_lat, location_lng,
           location_pdok_id, map_url, external_event_url, registration_url, organizer_name,
-          publisher_user_id, created_by, updated_by, source, external_source_id
+          publisher_user_id, publisher_org_id, created_by, updated_by, source, external_source_id
         )
         values (
           ${input.slug}, ${input.titleNl}, ${input.titleEn}, ${input.descriptionNl},
@@ -177,8 +210,9 @@ export class EventRepository {
           ${input.locationHouseNumber}, ${input.locationPostcode}, ${input.locationLat},
           ${input.locationLng}, ${input.locationPdokId}, ${input.mapUrl},
           ${input.externalEventUrl}, ${input.registrationUrl}, ${input.organizerName},
-          ${input.publisherUserId.value}, ${input.createdBy.value}, ${input.createdBy.value},
-          ${input.source}, ${input.externalSourceId}
+          ${input.publisherUserId?.value ?? null}, ${input.publisherOrgId?.value ?? null},
+          ${input.createdBy.value}, ${input.createdBy.value}, ${input.source},
+          ${input.externalSourceId}
         )
         returning *
       `,
@@ -254,6 +288,29 @@ export class EventRepository {
     });
   }
 
+  /** Every event published by any of these orgs, regardless of status - the org half of "My events". */
+  listEventsByOrgIds(orgIds: string[]): ResultAsync<Event[], DbError> {
+    if (orgIds.length === 0) {
+      return okAsync([]);
+    }
+    return ResultAsync.fromPromise(
+      this.sql`
+        select * from events where publisher_org_id = any(${orgIds}) order by start_at asc
+      `,
+      (cause): DbError => ({ message: "Failed to list events by org", cause }),
+    ).andThen((rows) => {
+      const mapped: Event[] = [];
+      for (const row of rows) {
+        const result = mapEventRow(row);
+        if (result.isErr()) {
+          return err<Event[], DbError>(result.error);
+        }
+        mapped.push(result.value);
+      }
+      return ok(mapped);
+    });
+  }
+
   updateEvent(
     id: EventId,
     fields: EditableEventFields,
@@ -303,6 +360,29 @@ export class EventRepository {
         returning *
       `,
       (cause): DbError => ({ message: "Failed to set event status", cause }),
+    ).andThen((rows) => mapEventRow(rows[0]));
+  }
+
+  /** Repoints all three flyer variants at once - a dedicated narrow update, not part of the general edit form. */
+  setEventFlyer(
+    id: EventId,
+    fullImageId: string,
+    previewImageId: string,
+    thumbnailImageId: string,
+    updatedBy: UserId,
+  ): ResultAsync<Event, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        update events set
+          flyer_full_image_id = ${fullImageId},
+          flyer_preview_image_id = ${previewImageId},
+          flyer_thumbnail_image_id = ${thumbnailImageId},
+          updated_by = ${updatedBy.value},
+          updated_at = now()
+        where id = ${id.value}
+        returning *
+      `,
+      (cause): DbError => ({ message: "Failed to set event flyer", cause }),
     ).andThen((rows) => mapEventRow(rows[0]));
   }
 

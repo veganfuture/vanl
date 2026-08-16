@@ -41,14 +41,4 @@ export const GROUPS: GroupInfo[] = [
       en: "Group for sharing events only.",
     },
   },
-  {
-    id: "ams",
-    title: "Amsterdam - Vegan Activists NL",
-    url: "https://signal.group/#CjQKIEzDaFr7f_RyA6HTo4rIJedmuQNORizFwCoyroR3j4Y_EhBaqZpT8fpsCtHy2nZjGS4Z",
-    qrImage: "/signal-qr-ams.jpg",
-    description: {
-      nl: "Groep voor activisten in de Amsterdam regio.",
-      en: "Group for activists in the Amsterdam region.",
-    },
-  },
 ];

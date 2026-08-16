@@ -3,6 +3,7 @@ import { Router } from "@solidjs/router";
 import { FileRoutes } from "@solidjs/start/router";
 import { ErrorBoundary, Suspense } from "solid-js";
 import { ErrorFallback } from "~/components/ErrorFallback";
+import { Footer } from "~/components/Footer";
 import { Navbar } from "~/components/Navbar";
 import "./app.css";
 
@@ -21,6 +22,9 @@ export default function App() {
               <Navbar />
             </Suspense>
             <Suspense>{props.children}</Suspense>
+            <Suspense>
+              <Footer />
+            </Suspense>
           </ErrorBoundary>
         )}
       >

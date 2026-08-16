@@ -15,6 +15,7 @@ const COMBINING_DIACRITICS_RE = new RegExp("[\\u0300-\\u036f]", "g");
  * what actually guarantees uniqueness, so this never needs a retry loop or
  * a uniqueness check before insert; a DB-level unique constraint is the
  * real enforcement, same philosophy as signup_nonces/sessions tokens.
+ * Shared by every domain that needs a slug (events, organizations, ...).
  */
 export function generateSlug(title: string): string {
   const base = title

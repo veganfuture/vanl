@@ -1,15 +1,14 @@
-import { useParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
 import { createResource, For, Show } from "solid-js";
+import { EventThumbnail } from "~/components/EventThumbnail";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch } from "~/lib/api-fetch";
-import { pickLocalized, resolveLang } from "~/lib/i18n";
+import { pickLocalized, useLang } from "~/lib/i18n";
 import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
+import { ListOrganizationsResponseSchema } from "~/routes/api/organizations/index.schema";
 
 export default function EventsListPage() {
-  const params = useParams<{ lang: string }>();
-  const lang = () => resolveLang(params.lang);
-  const t = (nl: string, en: string) => (lang() === "nl" ? nl : en);
+  const { lang, t } = useLang();
 
   const locationKindLabels: Record<string, string> = {
     precise_address: t("Exact adres", "Precise address"),
@@ -21,6 +20,19 @@ export default function EventsListPage() {
     return result.match(
       (data) => data.events,
       () => [],
+    );
+  });
+
+  // EventJson only carries publisherOrgId, not the org's own logo - fetch
+  // orgs separately to build a lookup for the flyer-less-event thumbnail
+  // fallback (see EventThumbnail).
+  const [orgLogoById] = createResource(async () => {
+    const result = await apiFetch("/api/organizations", {
+      response: ListOrganizationsResponseSchema,
+    });
+    return result.match(
+      (data) => new Map(data.organizations.map((org) => [org.id, org.logoThumbnailImageId])),
+      () => new Map<string, string | null>(),
     );
   });
 
@@ -56,17 +68,27 @@ export default function EventsListPage() {
           <ul class="space-y-4">
             <For each={events()}>
               {(event) => (
-                <li class="rounded-lg border border-zinc-200 p-4">
-                  <a
-                    href={`/${lang()}/events/${event.slug}`}
-                    class="text-lg font-semibold hover:underline"
-                  >
-                    {pickLocalized(event.titleNl, event.titleEn, lang())}
-                  </a>
-                  <p class="text-sm text-zinc-600">{formatDate(event.startAt)}</p>
-                  <p class="text-sm text-zinc-600">
-                    {locationKindLabels[event.locationKind]} — {event.locationDescription}
-                  </p>
+                <li class="flex items-center gap-4 rounded-lg border border-zinc-200 p-4">
+                  <EventThumbnail
+                    flyerThumbnailImageId={event.flyerThumbnailImageId}
+                    orgLogoThumbnailImageId={
+                      event.publisherOrgId
+                        ? (orgLogoById()?.get(event.publisherOrgId) ?? null)
+                        : null
+                    }
+                  />
+                  <div>
+                    <a
+                      href={`/${lang()}/events/${event.slug}`}
+                      class="text-lg font-semibold hover:underline"
+                    >
+                      {pickLocalized(event.titleNl, event.titleEn, lang())}
+                    </a>
+                    <p class="text-sm text-zinc-600">{formatDate(event.startAt)}</p>
+                    <p class="text-sm text-zinc-600">
+                      {locationKindLabels[event.locationKind]} — {event.locationDescription}
+                    </p>
+                  </div>
                 </li>
               )}
             </For>

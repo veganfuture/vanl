@@ -29,7 +29,11 @@ export const EventJsonSchema = z.object({
   externalEventUrl: z.string().nullable(),
   registrationUrl: z.string().nullable(),
   organizerName: z.string().nullable(),
-  publisherUserId: z.string(),
+  flyerFullImageId: z.string().nullable(),
+  flyerPreviewImageId: z.string().nullable(),
+  flyerThumbnailImageId: z.string().nullable(),
+  publisherUserId: z.string().nullable(),
+  publisherOrgId: z.string().nullable(),
   status: z.enum(["hidden", "visible", "cancelled"]),
   cancelReason: z.string().nullable(),
   isFeatured: z.boolean(),
@@ -59,7 +63,11 @@ export function toEventJson(event: Event): EventJson {
     externalEventUrl: event.externalEventUrl,
     registrationUrl: event.registrationUrl,
     organizerName: event.organizerName,
-    publisherUserId: event.publisherUserId.value,
+    flyerFullImageId: event.flyerFullImageId,
+    flyerPreviewImageId: event.flyerPreviewImageId,
+    flyerThumbnailImageId: event.flyerThumbnailImageId,
+    publisherUserId: event.publisherUserId?.value ?? null,
+    publisherOrgId: event.publisherOrgId?.value ?? null,
     status: event.status,
     cancelReason: event.cancelReason,
     isFeatured: event.isFeatured,
@@ -83,5 +91,7 @@ export const EventRequestSchema = z.object({
   mapUrl: z.string().nullable(),
   externalEventUrl: z.string().nullable(),
   registrationUrl: z.string().nullable(),
+  /** Publish as this org instead of as the caller - the caller must belong to it. Ignored on update (who publishes an event never changes after creation). */
+  orgId: z.string().uuid().nullable(),
 });
 export type EventRequest = z.infer<typeof EventRequestSchema>;

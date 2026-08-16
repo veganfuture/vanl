@@ -1,25 +1,26 @@
-import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { err, errAsync, ok, okAsync, ResultAsync, type Result } from "neverthrow";
 import { z } from "zod";
-import { UserId } from "../auth/user_id";
+import type { ActingUser } from "~/lib/acting-user";
 import { sql } from "~/lib/db";
 import { logger } from "~/lib/logger";
 import { placeRepository, type PlaceRepository } from "~/domain/places/place_repository";
+import { OrganizationId } from "~/domain/organizations/organization_id";
+import type { UserId } from "../auth/user_id";
 import type { Event, EventLocationKind } from "./event";
 import { EventRepository, type EditableEventFields } from "./event_repository";
 import type { EventId } from "./event_id";
-import { validateEvent } from "~/shared/events/event_validation";
+import { validateEvent } from "~/lib/event_validation";
 import { lookupAddress } from "./pdok-client";
-import { generateSlug } from "./slug";
+import { generateSlug } from "~/lib/slug";
 
-/** Who's making the request, and whether they can moderate any event, not just their own. */
-export type ActingUser = { readonly id: UserId; readonly isSiteAdmin: boolean };
+export type { ActingUser };
 
 /**
  * Same shape whether creating or updating - the caller (route layer) is
  * expected to have already parsed raw request JSON into these types (dates
  * as Date, absent optional fields as null, never ""). Business-rule
  * validation (required-ness, cross-field constraints) is delegated to
- * validateEvent (~/shared/events/event_validation.ts), shared with the client so its
+ * validateEvent (~/lib/event_validation.ts), shared with the client so its
  * rules can never drift from what the server actually accepts.
  */
 export type EventInput = {
@@ -39,6 +40,8 @@ export type EventInput = {
   mapUrl: string | null;
   externalEventUrl: string | null;
   registrationUrl: string | null;
+  /** Publish on behalf of this org instead of as the caller themselves - the caller must belong to it (any role). Null publishes as the caller. */
+  orgId: string | null;
 };
 
 const nullableTrimmed = z
@@ -67,9 +70,10 @@ const EventInputSchema = z.object({
   mapUrl: z.string().trim().url().nullable(),
   externalEventUrl: z.string().trim().url().nullable(),
   registrationUrl: z.string().trim().url().nullable(),
+  orgId: z.string().uuid().nullable(),
 });
 
-export type CreateEventError = "validation" | "internal_error";
+export type CreateEventError = "validation" | "forbidden" | "internal_error";
 export type UpdateEventError = "not_found" | "forbidden" | "validation" | "internal_error";
 export type SetEventStatusError = "not_found" | "forbidden" | "internal_error";
 export type DeleteEventError = "not_found" | "forbidden" | "internal_error";
@@ -98,8 +102,12 @@ export class EventService {
     private readonly placeRepository: PlaceRepository,
   ) {}
 
-  /** Any authenticated user may create an event published as themselves (permission matrix §3). */
-  createEvent(publisherUserId: UserId, input: EventInput): ResultAsync<Event, CreateEventError> {
+  /**
+   * Any authenticated user may create an event published as themselves; if
+   * orgId is set, they must belong to that org (any role - permission
+   * matrix §3: "Create event on behalf of an org (member of)").
+   */
+  createEvent(actingUser: ActingUser, input: EventInput): ResultAsync<Event, CreateEventError> {
     const parsed = EventInputSchema.safeParse(input);
     if (!parsed.success) {
       logger.warn({ err: parsed.error }, "event creation rejected: invalid input");
@@ -110,6 +118,15 @@ export class EventService {
       logger.warn({ messages: validation.error }, "event creation rejected: invalid input");
       return errAsync("validation");
     }
+    const publisherResult = this.resolvePublisher(actingUser, parsed.data.orgId);
+    if (publisherResult.isErr()) {
+      logger.warn(
+        { userId: actingUser.id.value, orgId: parsed.data.orgId },
+        "event creation rejected: not a member of that org",
+      );
+      return errAsync("forbidden");
+    }
+    const publisher = publisherResult.value;
 
     return this.resolveLocationFields(parsed.data).andThen((locationFields) =>
       this.repository
@@ -128,8 +145,9 @@ export class EventService {
           externalEventUrl: parsed.data.externalEventUrl,
           registrationUrl: parsed.data.registrationUrl,
           organizerName: null,
-          publisherUserId,
-          createdBy: publisherUserId,
+          publisherUserId: publisher.publisherUserId,
+          publisherOrgId: publisher.publisherOrgId,
+          createdBy: actingUser.id,
           source: "manual",
           externalSourceId: null,
         })
@@ -156,12 +174,24 @@ export class EventService {
     });
   }
 
-  /** "My events" - every status, not just visible, since it's for managing your own events. */
-  listEventsByPublisher(publisherUserId: UserId): ResultAsync<Event[], never> {
-    return this.repository.listEventsByPublisher(publisherUserId).orElse((dbError) => {
-      logger.error({ err: dbError }, "failed to list events by publisher");
-      return okAsync([]);
-    });
+  /**
+   * "My events" - every status, not just visible, since it's for managing
+   * your own events: everything published as the caller themselves, unioned
+   * with everything published by any org they belong to (any role).
+   */
+  listMyEvents(actingUser: ActingUser): ResultAsync<Event[], never> {
+    const orgIds = [...actingUser.orgRoles.keys()];
+    return ResultAsync.combine([
+      this.repository.listEventsByPublisher(actingUser.id),
+      this.repository.listEventsByOrgIds(orgIds),
+    ])
+      .map(([ownEvents, orgEvents]) =>
+        [...ownEvents, ...orgEvents].sort((a, b) => a.startAt.getTime() - b.startAt.getTime()),
+      )
+      .orElse((dbError) => {
+        logger.error({ err: dbError }, "failed to list my events");
+        return okAsync([]);
+      });
   }
 
   updateEvent(
@@ -230,11 +260,16 @@ export class EventService {
   }
 
   /**
-   * Loads the event and checks it's either owned by actingUser or
-   * actingUser is a site_admin (moderation override - docs/milestones.md:
-   * "Moderation for MVP is site-admin manual hide/delete only").
+   * Loads the event and checks actingUser may modify it (permission matrix
+   * §3): site_admin can moderate anything; an individually-published
+   * event's own publisher can; an org's org_admin can touch any of that
+   * org's events; an org's org_editor can only touch events they personally
+   * created on behalf of that org (there's no per-event "author" distinct
+   * from the org itself, so "own org event" is tracked via created_by).
+   * Public: ImageService reuses this exact check for flyer uploads rather
+   * than re-implementing the same authorization rules a second time.
    */
-  private loadForModification(
+  loadForModification(
     actingUser: ActingUser,
     eventId: EventId,
   ): ResultAsync<Event, "not_found" | "forbidden" | "internal_error"> {
@@ -248,11 +283,55 @@ export class EventService {
         if (!event) {
           return errAsync<Event, "not_found">("not_found");
         }
-        if (!actingUser.isSiteAdmin && !actingUser.id.equals(event.publisherUserId)) {
+        if (!this.canModify(actingUser, event)) {
           return errAsync<Event, "forbidden">("forbidden");
         }
         return okAsync(event);
       });
+  }
+
+  private canModify(actingUser: ActingUser, event: Event): boolean {
+    if (actingUser.isSiteAdmin) {
+      return true;
+    }
+    if (event.publisherUserId && actingUser.id.equals(event.publisherUserId)) {
+      return true;
+    }
+    if (event.publisherOrgId) {
+      const role = actingUser.orgRoles.get(event.publisherOrgId.value);
+      if (role === "org_admin") {
+        return true;
+      }
+      if (role === "org_editor" && actingUser.id.equals(event.createdBy)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Resolves who an event is published as: the caller themselves (orgId
+   * null), or an org they belong to (any role qualifies - permission matrix
+   * §3's "Create event on behalf of an org (member of)" row).
+   */
+  private resolvePublisher(
+    actingUser: ActingUser,
+    orgId: string | null,
+  ): Result<
+    { publisherUserId: UserId | null; publisherOrgId: OrganizationId | null },
+    "forbidden"
+  > {
+    if (!orgId) {
+      return ok({ publisherUserId: actingUser.id, publisherOrgId: null });
+    }
+    if (!actingUser.orgRoles.has(orgId)) {
+      return err("forbidden");
+    }
+    const orgIdResult = OrganizationId.from_string(orgId);
+    if (orgIdResult.isErr()) {
+      return err("forbidden");
+    }
+    return ok({ publisherUserId: null, publisherOrgId: orgIdResult.value });
   }
 
   /**

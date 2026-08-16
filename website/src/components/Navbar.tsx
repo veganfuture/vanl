@@ -1,7 +1,7 @@
-import { useLocation, useParams } from "@solidjs/router";
+import { useLocation } from "@solidjs/router";
 import { createResource, createSignal, For, Show } from "solid-js";
 import { apiFetch } from "~/lib/api-fetch";
-import { resolveLang, type Locale } from "~/lib/i18n";
+import { useLang, type Locale } from "~/lib/i18n";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 
 type NavLink = { label: string; href: string };
@@ -53,10 +53,8 @@ function LanguageSwitcher(props: { pathname: string; onNavigate?: () => void }) 
 }
 
 export function Navbar() {
-  const params = useParams<{ lang?: string }>();
   const location = useLocation();
-  const lang = () => resolveLang(params.lang);
-  const t = (nl: string, en: string) => (lang() === "nl" ? nl : en);
+  const { lang, t } = useLang();
 
   const [mobileOpen, setMobileOpen] = createSignal(false);
   const [loggingOut, setLoggingOut] = createSignal(false);
@@ -81,9 +79,16 @@ export function Navbar() {
   }
 
   const links = (): NavLink[] => {
-    const base: NavLink[] = [{ label: t("Evenementen", "Events"), href: `/${lang()}/events` }];
+    const base: NavLink[] = [
+      { label: t("Evenementen", "Events"), href: `/${lang()}/events` },
+      { label: t("Organisaties", "Organizations"), href: `/${lang()}/organizations` },
+    ];
     if (me()) {
       base.push({ label: t("Mijn evenementen", "My events"), href: `/${lang()}/events/mine` });
+      base.push({
+        label: t("Mijn organisaties", "My organizations"),
+        href: `/${lang()}/organizations/mine`,
+      });
     }
     return base;
   };

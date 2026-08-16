@@ -1,10 +1,11 @@
 import type { APIEvent } from "@solidjs/start/server";
 import { authService } from "~/domain/auth/auth_service";
-import { parseJsonBody } from "~/lib/http";
+import { getClientIp, parseJsonBody } from "~/lib/http";
 import { LoginStartRequestSchema, type LoginStartResponse } from "./start.schema";
 
 const ERROR_STATUS: Record<string, number> = {
   account_not_found: 404,
+  rate_limited: 429,
   internal_error: 500,
 };
 
@@ -14,7 +15,7 @@ export async function POST(event: APIEvent): Promise<Response> {
     return Response.json({ error: "validation" } satisfies LoginStartResponse, { status: 400 });
   }
 
-  const result = await authService.startLogin(parsed.data.accountName);
+  const result = await authService.startLogin(parsed.data.accountName, getClientIp(event.request));
   return result.match(
     () => Response.json({ ok: true } satisfies LoginStartResponse),
     (error) =>

@@ -53,7 +53,8 @@ function baseEventInput(overrides: Partial<NewEventInput> = {}): NewEventInput {
     externalEventUrl: null,
     registrationUrl: null,
     organizerName: null,
-    publisherUserId: overrides.publisherUserId!,
+    publisherUserId: overrides.publisherUserId ?? null,
+    publisherOrgId: null,
     createdBy: overrides.createdBy ?? overrides.publisherUserId!,
     source: "manual",
     externalSourceId: null,
@@ -91,7 +92,7 @@ describe("createEvent", () => {
     expect(event.titleNl).toBe("Test Evenement");
     expect(event.titleEn).toBe("Test Event");
     expect(event.slug).toBe("alice-event");
-    expect(event.publisherUserId.equals(publisher)).toBe(true);
+    expect(event.publisherUserId?.equals(publisher)).toBe(true);
     expect(event.status).toBe("visible");
     expect(event.placeId).toBe(testPlaceId);
   });

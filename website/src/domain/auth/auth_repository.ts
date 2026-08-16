@@ -91,7 +91,12 @@ export type NewSession = { userId: UserId; tokenHash: string; expiresAt: Date };
 
 export type ActiveSession = { userId: UserId; expiresAt: Date };
 
-export type NewLoginChallenge = { userId: UserId; codeHash: string; expiresAt: Date };
+export type NewLoginChallenge = {
+  userId: UserId;
+  codeHash: string;
+  expiresAt: Date;
+  requestedIp: string | null;
+};
 
 export type ActiveLoginChallenge = {
   id: string;
@@ -272,12 +277,34 @@ export class AuthRepository {
   insertLoginChallenge(input: NewLoginChallenge): ResultAsync<string, DbError> {
     return ResultAsync.fromPromise(
       this.sql`
-        insert into login_challenges (user_id, code_hash, expires_at)
-        values (${input.userId.value}, ${input.codeHash}, ${input.expiresAt})
+        insert into login_challenges (user_id, code_hash, expires_at, requested_ip)
+        values (${input.userId.value}, ${input.codeHash}, ${input.expiresAt}, ${input.requestedIp})
         returning id
       `,
       (cause): DbError => ({ message: "Failed to insert login challenge", cause }),
     ).map((rows) => rows[0].id as string);
+  }
+
+  /** How many OTP codes this account has been sent since `since` - the per-account half of the OTP send rate limit. */
+  countLoginChallengesForUserSince(userId: UserId, since: Date): ResultAsync<number, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        select count(*)::int as count from login_challenges
+        where user_id = ${userId.value} and created_at > ${since}
+      `,
+      (cause): DbError => ({ message: "Failed to count login challenges for user", cause }),
+    ).map((rows) => rows[0].count as number);
+  }
+
+  /** How many OTP codes this IP has requested (across any account) since `since` - the per-IP half of the OTP send rate limit. */
+  countLoginChallengesForIpSince(ip: string, since: Date): ResultAsync<number, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        select count(*)::int as count from login_challenges
+        where requested_ip = ${ip} and created_at > ${since}
+      `,
+      (cause): DbError => ({ message: "Failed to count login challenges for IP", cause }),
+    ).map((rows) => rows[0].count as number);
   }
 
   /** Most recent still-usable (unexpired, attempts remaining) challenge for this user. */
@@ -316,5 +343,20 @@ export class AuthRepository {
       `,
       (cause): DbError => ({ message: "Failed to decrement login challenge attempts", cause }),
     ).map((rows) => rows[0].attempts_remaining as number);
+  }
+
+  /**
+   * Called on a successful login - removes the challenge rather than
+   * marking it used, so both `findLatestActiveLoginChallenge` (a deleted
+   * challenge can't be replayed to start a second session within its TTL)
+   * and the OTP send-rate-limit counts (a successful login shouldn't ever
+   * count against a user's future resends) get the right answer for free,
+   * with no extra "used" column or WHERE clause to keep in sync.
+   */
+  deleteLoginChallenge(id: string): ResultAsync<void, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`delete from login_challenges where id = ${id}`,
+      (cause): DbError => ({ message: "Failed to delete login challenge", cause }),
+    ).map(() => undefined);
   }
 }

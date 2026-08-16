@@ -182,7 +182,7 @@ describe("login", () => {
       })
     )._unsafeUnwrap();
 
-    (await service.startLogin("heidi"))._unsafeUnwrap();
+    (await service.startLogin("heidi", null))._unsafeUnwrap();
     const sentCode = vi.mocked(sendOtpViaBot).mock.calls[0][1];
 
     const result = await service.verifyLogin("heidi", sentCode);
@@ -191,7 +191,7 @@ describe("login", () => {
   });
 
   it("rejects an unknown account", async () => {
-    const result = await service.startLogin("nobody");
+    const result = await service.startLogin("nobody", null);
     expect(result._unsafeUnwrapErr()).toBe("account_not_found");
   });
 
@@ -206,13 +206,113 @@ describe("login", () => {
         affiliationsNote: null,
       })
     )._unsafeUnwrap();
-    (await service.startLogin("ivan"))._unsafeUnwrap();
+    (await service.startLogin("ivan", null))._unsafeUnwrap();
 
     expect((await service.verifyLogin("ivan", "0000"))._unsafeUnwrapErr()).toBe("wrong_code");
     expect((await service.verifyLogin("ivan", "0000"))._unsafeUnwrapErr()).toBe("wrong_code");
     expect((await service.verifyLogin("ivan", "0000"))._unsafeUnwrapErr()).toBe(
       "attempts_exhausted",
     );
+  });
+
+  it("rate-limits OTP sends per account after 3 within the window", async () => {
+    const token = signWithDevKey("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    (
+      await service.completeSignup({
+        token,
+        accountName: "wendy",
+        email: "wendy@example.com",
+        displayName: "Wendy",
+        affiliationsNote: null,
+      })
+    )._unsafeUnwrap();
+
+    (await service.startLogin("wendy", null))._unsafeUnwrap();
+    (await service.startLogin("wendy", null))._unsafeUnwrap();
+    (await service.startLogin("wendy", null))._unsafeUnwrap();
+
+    const result = await service.startLogin("wendy", null);
+
+    expect(result._unsafeUnwrapErr()).toBe("rate_limited");
+  });
+
+  it("does not count successful logins against the rate limit - only unresolved codes count", async () => {
+    const token = signWithDevKey("dddddddd-dddd-dddd-dddd-dddddddddddd");
+    (
+      await service.completeSignup({
+        token,
+        accountName: "ursula",
+        email: "ursula@example.com",
+        displayName: "Ursula",
+        affiliationsNote: null,
+      })
+    )._unsafeUnwrap();
+
+    // Log in and out five times - well past the 3-per-12h cap, but every
+    // send was successfully verified, so none of them should count.
+    for (let i = 0; i < 5; i++) {
+      (await service.startLogin("ursula", null))._unsafeUnwrap();
+      const sentCode = vi.mocked(sendOtpViaBot).mock.calls.at(-1)![1];
+      (await service.verifyLogin("ursula", sentCode))._unsafeUnwrap();
+    }
+
+    const result = await service.startLogin("ursula", null);
+
+    expect(result.isOk()).toBe(true);
+  });
+
+  it("a successful login cannot be replayed to start a second session", async () => {
+    const token = signWithDevKey("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+    (
+      await service.completeSignup({
+        token,
+        accountName: "victor",
+        email: "victor@example.com",
+        displayName: "Victor",
+        affiliationsNote: null,
+      })
+    )._unsafeUnwrap();
+    (await service.startLogin("victor", null))._unsafeUnwrap();
+    const sentCode = vi.mocked(sendOtpViaBot).mock.calls.at(-1)![1];
+    (await service.verifyLogin("victor", sentCode))._unsafeUnwrap();
+
+    const replay = await service.verifyLogin("victor", sentCode);
+
+    expect(replay._unsafeUnwrapErr()).toBe("no_active_challenge");
+  });
+
+  it("rate-limits OTP sends per IP, across different accounts, before even checking whether the account exists", async () => {
+    const tokenA = signWithDevKey("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    (
+      await service.completeSignup({
+        token: tokenA,
+        accountName: "xavier",
+        email: "xavier@example.com",
+        displayName: "Xavier",
+        affiliationsNote: null,
+      })
+    )._unsafeUnwrap();
+    const tokenB = signWithDevKey("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    (
+      await service.completeSignup({
+        token: tokenB,
+        accountName: "yara",
+        email: "yara@example.com",
+        displayName: "Yara",
+        affiliationsNote: null,
+      })
+    )._unsafeUnwrap();
+
+    const sharedIp = "203.0.113.42";
+    (await service.startLogin("xavier", sharedIp))._unsafeUnwrap();
+    (await service.startLogin("yara", sharedIp))._unsafeUnwrap();
+    (await service.startLogin("xavier", sharedIp))._unsafeUnwrap();
+
+    // yara's own send count is only 2, well under the per-account limit -
+    // it's the shared IP's 4th send that trips it. Even an unknown account
+    // name from this IP would be rejected before the account lookup.
+    expect((await service.startLogin("yara", sharedIp))._unsafeUnwrapErr()).toBe("rate_limited");
+    expect((await service.startLogin("nobody", sharedIp))._unsafeUnwrapErr()).toBe("rate_limited");
   });
 });
 

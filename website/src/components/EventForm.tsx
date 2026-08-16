@@ -1,7 +1,8 @@
 import { createSignal, For, Show } from "solid-js";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import { validateEvent, type ValidatableEvent } from "~/shared/events/event_validation";
+import { validateEvent, type ValidatableEvent } from "~/lib/event_validation";
 import { apiFetch, type ErrorMessagesFor } from "~/lib/api-fetch";
+import { ImagePickerField } from "./ImagePickerField";
 import { makeT, type Locale } from "~/lib/i18n";
 import type { EventJson } from "~/routes/api/events/event.schema";
 import type { PdokSuggestResponse } from "~/routes/api/events/pdok-suggest.schema";
@@ -65,6 +66,8 @@ export type EventFormValues = {
   mapUrl: string;
   externalEventUrl: string;
   registrationUrl: string;
+  /** Publish on behalf of this org instead of as yourself. Null publishes as yourself. */
+  orgId: string | null;
 };
 
 export function emptyEventFormValues(): EventFormValues {
@@ -84,6 +87,7 @@ export function emptyEventFormValues(): EventFormValues {
     mapUrl: "",
     externalEventUrl: "",
     registrationUrl: "",
+    orgId: null,
   };
 }
 
@@ -138,6 +142,7 @@ export function eventFormValuesFromEvent(event: EventJson, placeLabel: string): 
     mapUrl: event.mapUrl ?? "",
     externalEventUrl: event.externalEventUrl ?? "",
     registrationUrl: event.registrationUrl ?? "",
+    orgId: event.publisherOrgId,
   };
 }
 
@@ -174,7 +179,14 @@ export function EventForm(props: {
   submittingLabel: string;
   /** New events can't start in the past - editing an existing (possibly already-past) event isn't restricted. */
   requireFutureStart?: boolean;
-  onSubmit: (values: EventFormValues) => Promise<{ ok: true } | { ok: false; message: string }>;
+  /** Orgs the caller can publish as, in addition to themselves - empty (or omitted) hides the selector entirely and behaves exactly as before. */
+  orgs?: Array<{ id: string; name: string }>;
+  /** The event's current flyer, shown until a new file is picked - undefined/null on the create form (no event yet). */
+  currentFlyerImageId?: string | null;
+  onSubmit: (
+    values: EventFormValues,
+    flyerFile: File | null,
+  ) => Promise<{ ok: true } | { ok: false; message: string }>;
 }) {
   const t = (nl: string, en: string) => (props.lang === "nl" ? nl : en);
   const locationKindLabels = (): Record<LocationKind, string> => ({
@@ -186,6 +198,7 @@ export function EventForm(props: {
   });
 
   const [values, setValues] = createSignal(props.initial);
+  const [flyerFile, setFlyerFile] = createSignal<File | null>(null);
   const [submitting, setSubmitting] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [validationMessages, setValidationMessages] = createSignal<string[]>([]);
@@ -238,7 +251,7 @@ export function EventForm(props: {
 
     setSubmitting(true);
     try {
-      const outcome = await props.onSubmit(values());
+      const outcome = await props.onSubmit(values(), flyerFile());
       if (!outcome.ok) {
         setError(outcome.message);
       }
@@ -249,6 +262,27 @@ export function EventForm(props: {
 
   return (
     <form class="space-y-4" onSubmit={onSubmit}>
+      <Show when={(props.orgs?.length ?? 0) > 0}>
+        <label class="block">
+          <span class="block text-sm font-medium">{t("Publiceren als", "Publish as")}</span>
+          <select
+            class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+            value={values().orgId ?? ""}
+            onChange={(e) => setValues({ ...values(), orgId: e.currentTarget.value || null })}
+          >
+            <option value="">{t("Mezelf", "Myself")}</option>
+            <For each={props.orgs}>{(org) => <option value={org.id}>{org.name}</option>}</For>
+          </select>
+        </label>
+      </Show>
+
+      <ImagePickerField
+        lang={props.lang}
+        label={t("Flyer (optioneel)", "Flyer (optional)")}
+        currentImageId={props.currentFlyerImageId}
+        onChange={setFlyerFile}
+      />
+
       <p class="text-xs text-zinc-500">
         {t(
           "Vul titel en beschrijving samen in het Nederlands, Engels, of beide in.",
@@ -559,5 +593,6 @@ export function toEventRequestBody(values: EventFormValues) {
     mapUrl: values.mapUrl.trim() || null,
     externalEventUrl: values.externalEventUrl.trim() || null,
     registrationUrl: values.registrationUrl.trim() || null,
+    orgId: values.orgId,
   };
 }

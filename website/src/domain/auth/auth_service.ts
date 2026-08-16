@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { loadConfig, type AppConfig } from "~/lib/config";
-import { sql } from "~/lib/db";
+import { isUniqueViolation, sql } from "~/lib/db";
 import { logger } from "~/lib/logger";
 import { AccountName, isReservedAccountName } from "./account_name";
 import { AuthRepository, type ActiveLoginChallenge, type DbError } from "./auth_repository";
@@ -13,7 +13,13 @@ import {
   REMEMBERED_ACCOUNT_COOKIE_NAME,
   SESSION_COOKIE_NAME,
 } from "./cookies";
-import { generateOtpCode, hashOtpCode, OTP_CHALLENGE_TTL_SECONDS } from "./otp";
+import {
+  generateOtpCode,
+  hashOtpCode,
+  OTP_CHALLENGE_TTL_SECONDS,
+  OTP_SEND_RATE_LIMIT_MAX,
+  OTP_SEND_RATE_LIMIT_WINDOW_SECONDS,
+} from "./otp";
 import { generateSessionToken, hashSessionToken, SESSION_TTL_SECONDS } from "./session";
 import { SignalAci } from "./signal_aci";
 import { verifySignupToken } from "./signup-token";
@@ -34,7 +40,7 @@ export type CompleteSignupSuccess = { user: User; setCookieHeaders: string[] };
 export type CompleteSignupError =
   "invalid_token" | "already_used" | "account_name_taken" | "validation" | "internal_error";
 
-export type StartLoginError = "account_not_found" | "internal_error";
+export type StartLoginError = "account_not_found" | "rate_limited" | "internal_error";
 
 export type VerifyLoginSuccess = { user: User; setCookieHeaders: string[] };
 export type VerifyLoginError =
@@ -162,15 +168,50 @@ export class AuthService {
       });
   }
 
-  startLogin(accountNameRaw: string): ResultAsync<void, StartLoginError> {
-    return this.repository
-      .findUserByAccountName(accountNameRaw.trim())
-      .mapErr((dbError): StartLoginError => {
-        logger.error({ err: dbError }, "failed to look up user for login start");
-        return "internal_error";
-      })
+  /**
+   * `ip` gates the per-IP half of the OTP send rate limit (see otp.ts) -
+   * checked before even looking up the account, so probing many different
+   * account names from one IP can't be used to dodge it. `null` (no client
+   * IP known, e.g. local dev with no Cloudflare in front) simply skips that
+   * half, leaving the per-account limit as the only gate.
+   */
+  startLogin(accountNameRaw: string, ip: string | null): ResultAsync<void, StartLoginError> {
+    const windowStart = new Date(Date.now() - OTP_SEND_RATE_LIMIT_WINDOW_SECONDS * 1000);
+
+    const checkIpRateLimit: ResultAsync<void, StartLoginError> = ip
+      ? this.repository
+          .countLoginChallengesForIpSince(ip, windowStart)
+          .mapErr((dbError): StartLoginError => {
+            logger.error({ err: dbError }, "failed to count login challenges for IP");
+            return "internal_error";
+          })
+          .andThen((count): ResultAsync<void, StartLoginError> =>
+            count >= OTP_SEND_RATE_LIMIT_MAX ? errAsync("rate_limited") : okAsync(undefined),
+          )
+      : okAsync(undefined);
+
+    return checkIpRateLimit
+      .andThen(() =>
+        this.repository
+          .findUserByAccountName(accountNameRaw.trim())
+          .mapErr((dbError): StartLoginError => {
+            logger.error({ err: dbError }, "failed to look up user for login start");
+            return "internal_error";
+          }),
+      )
       .andThen((user): ResultAsync<User, StartLoginError> =>
         user ? okAsync(user) : errAsync("account_not_found"),
+      )
+      .andThen((user) =>
+        this.repository
+          .countLoginChallengesForUserSince(user.id, windowStart)
+          .mapErr((dbError): StartLoginError => {
+            logger.error({ err: dbError }, "failed to count login challenges for user");
+            return "internal_error";
+          })
+          .andThen((count): ResultAsync<User, StartLoginError> =>
+            count >= OTP_SEND_RATE_LIMIT_MAX ? errAsync("rate_limited") : okAsync(user),
+          ),
       )
       .andThen((user) => {
         const code = generateOtpCode();
@@ -179,6 +220,7 @@ export class AuthService {
             userId: user.id,
             codeHash: hashOtpCode(code),
             expiresAt: new Date(Date.now() + OTP_CHALLENGE_TTL_SECONDS * 1000),
+            requestedIp: ip,
           })
           .mapErr((dbError): StartLoginError => {
             logger.error({ err: dbError }, "failed to insert login challenge");
@@ -222,12 +264,24 @@ export class AuthService {
       )
       .andThen(({ user, challenge }) => {
         if (hashesEqual(hashOtpCode(code), challenge.codeHash)) {
-          return this.startSession(user.id, user.accountName)
+          // Delete rather than just proceeding - a successful login must
+          // both stop the code being replayable within its TTL and not
+          // count against the account's future OTP send-rate-limit (see
+          // deleteLoginChallenge's doc comment).
+          return this.repository
+            .deleteLoginChallenge(challenge.id)
             .mapErr((dbError): VerifyLoginError => {
-              logger.error({ err: dbError }, "failed to finish login after verifying code");
+              logger.error({ err: dbError }, "failed to delete used login challenge");
               return "internal_error";
             })
-            .map((setCookieHeaders) => ({ user, setCookieHeaders }));
+            .andThen(() =>
+              this.startSession(user.id, user.accountName)
+                .mapErr((dbError): VerifyLoginError => {
+                  logger.error({ err: dbError }, "failed to finish login after verifying code");
+                  return "internal_error";
+                })
+                .map((setCookieHeaders) => ({ user, setCookieHeaders })),
+            );
         }
         return this.repository
           .decrementLoginChallengeAttempts(challenge.id)
@@ -302,15 +356,6 @@ function hashesEqual(a: string, b: string): boolean {
     return false;
   }
   return timingSafeEqual(Buffer.from(a), Buffer.from(b));
-}
-
-function isUniqueViolation(cause: unknown): boolean {
-  return (
-    typeof cause === "object" &&
-    cause !== null &&
-    "code" in cause &&
-    (cause as { code: unknown }).code === "23505"
-  );
 }
 
 export const authService = new AuthService(new AuthRepository(sql), loadConfig().auth);

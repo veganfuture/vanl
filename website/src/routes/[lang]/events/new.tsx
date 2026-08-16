@@ -1,4 +1,3 @@
-import { useParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
 import { createResource, Show } from "solid-js";
 import {
@@ -10,15 +9,15 @@ import {
 } from "~/components/EventForm";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError } from "~/lib/api-fetch";
-import { resolveLang } from "~/lib/i18n";
+import { useLang } from "~/lib/i18n";
+import { uploadImage } from "~/lib/upload-image";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { EventRequestSchema } from "~/routes/api/events/event.schema";
 import { CreateEventResponseSchema } from "~/routes/api/events/index.schema";
+import { MyOrganizationsResponseSchema } from "~/routes/api/organizations/mine.schema";
 
 export default function NewEventPage() {
-  const params = useParams<{ lang: string }>();
-  const lang = () => resolveLang(params.lang);
-  const t = (nl: string, en: string) => (lang() === "nl" ? nl : en);
+  const { lang, t } = useLang();
 
   const [me] = createResource(async () => {
     const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
@@ -28,21 +27,41 @@ export default function NewEventPage() {
     );
   });
 
-  async function onSubmit(values: EventFormValues) {
+  const [myOrgs] = createResource(async () => {
+    const result = await apiFetch("/api/organizations/mine", {
+      response: MyOrganizationsResponseSchema,
+    });
+    return result.match(
+      (data) => data.organizations,
+      () => [],
+    );
+  });
+
+  async function onSubmit(values: EventFormValues, flyerFile: File | null) {
     const result = await apiFetch("/api/events", {
       request: EventRequestSchema,
       body: toEventRequestBody(values),
       response: CreateEventResponseSchema,
     });
     return result.match(
-      (created) => {
-        window.location.href = `/${lang()}/events/${created.slug}`;
+      async (created) => {
+        // The flyer upload needs the event's id, so it can only happen
+        // after creation succeeds - if it fails, land on the edit page
+        // (rather than the detail page) so retrying is one click away
+        // instead of a dead end.
+        const uploaded = flyerFile
+          ? await uploadImage(`/api/events/${created.id}/flyer`, flyerFile)
+          : true;
+        window.location.href = uploaded
+          ? `/${lang()}/events/${created.slug}`
+          : `/${lang()}/events/${created.slug}/edit`;
         return { ok: true as const };
       },
-      (error) => ({
-        ok: false as const,
-        message: describeApiError(error, eventFormErrorMessages(lang())),
-      }),
+      (error) =>
+        Promise.resolve({
+          ok: false as const,
+          message: describeApiError(error, eventFormErrorMessages(lang())),
+        }),
     );
   }
 
@@ -71,6 +90,7 @@ export default function NewEventPage() {
             submitLabel={t("Evenement aanmaken", "Create event")}
             submittingLabel={t("Bezig met aanmaken…", "Creating…")}
             requireFutureStart
+            orgs={myOrgs()?.map((org) => ({ id: org.id, name: org.name }))}
             onSubmit={onSubmit}
           />
         </Show>

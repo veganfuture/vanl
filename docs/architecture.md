@@ -41,7 +41,7 @@ All primary keys are surrogate UUIDs. Business-facing identifiers (`account_name
 - `nonce` (pk, from the bot-signed URL), `used_at` (nullable) — enforces single-use on bot-signed signup links. No bot-side storage needed; the bot only signs, the website tracks single-use.
 
 ### Organization
-- `id`, `name` (citext, unique), `slug` (unique, immutable), `description`, `website_url` (nullable, validated), `logo_image_id` (nullable fk), `status` (enum: `active`, `deleted`), `created_at`, `updated_at`
+- `id`, `name` (citext, unique), `slug` (unique, immutable), `description`, `website_url` (nullable, validated), `logo_full_image_id`, `logo_thumbnail_image_id` (nullable fks — 400px/160px variants), `status` (enum: `active`, `deleted`), `created_at`, `updated_at`
 
 ### OrganizationMembership
 - `org_id`, `user_id` (composite pk), `role` (enum: `org_editor`, `org_admin`), `created_at`
@@ -67,7 +67,7 @@ All primary keys are surrogate UUIDs. Business-facing identifiers (`account_name
 - `map_url` (nullable, validated URL)
 - `external_event_url`, `registration_url` (nullable, validated URLs)
 - `organizer_name` (nullable text; which real-world organization runs the event, e.g. "Anonymous for the Voiceless" — only ever set by an import script's own heuristics at creation, never by a human publisher or a later edit)
-- `flyer_full_image_id`, `flyer_preview_image_id` (nullable fks)
+- `flyer_full_image_id`, `flyer_preview_image_id`, `flyer_thumbnail_image_id` (nullable fks — 1600px/600px/160px variants; the thumbnail is a dedicated small variant rather than shipping the 600px preview just to crop it down client-side, and matches Organization's logo_thumbnail_image_id width so an event's own flyer thumbnail and its organizer's logo thumbnail — the fallback when the event has none — look consistent side-by-side in a list)
 - `publisher_user_id` XOR `publisher_org_id` (exactly one set — enforced by `CHECK`)
 - `publisher_user_visible` (boolean; only meaningful when `publisher_user_id` is set)
 - `status` (enum: `hidden`, `visible`, `cancelled`)

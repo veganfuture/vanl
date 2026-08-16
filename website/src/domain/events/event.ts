@@ -1,4 +1,5 @@
 import type { UserId } from "../auth/user_id";
+import type { OrganizationId } from "../organizations/organization_id";
 import type { EventId } from "./event_id";
 
 export type EventLocationKind = "precise_address" | "meeting_point_city_only";
@@ -33,7 +34,13 @@ export type Event = {
   registrationUrl: string | null;
   /** Which real-world organization runs this event - only ever set by an import script, never by a human publisher. */
   organizerName: string | null;
-  publisherUserId: UserId;
+  /** sha256 of each resized variant - see src/domain/images/image_processing.ts. */
+  flyerFullImageId: string | null;
+  flyerPreviewImageId: string | null;
+  flyerThumbnailImageId: string | null;
+  /** Exactly one of publisherUserId/publisherOrgId is set - enforced by a DB CHECK. */
+  publisherUserId: UserId | null;
+  publisherOrgId: OrganizationId | null;
   publisherUserVisible: boolean;
   status: EventStatus;
   cancelReason: string | null;

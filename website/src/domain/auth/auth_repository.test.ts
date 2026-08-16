@@ -214,6 +214,7 @@ describe("login challenges", () => {
         userId: user.id,
         codeHash: "code-hash",
         expiresAt: new Date(Date.now() + 60_000),
+        requestedIp: null,
       })
     )._unsafeUnwrap();
 
@@ -236,6 +237,7 @@ describe("login challenges", () => {
         userId: user.id,
         codeHash: "old",
         expiresAt: new Date(Date.now() + 60_000),
+        requestedIp: null,
       })
     )._unsafeUnwrap();
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -244,11 +246,97 @@ describe("login challenges", () => {
         userId: user.id,
         codeHash: "new",
         expiresAt: new Date(Date.now() + 60_000),
+        requestedIp: null,
       })
     )._unsafeUnwrap();
 
     expect(
       (await repository.findLatestActiveLoginChallenge(user.id))._unsafeUnwrap()?.codeHash,
     ).toBe("new");
+  });
+
+  it("counts challenges created for a user since a given time", async () => {
+    const user = await makeUser();
+    const before = new Date();
+    (
+      await repository.insertLoginChallenge({
+        userId: user.id,
+        codeHash: "a",
+        expiresAt: new Date(Date.now() + 60_000),
+        requestedIp: null,
+      })
+    )._unsafeUnwrap();
+    (
+      await repository.insertLoginChallenge({
+        userId: user.id,
+        codeHash: "b",
+        expiresAt: new Date(Date.now() + 60_000),
+        requestedIp: null,
+      })
+    )._unsafeUnwrap();
+
+    expect(
+      (await repository.countLoginChallengesForUserSince(user.id, before))._unsafeUnwrap(),
+    ).toBe(2);
+    expect(
+      (await repository.countLoginChallengesForUserSince(user.id, new Date()))._unsafeUnwrap(),
+    ).toBe(0);
+  });
+
+  it("counts challenges requested from a given IP since a given time, across accounts", async () => {
+    const userA = await makeUser();
+    const userB = await makeUser();
+    const before = new Date();
+    (
+      await repository.insertLoginChallenge({
+        userId: userA.id,
+        codeHash: "a",
+        expiresAt: new Date(Date.now() + 60_000),
+        requestedIp: "198.51.100.7",
+      })
+    )._unsafeUnwrap();
+    (
+      await repository.insertLoginChallenge({
+        userId: userB.id,
+        codeHash: "b",
+        expiresAt: new Date(Date.now() + 60_000),
+        requestedIp: "198.51.100.7",
+      })
+    )._unsafeUnwrap();
+    (
+      await repository.insertLoginChallenge({
+        userId: userB.id,
+        codeHash: "c",
+        expiresAt: new Date(Date.now() + 60_000),
+        requestedIp: "203.0.113.1",
+      })
+    )._unsafeUnwrap();
+
+    expect(
+      (await repository.countLoginChallengesForIpSince("198.51.100.7", before))._unsafeUnwrap(),
+    ).toBe(2);
+    expect(
+      (await repository.countLoginChallengesForIpSince("203.0.113.1", before))._unsafeUnwrap(),
+    ).toBe(1);
+  });
+
+  it("deleteLoginChallenge removes the row, so it's no longer found or counted", async () => {
+    const user = await makeUser();
+    const before = new Date();
+    const id = (
+      await repository.insertLoginChallenge({
+        userId: user.id,
+        codeHash: "code-hash",
+        expiresAt: new Date(Date.now() + 60_000),
+        requestedIp: null,
+      })
+    )._unsafeUnwrap();
+
+    (await repository.deleteLoginChallenge(id))._unsafeUnwrap();
+
+    expect((await repository.findLatestActiveLoginChallenge(user.id))._unsafeUnwrap()).toBeNull();
+    expect(
+      (await repository.countLoginChallengesForUserSince(user.id, before))._unsafeUnwrap(),
+    ).toBe(0);
   });
 });

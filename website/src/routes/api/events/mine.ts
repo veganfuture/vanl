@@ -10,7 +10,7 @@ export async function GET(event: APIEvent): Promise<Response> {
     return Response.json({ events: [] } satisfies ListEventsResponse, { status: 401 });
   }
 
-  const events = await eventService.listEventsByPublisher(actingUser.id);
+  const events = await eventService.listMyEvents(actingUser);
   return events.match(
     (list) => Response.json({ events: list.map(toEventJson) } satisfies ListEventsResponse),
     () => Response.json({ events: [] } satisfies ListEventsResponse),

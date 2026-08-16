@@ -4,7 +4,8 @@ import { createResource, createSignal, Show } from "solid-js";
 import { LinkifiedText } from "~/components/LinkifiedText";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
-import { pickLocalized, resolveLang } from "~/lib/i18n";
+import { pickLocalized, useLang } from "~/lib/i18n";
+import { imageUrl } from "~/lib/image-url";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { GetEventBySlugResponseSchema } from "~/routes/api/events/by-slug/[slug].schema";
 import {
@@ -18,9 +19,8 @@ import {
 } from "~/routes/api/events/[id]/status.schema";
 
 export default function EventDetailPage() {
-  const params = useParams<{ lang: string; slug: string }>();
-  const lang = () => resolveLang(params.lang);
-  const t = (nl: string, en: string) => (lang() === "nl" ? nl : en);
+  const params = useParams<{ slug: string }>();
+  const { lang, t } = useLang();
 
   const locationKindLabels: Record<string, string> = {
     precise_address: t("Exact adres", "Precise address"),
@@ -201,6 +201,15 @@ export default function EventDetailPage() {
               <h1 class="mb-2 text-2xl font-semibold">
                 {pickLocalized(currentEvent().titleNl, currentEvent().titleEn, lang())}
               </h1>
+              <Show when={currentEvent().flyerPreviewImageId}>
+                {(id) => (
+                  <img
+                    src={imageUrl(id())}
+                    alt=""
+                    class="mb-4 w-full max-w-md rounded-lg border border-zinc-200"
+                  />
+                )}
+              </Show>
               <Show when={currentEvent().status !== "visible"}>
                 <p class="mb-4 inline-block rounded bg-amber-100 px-2 py-1 text-sm text-amber-800">
                   {currentEvent().status === "cancelled"

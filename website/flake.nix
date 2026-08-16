@@ -22,6 +22,12 @@
         postgresql
       ];
 
+      # sharp (image processing, M6) ships prebuilt native bindings that
+      # dlopen libstdc++.so.6 by soname - NixOS doesn't put it on a standard
+      # linker path, so every place bun actually runs app code needs this on
+      # LD_LIBRARY_PATH or sharp fails to load at runtime.
+      nativeLibPath = "${pkgs.stdenv.cc.cc.lib}/lib";
+
       devDbPort = 54329;
 
       nuShellScript = ''
@@ -56,6 +62,7 @@
           if $config != "" {
             $env.VANL_CONFIG_PATH = ($config | path expand)
           }
+          $env.LD_LIBRARY_PATH = $"${nativeLibPath}:($env.LD_LIBRARY_PATH? | default "")"
 
           ^${pkgs.bun}/bin/bun run start
         }
@@ -162,6 +169,7 @@
         # `bun ...` (e.g. migrate) spawn a subshell that doesn't reliably
         # inherit bun's own self-injected PATH entry.
         export PATH="${pkgs.bun}/bin:${pkgs.nodejs_22}/bin:${pkgs.postgresql}/bin:$PATH"
+        export LD_LIBRARY_PATH="${nativeLibPath}:''${LD_LIBRARY_PATH:-}"
         ${pkgs.bun}/bin/bun install --frozen-lockfile
         ${pkgs.bun}/bin/bun run format:check
         ${pkgs.bun}/bin/bun run lint
@@ -281,6 +289,7 @@
       devShells.default = pkgs.mkShell {
         packages = runtimePkgs;
         shellHook = ''
+          export LD_LIBRARY_PATH="${nativeLibPath}:''${LD_LIBRARY_PATH:-}"
           echo "vanl website dev shell — bun $(${pkgs.bun}/bin/bun --version), node $(${pkgs.nodejs_22}/bin/node --version)"
         '';
       };

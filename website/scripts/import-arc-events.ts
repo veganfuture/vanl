@@ -10,8 +10,8 @@ import type { UserId } from "../src/domain/auth/user_id";
 import { EventRepository, type NewEventInput } from "../src/domain/events/event_repository";
 import { PlaceRepository } from "../src/domain/places/place_repository";
 import { reverseGeocode } from "../src/domain/events/pdok-client";
-import { generateSlug } from "../src/domain/events/slug";
-import { validateEvent, type ValidatableEvent } from "../src/shared/events/event_validation";
+import { generateSlug } from "../src/lib/slug";
+import { validateEvent, type ValidatableEvent } from "../src/lib/event_validation";
 
 /**
  * Imports events from animalrightscalendar.com (ARC) into our events table.
@@ -517,6 +517,7 @@ async function main(): Promise<void> {
             slug: generateSlug(event.titleNl ?? event.titleEn ?? ""),
             organizerName: detectOrganizer(event),
             publisherUserId: mode.botUserId,
+            publisherOrgId: null,
             createdBy: mode.botUserId,
             source: EVENT_SOURCE,
             externalSourceId: event.externalSourceId,

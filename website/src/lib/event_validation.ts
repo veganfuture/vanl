@@ -1,5 +1,5 @@
 import { err, ok, type Result } from "neverthrow";
-import type { Locale } from "~/lib/i18n";
+import type { Locale } from "./i18n";
 
 /**
  * The business rules for a savable event, shared verbatim between the
@@ -8,11 +8,11 @@ import type { Locale } from "~/lib/i18n";
  * authority, so the client's messages can never drift from what the server
  * will actually accept).
  *
- * Lives under src/shared/, not src/domain/, and deliberately imports
- * nothing from there (not even types) - the frontend must never be able to
- * reach into the backend domain layer, even accidentally through a
- * type-only import that happens to be safe today but stops being safe the
- * next time someone edits that file.
+ * Deliberately imports nothing from src/domain/ (not even types) - this
+ * file ships in the client bundle, so it must never be able to reach into
+ * the backend domain layer, even accidentally through a type-only import
+ * that happens to be safe today but stops being safe the next time someone
+ * edits that file.
  */
 export type EventLocationKind = "precise_address" | "meeting_point_city_only";
 
