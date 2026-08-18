@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
-import { okAsync } from "neverthrow";
+import { errAsync, okAsync } from "neverthrow";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadConfig } from "~/lib/config";
 import { sql } from "~/lib/db";
@@ -234,6 +234,40 @@ describe("login", () => {
     const result = await service.startLogin("wendy", null);
 
     expect(result._unsafeUnwrapErr()).toBe("rate_limited");
+  });
+
+  it("a failed OTP send does not count against the rate limit - the challenge row is cleaned up", async () => {
+    const token = signWithDevKey("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    (
+      await service.completeSignup({
+        token,
+        accountName: "zack",
+        email: "zack@example.com",
+        displayName: "Zack",
+        affiliationsNote: null,
+      })
+    )._unsafeUnwrap();
+
+    vi.mocked(sendOtpViaBot).mockReturnValueOnce(
+      errAsync({ kind: "send_failed", message: "bot unreachable" }),
+    );
+    const failed = await service.startLogin("zack", null);
+    expect(failed._unsafeUnwrapErr()).toBe("internal_error");
+
+    // The failed send must not have consumed a rate-limit slot - all 3
+    // should still be available.
+    (await service.startLogin("zack", null))._unsafeUnwrap();
+    (await service.startLogin("zack", null))._unsafeUnwrap();
+    (await service.startLogin("zack", null))._unsafeUnwrap();
+    const fourth = await service.startLogin("zack", null);
+    expect(fourth._unsafeUnwrapErr()).toBe("rate_limited");
+
+    // And the failed attempt didn't leave behind a stray, replayable challenge.
+    const rows = await sql`
+      select count(*)::int as count from login_challenges
+      where user_id = (select id from users where account_name = 'zack')
+    `;
+    expect(rows[0]!.count).toBe(3);
   });
 
   it("does not count successful logins against the rate limit - only unresolved codes count", async () => {

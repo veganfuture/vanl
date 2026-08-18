@@ -1,6 +1,13 @@
 import { createSignal, For, Show } from "solid-js";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import { validateEvent, type ValidatableEvent } from "~/lib/event_validation";
+import {
+  validateEvent,
+  type ValidatableEvent,
+  EVENT_TITLE_MAX_LENGTH,
+  EVENT_DESCRIPTION_MAX_LENGTH,
+  EVENT_LOCATION_DESCRIPTION_MAX_LENGTH,
+  EVENT_URL_MAX_LENGTH,
+} from "~/lib/event_validation";
 import { apiFetch, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { ImagePickerField } from "./ImagePickerField";
 import { makeT, type Locale } from "~/lib/i18n";
@@ -296,6 +303,7 @@ export function EventForm(props: {
           <input
             class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
             value={values().titleNl}
+            maxlength={EVENT_TITLE_MAX_LENGTH}
             onInput={(e) => setValues({ ...values(), titleNl: e.currentTarget.value })}
           />
         </label>
@@ -304,6 +312,7 @@ export function EventForm(props: {
           <input
             class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
             value={values().titleEn}
+            maxlength={EVENT_TITLE_MAX_LENGTH}
             onInput={(e) => setValues({ ...values(), titleEn: e.currentTarget.value })}
           />
         </label>
@@ -316,6 +325,7 @@ export function EventForm(props: {
             class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
             rows={4}
             value={values().descriptionNl}
+            maxlength={EVENT_DESCRIPTION_MAX_LENGTH}
             onInput={(e) => setValues({ ...values(), descriptionNl: e.currentTarget.value })}
           />
         </label>
@@ -325,6 +335,7 @@ export function EventForm(props: {
             class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
             rows={4}
             value={values().descriptionEn}
+            maxlength={EVENT_DESCRIPTION_MAX_LENGTH}
             onInput={(e) => setValues({ ...values(), descriptionEn: e.currentTarget.value })}
           />
         </label>
@@ -458,6 +469,7 @@ export function EventForm(props: {
                   "e.g. Museumplein, or 'in front of the town hall'",
                 )}
                 value={values().locationDescription}
+                maxlength={EVENT_LOCATION_DESCRIPTION_MAX_LENGTH}
                 onInput={(e) =>
                   setValues({ ...values(), locationDescription: e.currentTarget.value })
                 }
@@ -529,6 +541,7 @@ export function EventForm(props: {
           type="url"
           class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
           value={values().mapUrl}
+          maxlength={EVENT_URL_MAX_LENGTH}
           onInput={(e) => setValues({ ...values(), mapUrl: e.currentTarget.value })}
         />
       </label>
@@ -541,6 +554,7 @@ export function EventForm(props: {
           type="url"
           class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
           value={values().externalEventUrl}
+          maxlength={EVENT_URL_MAX_LENGTH}
           onInput={(e) => setValues({ ...values(), externalEventUrl: e.currentTarget.value })}
         />
       </label>
@@ -553,6 +567,7 @@ export function EventForm(props: {
           type="url"
           class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
           value={values().registrationUrl}
+          maxlength={EVENT_URL_MAX_LENGTH}
           onInput={(e) => setValues({ ...values(), registrationUrl: e.currentTarget.value })}
         />
       </label>

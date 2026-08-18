@@ -16,6 +16,12 @@ import type { Locale } from "./i18n";
  */
 export type EventLocationKind = "precise_address" | "meeting_point_city_only";
 
+/** Mirrors the DB CHECK constraints in migrations/0006_field_length_limits.sql and event_service.ts's EventInputSchema - kept here too so EventForm can set matching maxlength attributes and show a friendly message before ever hitting the server. */
+export const EVENT_TITLE_MAX_LENGTH = 200;
+export const EVENT_DESCRIPTION_MAX_LENGTH = 10000;
+export const EVENT_LOCATION_DESCRIPTION_MAX_LENGTH = 500;
+export const EVENT_URL_MAX_LENGTH = 2000;
+
 export type ValidatableEvent = {
   titleNl: string | null;
   titleEn: string | null;
@@ -85,6 +91,35 @@ export function validateEvent(
     );
   }
 
+  const titleFields: Array<[string | null, string]> = [
+    [input.titleNl, t("De titel (Nederlands)", "The title (Dutch)")],
+    [input.titleEn, t("De titel (Engels)", "The title (English)")],
+  ];
+  for (const [value, label] of titleFields) {
+    if (value && value.trim().length > EVENT_TITLE_MAX_LENGTH) {
+      messages.push(
+        t(
+          `${label} mag maximaal ${EVENT_TITLE_MAX_LENGTH} tekens zijn.`,
+          `${label} must be at most ${EVENT_TITLE_MAX_LENGTH} characters.`,
+        ),
+      );
+    }
+  }
+  const descriptionFields: Array<[string | null, string]> = [
+    [input.descriptionNl, t("De beschrijving (Nederlands)", "The description (Dutch)")],
+    [input.descriptionEn, t("De beschrijving (Engels)", "The description (English)")],
+  ];
+  for (const [value, label] of descriptionFields) {
+    if (value && value.trim().length > EVENT_DESCRIPTION_MAX_LENGTH) {
+      messages.push(
+        t(
+          `${label} mag maximaal ${EVENT_DESCRIPTION_MAX_LENGTH} tekens zijn.`,
+          `${label} must be at most ${EVENT_DESCRIPTION_MAX_LENGTH} characters.`,
+        ),
+      );
+    }
+  }
+
   if (!input.startAt) {
     messages.push(t("Kies een startdatum en -tijd.", "Choose a start date and time."));
   } else if (options.requireFutureStart && input.startAt <= new Date()) {
@@ -108,6 +143,13 @@ export function validateEvent(
 
   if (!input.locationDescription?.trim()) {
     messages.push(t("Vul een locatiebeschrijving in.", "Enter a location description."));
+  } else if (input.locationDescription.trim().length > EVENT_LOCATION_DESCRIPTION_MAX_LENGTH) {
+    messages.push(
+      t(
+        `De locatiebeschrijving mag maximaal ${EVENT_LOCATION_DESCRIPTION_MAX_LENGTH} tekens zijn.`,
+        `The location description must be at most ${EVENT_LOCATION_DESCRIPTION_MAX_LENGTH} characters.`,
+      ),
+    );
   }
 
   const urlFields: Array<[string | null, string]> = [
@@ -118,6 +160,13 @@ export function validateEvent(
   for (const [value, label] of urlFields) {
     if (value && !isValidUrl(value)) {
       messages.push(t(`${label} is geen geldige URL.`, `${label} is not a valid URL.`));
+    } else if (value && value.length > EVENT_URL_MAX_LENGTH) {
+      messages.push(
+        t(
+          `${label} mag maximaal ${EVENT_URL_MAX_LENGTH} tekens zijn.`,
+          `${label} must be at most ${EVENT_URL_MAX_LENGTH} characters.`,
+        ),
+      );
     }
   }
 

@@ -75,6 +75,36 @@ describe("createOrganization", () => {
     expect(result._unsafeUnwrapErr()).toBe("validation");
   });
 
+  it("rejects a name over 120 characters", async () => {
+    const creator = await makeUser("org-creator-long-name");
+    const result = await service.createOrganization(
+      actingAs(creator),
+      baseInput({ name: "a".repeat(121) }),
+    );
+    expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
+  it("rejects a description over 10000 characters", async () => {
+    const creator = await makeUser("org-creator-long-description");
+    const result = await service.createOrganization(
+      actingAs(creator),
+      baseInput({ name: "Long Description Org", description: "a".repeat(10001) }),
+    );
+    expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
+  it("rejects a website URL over 2000 characters", async () => {
+    const creator = await makeUser("org-creator-long-url");
+    const result = await service.createOrganization(
+      actingAs(creator),
+      baseInput({
+        name: "Long URL Org",
+        websiteUrl: `https://example.com/${"a".repeat(2000)}`,
+      }),
+    );
+    expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
   it("rejects a duplicate name", async () => {
     const creatorA = await makeUser("org-dup-name-a");
     const creatorB = await makeUser("org-dup-name-b");

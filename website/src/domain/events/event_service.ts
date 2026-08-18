@@ -44,32 +44,36 @@ export type EventInput = {
   orgId: string | null;
 };
 
-const nullableTrimmed = z
-  .string()
-  .nullable()
-  .transform((v) => v?.trim() || null);
+/** Trims, nulls out empty strings, and rejects (post-trim) values over maxLength - the hard backstop matching the equivalent DB CHECK constraint (migrations/0006_field_length_limits.sql). */
+function nullableTrimmedMax(maxLength: number) {
+  return z
+    .string()
+    .nullable()
+    .transform((v) => v?.trim() || null)
+    .refine((v) => v === null || v.length <= maxLength);
+}
 
 /**
  * Shape/type coercion only - trimming, nullable transforms, and defensive
- * format guards (uuid/url) against a malformed request body. The actual
- * business rules (required-ness, cross-field constraints, friendly
+ * format guards (uuid/url/length) against a malformed request body. The
+ * actual business rules (required-ness, cross-field constraints, friendly
  * messages) live in validateEvent, shared with the client - see there
  * for the single source of truth.
  */
 const EventInputSchema = z.object({
-  titleNl: nullableTrimmed,
-  titleEn: nullableTrimmed,
-  descriptionNl: nullableTrimmed,
-  descriptionEn: nullableTrimmed,
+  titleNl: nullableTrimmedMax(200),
+  titleEn: nullableTrimmedMax(200),
+  descriptionNl: nullableTrimmedMax(10000),
+  descriptionEn: nullableTrimmedMax(10000),
   startAt: z.date(),
   endAt: z.date().nullable(),
   locationKind: z.enum(["precise_address", "meeting_point_city_only"]),
   placeId: z.string().uuid().nullable(),
-  locationDescription: z.string().trim(),
+  locationDescription: z.string().trim().max(500),
   pdokAddressId: z.string().nullable(),
-  mapUrl: z.string().trim().url().nullable(),
-  externalEventUrl: z.string().trim().url().nullable(),
-  registrationUrl: z.string().trim().url().nullable(),
+  mapUrl: z.string().trim().url().max(2000).nullable(),
+  externalEventUrl: z.string().trim().url().max(2000).nullable(),
+  registrationUrl: z.string().trim().url().max(2000).nullable(),
   orgId: z.string().uuid().nullable(),
 });
 

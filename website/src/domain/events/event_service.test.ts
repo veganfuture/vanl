@@ -194,6 +194,42 @@ describe("createEvent", () => {
     expect(result._unsafeUnwrapErr()).toBe("validation");
   });
 
+  it("rejects a title over 200 characters", async () => {
+    const publisher = await makeUser("publisher-with-long-title");
+    const result = await service.createEvent(
+      actingAs(publisher),
+      baseInput({ titleEn: "a".repeat(201) }),
+    );
+    expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
+  it("rejects a description over 10000 characters", async () => {
+    const publisher = await makeUser("publisher-with-long-description");
+    const result = await service.createEvent(
+      actingAs(publisher),
+      baseInput({ descriptionEn: "a".repeat(10001) }),
+    );
+    expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
+  it("rejects a location description over 500 characters", async () => {
+    const publisher = await makeUser("publisher-with-long-location");
+    const result = await service.createEvent(
+      actingAs(publisher),
+      baseInput({ locationDescription: "a".repeat(501) }),
+    );
+    expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
+  it("rejects a URL field over 2000 characters", async () => {
+    const publisher = await makeUser("publisher-with-long-url");
+    const result = await service.createEvent(
+      actingAs(publisher),
+      baseInput({ mapUrl: `https://example.com/${"a".repeat(2000)}` }),
+    );
+    expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
   it("resolves PDOK fields and placeId for precise_address when the lookup succeeds", async () => {
     const publisher = await makeUser("publisher-with-good-pdok");
     vi.mocked(lookupAddress).mockReturnValue(

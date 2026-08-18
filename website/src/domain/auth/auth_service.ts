@@ -226,10 +226,27 @@ export class AuthService {
             logger.error({ err: dbError }, "failed to insert login challenge");
             return "internal_error";
           })
-          .andThen(() =>
-            sendOtpViaBot(user.signalAci.value, code).mapErr((sendError): StartLoginError => {
+          .andThen((challengeId) =>
+            sendOtpViaBot(user.signalAci.value, code).orElse((sendError) => {
               logger.error({ err: sendError }, "failed to send OTP via bot");
-              return "internal_error";
+              // The insert already happened, so without this the row would
+              // sit there counting against the account/IP send-rate-limit
+              // even though the user never actually received a code - undo
+              // it rather than let a transient bot failure eat a retry slot.
+              return this.repository
+                .deleteLoginChallenge(challengeId)
+                .orElse((dbError) => {
+                  logger.error(
+                    { err: dbError },
+                    "failed to clean up login challenge after OTP send failure",
+                  );
+                  return okAsync(undefined);
+                })
+                .andThen(() =>
+                  errAsync<void, StartLoginError>(
+                    sendError.kind === "rate_limited" ? "rate_limited" : "internal_error",
+                  ),
+                );
             }),
           );
       });

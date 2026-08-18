@@ -24,12 +24,13 @@ export type OrganizationInput = {
 const nullableTrimmed = z
   .string()
   .nullable()
-  .transform((v) => v?.trim() || null);
+  .transform((v) => v?.trim() || null)
+  .refine((v) => v === null || v.length <= 10000);
 
 const OrganizationInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
   description: nullableTrimmed,
-  websiteUrl: z.string().trim().url().nullable(),
+  websiteUrl: z.string().trim().url().max(2000).nullable(),
 });
 
 export type CreateOrganizationError = "validation" | "name_taken" | "internal_error";
