@@ -34,7 +34,7 @@ async function main(): Promise<void> {
     const [user] = await sql`
       insert into users (signal_aci, account_name, email, display_name)
       values (${aci.value}, 'dev', 'dev@localhost', 'Dev')
-      on conflict (signal_aci) do update set account_name = excluded.account_name
+      on conflict (account_name) do update set signal_aci = excluded.signal_aci
       returning id
     `;
 

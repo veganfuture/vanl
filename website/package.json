@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
+    "dev": "(test -z \"$DEV_ACI\" || bun run seed-dev-user) && vite dev",
     "build": "vite build",
     "start": "node .output/server/index.mjs",
     "preview": "vite preview",
