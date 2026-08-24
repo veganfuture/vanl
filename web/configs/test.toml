@@ -1,0 +1,25 @@
+# No [server] section: the listen address is controlled by the standard
+# PORT/HOST environment variables (nitro's convention), not this file.
+
+# Used by the test suite (vitest.config.ts's `test.env`) - a separate
+# database from configs/dev.toml's vanl_dev so `bun run test` / `nix run
+# .#check` never truncates the interactive dev DB's real data. Same
+# Postgres instance/cluster (devdb-start creates both databases), just a
+# different database name.
+
+[site]
+base_url = "http://localhost:3000"
+
+[logging]
+level = "debug"
+
+[database]
+host = "127.0.0.1"
+port = 54329
+database = "vanl_test"
+user = "vanl"
+
+[auth]
+bot_api_base_url = "http://127.0.0.1:8787"
+# Same dev-only keypair as configs/dev.toml - see there for details.
+signup_public_key = "afQIoPf6trsqUYAvCUNebfnEdApb1JHnoM_Q0JIHBBE"

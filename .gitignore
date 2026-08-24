@@ -9,8 +9,8 @@
 bot/run/
 bot/tmp/
 bot/data
-website/node_modules
-website/out
+web/node_modules
+web/out
 **/__pycache__
 
 # Specific files to whitelist
