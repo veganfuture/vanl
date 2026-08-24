@@ -11,7 +11,7 @@
     nixpkgs,
     flake-utils,
   }:
-    flake-utils.lib.eachDefaultSystem (system: let
+    (flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {inherit system;};
 
       prodPkgs = with pkgs; [bun postgresql];
@@ -31,6 +31,124 @@
       nativeLibPath = "${pkgs.stdenv.cc.cc.lib}/lib";
 
       devDbPort = 54329;
+
+      # Fixed-output derivation: `bun install` needs network access to fetch dependencies from
+      # the npm registry, which Nix only allows inside a FOD (purity comes from verifying $out's
+      # hash afterward, not from sandboxing - the same mechanism nixpkgs' own fetchNpmDeps uses
+      # internally). See bot/flake.nix's botDeps for the two real gotchas discovered building
+      # the equivalent thing for uv (both checked and ruled out here, see below).
+      webDeps = pkgs.stdenv.mkDerivation {
+        pname = "web-deps";
+        version = "0";
+        src = self;
+        # nodejs_22 needed for patchShebangs below to have something to rewrite
+        # `#!/usr/bin/env node` shebangs (e.g. .bin/vite) to - Nix's sandbox has no
+        # /usr/bin/env at all, so those scripts are otherwise unusable as-is.
+        nativeBuildInputs = [pkgs.bun pkgs.nodejs_22];
+        outputHashMode = "recursive";
+        outputHashAlgo = "sha256";
+        # At least one package's postinstall step embeds an absolute store path (confirmed
+        # empirically: "fixed-output derivations must not reference store paths" - the reference
+        # wasn't in any grep-able text file in the kept build directory, so likely a binary/
+        # native artifact rather than a shebang; unlike bot/flake.nix's equivalent problem,
+        # stripping node_modules/.bin here isn't an option anyway, since `bun run build` needs
+        # its own .bin/vite). unsafeDiscardReferences is the standard nixpkgs escape hatch for
+        # exactly this - used internally by fetchNpmDeps for the same reason - it skips Nix's
+        # reference scan for this output rather than requiring every incidental embedded path to
+        # be hunted down and stripped by hand.
+        __structuredAttrs = true;
+        unsafeDiscardReferences.out = true;
+        # This bakes in patchShebangs-rewritten store paths (e.g. .bin/vite's #!.../node), so its
+        # real hash depends on which nixpkgs revision built it - not just on bun.lock. web/'s own
+        # nixpkgs input follows server/flake.nix's when built as part of the composed NixOS
+        # deployment (the only context that actually matters), which differs from web/flake.nix's
+        # own standalone-locked nixpkgs. So: recompute via `nix run
+        # /home/lobo/projects/vanl/server#update-web-deps-hash`, not `nix run .#update-web-deps-hash`
+        # from within web/ - the latter checks against the wrong nixpkgs evaluation.
+        outputHash = "sha256-BZ0C/mDGiCYBZWKLkTBCGTx+zPrZDtEDEeyyySbERg4=";
+        buildPhase = ''
+          export HOME=$TMPDIR
+          # Nix sandboxes (even FODs) don't provide CA certs by default - bun's HTTPS requests
+          # to the npm registry need these explicitly, same fix fetchNpmDeps uses internally.
+          export NODE_EXTRA_CA_CERTS="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+          bun install --frozen-lockfile
+          # Rewrites `#!/usr/bin/env node` (and similar) shebangs to real store paths -
+          # patchShebangs is a standard stdenv hook, always available in a mkDerivation build.
+          # Must happen here, not in webBuild: this output becomes read-only once built.
+          patchShebangs node_modules
+        '';
+        installPhase = "mkdir -p $out && cp -r node_modules $out/";
+      };
+
+      webDepsHashCheck = webDeps.overrideAttrs (_: {outputHash = pkgs.lib.fakeHash;});
+
+      updateWebDepsHash = pkgs.writeShellScriptBin "update-web-deps-hash" ''
+        set -euo pipefail
+        echo "Computing web-deps' real dependency hash (this will intentionally fail once)..." >&2
+        if out=$(nix build --no-link --print-out-paths '.#web-deps-hash-check' 2>&1); then
+          echo "Hash check unexpectedly succeeded - nothing to update?" >&2
+          exit 1
+        fi
+        real_hash=$(printf '%s\n' "$out" | grep -oP '(?<=got:\s{7})\S+' || true)
+        if [ -z "$real_hash" ]; then
+          echo "Could not find the real hash in nix's error output:" >&2
+          echo "$out" >&2
+          exit 1
+        fi
+        echo ""
+        echo "New outputHash for web-deps (paste into web/flake.nix): $real_hash"
+      '';
+
+      # Normal (non-fixed-output) derivation: copies in webDeps' pre-fetched node_modules and
+      # runs `bun run build`, entirely offline (no network needed - all deps are already
+      # present). Confirmed by inspecting an actual local build that `.output/` is fully
+      # self-contained: Nitro's build already copies even sharp's platform-specific native
+      # `.node` bindings into `.output/server/node_modules/`, so nothing besides `.output/` (and
+      # `package.json`, for `bun run start` to resolve its own "start" script - see below) needs
+      # to travel any further.
+      webBuild = pkgs.stdenv.mkDerivation {
+        pname = "web-build";
+        version = "0";
+        src = self;
+        # nodejs_22 needed too, not just bun: bun's script runner honors vite's own
+        # `#!/usr/bin/env node` shebang (established earlier - `bun run build` actually runs as
+        # a `node .../vite build` process), confirmed here by the alternative failing with
+        # "required file not found" otherwise.
+        nativeBuildInputs = [pkgs.bun pkgs.nodejs_22];
+        buildPhase = ''
+          export HOME=$TMPDIR
+          # A symlink to webDeps' (read-only) node_modules doesn't work: Nitro's build writes
+          # scratch/cache files inside node_modules/.nitro/ during the build (confirmed
+          # empirically: "Permission denied" trying to create that directory through a symlink
+          # to a nix store path) - needs a real, writable copy instead.
+          cp -r ${webDeps}/node_modules node_modules
+          chmod -R u+w node_modules
+          bun run build
+        '';
+        # package.json is copied alongside .output/, not just .output/ itself - web-run's
+        # wrapper invokes `bun run start` (package.json's "start" script), which needs a
+        # package.json present in the working directory to resolve at all, even though the
+        # script it points at (.output/server/index.mjs) doesn't otherwise need anything else
+        # from it.
+        installPhase = "mkdir -p $out && cp -r .output package.json $out/";
+      };
+
+      # web-build's $out only contains .output/ (the built server), not the full source +
+      # node_modules that scripts/migrate.ts needs - so migrations get their own small wrapper:
+      # symlink webDeps' node_modules alongside the full source and run the script directly.
+      # configs/prod.toml has database.host = "127.0.0.1", so this only makes sense run *on* the
+      # VPS (not the admin's own machine) - server/configuration.nix exposes it via
+      # environment.systemPackages as `vanl-web-migrate`.
+      webMigrate = pkgs.writeShellScriptBin "web-migrate" ''
+        set -euo pipefail
+        workdir=$(mktemp -d)
+        trap 'rm -rf "$workdir"' EXIT
+        cp -r ${self}/. "$workdir/"
+        chmod -R u+w "$workdir"
+        ln -sfn ${webDeps}/node_modules "$workdir/node_modules"
+        cd "$workdir"
+        exec ${pkgs.bun}/bin/bun run scripts/migrate.ts "$@"
+      '';
 
       nuShellScript = ''
         #!${pkgs.nushell}/bin/nu
@@ -223,107 +341,17 @@
         ${pkgs.bun}/bin/bun run build
       '';
 
-      install = pkgs.writeScriptBin "web-install" ''
-        ${nuShellScript}
-
-        def render-unit [lines] {
-          $lines | str join (char nl)
-        }
-
-        def main [
-          # Repository root to install from
-          --repo-dir: string = "."
-          # Path to the TOML config file for the website
-          --config: string
-          # Install runtime units instead of persistent units (for testing)
-          --runtime
-        ] {
-          required_flags [
-            { name: "config", value: $config }
-          ]
-
-          # Expand these paths, as systemd does not handle relative paths
-          let repo_dir = ($repo_dir | path expand)
-          let config = ($config | path expand)
-
-          let web_user = (($env | get -i SUDO_USER) | default $env.USER)
-
-          let web_service = (render-unit [
-            "[Unit]"
-            "Description=Vegan Activists NL website"
-            "After=network-online.target"
-            "Wants=network-online.target"
-            ""
-            "[Service]"
-            "Type=simple"
-            $"User=($web_user)"
-            $"WorkingDirectory=($repo_dir)"
-            "Environment=PORT=3000"
-            "Environment=HOST=0.0.0.0"
-            $"ExecStart=${runWeb}/bin/web-run --repo-dir ($repo_dir) --config ($config)"
-            ""
-            "Restart=always"
-            "RestartSec=2"
-            "StandardOutput=journal"
-            "StandardError=journal"
-            ""
-            "[Install]"
-            "WantedBy=multi-user.target"
-          ])
-
-          let tmp_dir = (mktemp -d | str trim)
-          mkdir $tmp_dir
-          $web_service | save -f ($tmp_dir | path join "vanl-web.service")
-
-          let systemd_unit_dir = if $runtime {
-            "/run/systemd/system"
-          } else {
-            "/etc/systemd/system"
-          }
-          sudo install -d $systemd_unit_dir
-          sudo install -m 0644 ($tmp_dir | path join "vanl-web.service") ($systemd_unit_dir | path join "vanl-web.service")
-
-          sudo systemctl daemon-reload
-          let runtime = if $runtime { ["--runtime"] } else { [] }
-          sudo systemctl ...$runtime enable --now vanl-web.service
-
-          print "Installed and started:"
-          print " - vanl-web.service"
-          print $" - user: ($web_user)"
-          print $" - unit dir: ($systemd_unit_dir)"
-          if $systemd_unit_dir == "/run/systemd/system" {
-            print " - note: /etc/systemd/system is not writable, so the unit was installed as a runtime unit"
-          }
-        }
-      '';
-
-      uninstall = pkgs.writeScriptBin "web-uninstall" ''
-        ${nuShellScript}
-
-        def main [] {
-          let unit_dirs = ["/etc/systemd/system" "/run/systemd/system"]
-          let unit = "vanl-web.service"
-
-          let result = (sudo systemctl disable --now $unit | complete)
-          if $result.exit_code != 0 {
-            let stderr = ($result.stderr | str trim)
-            if $stderr != "" {
-              print -e $stderr
-            }
-          }
-
-          for dir in $unit_dirs {
-            let unit_path = ($dir | path join $unit)
-            if ($unit_path | path exists) {
-              sudo rm $unit_path
-            }
-          }
-
-          sudo systemctl daemon-reload
-          print "Uninstalled: vanl-web.service"
-        }
-      '';
+      # install/uninstall (imperative systemd-unit-writing apps) removed - replaced by
+      # nixosModules.default below, composed declaratively via server/flake.nix.
     in {
+      packages = {
+        web-deps = webDeps;
+        web-deps-hash-check = webDepsHashCheck;
+        web-build = webBuild;
+        web-run = runWeb;
+        web-migrate = webMigrate;
+      };
+
       devShells.default = pkgs.mkShell {
         packages = devShellPkgs;
         shellHook = ''
@@ -341,13 +369,9 @@
           type = "app";
           program = "${devRun}/bin/web-dev";
         };
-        install = {
+        update-web-deps-hash = {
           type = "app";
-          program = "${install}/bin/web-install";
-        };
-        uninstall = {
-          type = "app";
-          program = "${uninstall}/bin/web-uninstall";
+          program = "${updateWebDepsHash}/bin/update-web-deps-hash";
         };
         check = {
           type = "app";
@@ -370,5 +394,83 @@
           program = "${devDbStop}/bin/devdb-stop";
         };
       };
-    });
+    }))
+    // {
+      nixosModules.default = {
+        config,
+        lib,
+        pkgs,
+        ...
+      }: let
+        cfg = config.services.vanl-web;
+        webSelf = self;
+      in {
+        options.services.vanl-web = {
+          enable = lib.mkEnableOption "the Vegan Activists NL website (SolidStart/Bun, nitro build)";
+
+          configFile = lib.mkOption {
+            type = lib.types.path;
+            description = "Path to the site's TOML config file (e.g. the web flake input's own configs/prod.toml).";
+          };
+
+          environmentFile = lib.mkOption {
+            type = lib.types.path;
+            description = ''
+              EnvironmentFile= providing VANL_DATABASE_PASSWORD and
+              VANL_BOT_API_SHARED_SECRET. Never committed; admin-managed,
+              e.g. /etc/vanl/web.env.
+            '';
+          };
+
+          user = lib.mkOption {
+            type = lib.types.str;
+            default = "vanl-web";
+          };
+          group = lib.mkOption {
+            type = lib.types.str;
+            default = "vanl-web";
+          };
+          port = lib.mkOption {
+            type = lib.types.port;
+            default = 3000;
+          };
+          host = lib.mkOption {
+            type = lib.types.str;
+            default = "127.0.0.1";
+            description = "Bind address - loopback by default; Cloudflare Tunnel talks to it locally, it never needs to be reachable on any other interface directly.";
+          };
+        };
+
+        config = lib.mkIf cfg.enable {
+          users.groups.${cfg.group} = {};
+          users.users.${cfg.user} = {
+            isSystemUser = true;
+            group = cfg.group;
+          };
+
+          systemd.services.vanl-web = {
+            description = "Vegan Activists NL website";
+            after = ["network-online.target" "postgresql.service"];
+            wants = ["network-online.target"];
+            wantedBy = ["multi-user.target"];
+            environment = {
+              PORT = toString cfg.port;
+              HOST = cfg.host;
+            };
+            restartTriggers = [webSelf.packages.${pkgs.system}.web-build];
+            serviceConfig = {
+              Type = "simple";
+              User = cfg.user;
+              Group = cfg.group;
+              ExecStart = "${webSelf.packages.${pkgs.system}.web-run}/bin/web-run --repo-dir ${webSelf.packages.${pkgs.system}.web-build} --config ${cfg.configFile}";
+              EnvironmentFile = cfg.environmentFile;
+              Restart = "always";
+              RestartSec = 2;
+              StandardOutput = "journal";
+              StandardError = "journal";
+            };
+          };
+        };
+      };
+    };
 }

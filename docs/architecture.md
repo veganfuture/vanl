@@ -119,12 +119,31 @@ All checks are backend-enforced at the repository/domain-service boundary; front
 
 ## 5. Deployment topology
 
-- One Ubuntu VPS. Systemd units: `vanl-web.service` (SolidStart/Bun), the existing bot service (unchanged tech stack, new REST endpoint added), `vanl-backup.service` + `.timer`.
-- Postgres runs on the same VPS (or an adjacent one if load later requires it — not needed for MVP).
-- Cloudflare terminates public TLS and acts as CDN/reverse proxy in front of the origin; origin also serves HTTPS.
-- Website → bot communication is a REST call over `localhost` (or an internal-only address), never exposed to the internet, authenticated with a shared secret passed via environment variable, and scoped to a narrow set of message-sending operations (OTP, signup confirmation) — not a general "send arbitrary message" endpoint.
-- `nix run .#install` lays down the systemd unit(s) for the website, mirroring the bot's existing `flake.nix` pattern.
-- Single TOML config file on disk; secrets via `EnvironmentFile=` in the systemd unit, never committed (repo is public on GitHub).
+- One NixOS VPS (`server/flake.nix`, provisioned via disko/nixos-anywhere), composed declaratively
+  from three independent flakes: `server/` (the host itself), `bot/`, and `web/` — the latter two
+  each expose a `nixosModules.default` that `server/` imports. `nixos-rebuild switch
+  --target-host` is the one and only deploy command, for both infrastructure and code changes; see
+  the root `README.md`.
+- `bot`/`web` each ship their code as fully pre-built Nix packages rather than a live git checkout
+  the VPS pulls: a fixed-output derivation does the actual `uv sync`/`bun install` (network access
+  is only permitted inside a FOD, whose purity comes from verifying the declared output hash
+  afterward), and everything downstream is a normal, sandboxed, network-free build. Each service's
+  `restartTriggers` watches its own build output, so `nixos-rebuild switch` restarts `bot.service`/
+  `signal-daemon.service`/`vanl-web.service` automatically whenever the underlying code changes —
+  no separate build/rsync/install step, and no network access needed on the VPS at service-start
+  time at all.
+- Postgres runs on the same VPS via `services.postgresql` (or an adjacent one if load later
+  requires it — not needed for MVP).
+- The website is reachable exclusively via a Cloudflare Tunnel (`services.cloudflared`) — no
+  inbound port beyond SSH is ever opened, and no origin TLS is needed (the tunnel itself is what's
+  encrypted to Cloudflare; traffic from `cloudflared` to the app stays on loopback).
+- Website → bot communication is a REST call over `localhost` (or an internal-only address), never
+  exposed to the internet, authenticated with a shared secret passed via environment variable, and
+  scoped to a narrow set of message-sending operations (OTP, signup confirmation) — not a general
+  "send arbitrary message" endpoint.
+- Single TOML config file per service (`bot`/`web`'s own `configs/prod.toml`); secrets via plain
+  `EnvironmentFile=`s pointing at admin-managed, never-committed paths on the host
+  (`/etc/vanl/{bot,web}.env`, `/etc/vanl/cloudflared-credentials.json`) — no sops-nix/agenix.
 
 ## 6. Backup and restore plan
 

@@ -13,7 +13,7 @@
     flake-utils,
     pre-commit-hooks,
   }:
-    flake-utils.lib.eachDefaultSystem (system: let
+    (flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {inherit system;};
       nixPython = "${pkgs.python312}/bin/python";
 
@@ -44,6 +44,9 @@
         }
       '';
 
+      # Dev-time convenience only (`nix run .#bot` against a live local checkout) - the
+      # production systemd unit no longer uses this at all, see nixosModules.default's
+      # bot.service, which execs botVenv's installed console script directly.
       runBot = pkgs.writeScriptBin "bot-run" ''
         ${nuShellScript}
 
@@ -120,228 +123,115 @@
         }
       '';
 
-      pollOnce = pkgs.writeScriptBin "bot-poll-once" ''
-        ${nuShellScript}
+      # Two stages: fetch (FOD, network) then assemble (normal derivation, offline). Two things
+      # were tried and empirically ruled out before landing here:
+      #
+      # 1. A single "uv sync straight into $out" FOD. Doesn't work: python venvs bake $out's own
+      #    absolute path into themselves (console-script shebangs, pyvenv.cfg, which then feeds
+      #    into dist-info/RECORD's file hashes too), so the venv's content depends on $out - but
+      #    $out is *derived from* the declared outputHash for a FOD, and the whole point of a FOD
+      #    is verifying declared-hash against a content-hash that's supposed to be independent of
+      #    $out. Confirmed empirically: the standard "build with a fake hash, plug in the real
+      #    one" bootstrap never converges this way - every new declared hash produces a new $out,
+      #    which produces new self-referential content, which produces yet another different real
+      #    hash, indefinitely.
+      # 2. Hashing uv's own cache directory (`UV_CACHE_DIR=$out` from a throwaway `uv sync`).
+      #    Doesn't work either, for an unrelated reason: uv's cache uses randomly-named
+      #    extraction directories (`archive-v0/<random>`) that differ on every run regardless of
+      #    self-reference - confirmed empirically by diffing two independently-populated cache
+      #    dirs for identical input.
+      #
+      # What actually works: `uv pip install --target <dir>` (the pip-compatible flat-install
+      # mode) - confirmed byte-for-byte reproducible across independent runs. Its console-script
+      # shebangs point at the interpreter passed via --python (a stable nix store path) - *but
+      # only* when run from a directory with no pyproject.toml in scope; with one present, uv's
+      # shebang generation ignores --python and defaults to `<project_root>/.venv/bin/python`
+      # regardless, matching wherever `uv sync` would have put a venv, confirmed empirically.
+      # So: run `uv export --no-emit-project` (dependencies only, no local `file://` reference
+      # back to the source, which would itself force project-mode) from the project root to
+      # produce a plain requirements.txt, then run the actual `uv pip install --target` from an
+      # unrelated empty directory.
+      botDeps = pkgs.stdenv.mkDerivation {
+        pname = "bot-deps";
+        version = "0";
+        src = self;
+        nativeBuildInputs = [pkgs.uv pkgs.python312];
+        outputHashMode = "recursive";
+        outputHashAlgo = "sha256";
+        # Depends on which nixpkgs revision built it, not just bot/uv.lock - see web/flake.nix's
+        # webDeps comment for why. Recompute via `nix run
+        # /home/lobo/projects/vanl/server#update-bot-venv-hash`, not `nix run
+        # .#update-bot-venv-hash` from within bot/ (that checks against the wrong nixpkgs
+        # evaluation - bot/'s own standalone-locked one, not server's followed one).
+        outputHash = "sha256-xsa0QvtAZa0m9m/v9JhK76cnyTqgOEwJL/565yFDee4=";
+        buildPhase = ''
+          export HOME=$TMPDIR
+          export UV_NO_MANAGED_PYTHON=1
+          export UV_CACHE_DIR=$TMPDIR/uv-cache
+          # Nix sandboxes (even FODs) don't provide CA certs by default - uv's HTTPS requests
+          # to PyPI need these explicitly, same fix fetchNpmDeps/buildNpmPackage use internally.
+          export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+          export GIT_SSL_CAINFO="$SSL_CERT_FILE"
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt --no-hashes -o $TMPDIR/requirements.txt
+          mkdir -p $TMPDIR/neutral
+          (cd $TMPDIR/neutral && uv pip install --target $out -r $TMPDIR/requirements.txt --python "${nixPython}")
+          # FODs may not contain references to other store paths, but uv bakes ${nixPython}'s
+          # literal store path into every generated console-script shebang, for every
+          # third-party package that happens to have one - none of which bot actually needs
+          # (it imports these as libraries, never invokes their CLIs; its own entry point is
+          # hand-rolled separately in botVenv below). Confirmed empirically: without this,
+          # `nix build` fails with "fixed-output derivations must not reference store paths".
+          rm -rf $out/bin
+        '';
+        dontInstall = true;
+      };
 
-        def main [
-          --repo-dir: string = "."
-          --bot-user: string
-        ] {
-          required_flags [
-            { name: "repo-dir", value: $repo_dir }
-            { name: "bot-user", value: $bot_user }
-          ]
-          let repo_dir = ($repo_dir | path expand)
+      # Normal (non-fixed-output) derivation: copies botDeps' pre-fetched third-party packages
+      # plus bot's own (pure-Python, no build step needed) source into $out, and writes a small
+      # hand-rolled console-script wrapper - entirely offline, no uv/pip invocation needed here
+      # at all. See the comment on botDeps above for why this has to be a separate, non-FOD
+      # stage in the first place.
+      botVenv = pkgs.stdenv.mkDerivation {
+        pname = "bot-venv";
+        version = "0";
+        src = self;
+        dontBuild = true;
+        installPhase = ''
+          mkdir -p $out/bin
+          cp -r ${botDeps}/. $out/
+          cp -r src/bot $out/bot
+          find $out -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+          printf '%s\n' \
+            '#!${nixPython}' \
+            'import sys' \
+            'sys.path.insert(0, "'"$out"'")' \
+            'from bot.__main__ import main' \
+            'if __name__ == "__main__":' \
+            '    main()' \
+            > $out/bin/bot
+          chmod +x $out/bin/bot
+        '';
+      };
 
-          let selected_bot_user = if $bot_user == "" { $env.USER } else { $bot_user }
-          let remote = "origin"
-          let branch = "main"
+      # Same botDeps derivation with a deliberately-wrong hash, so `nix build` fails with Nix's
+      # own "got: sha256-..." message revealing the real one - see updateBotVenvHash below.
+      botDepsHashCheck = botDeps.overrideAttrs (_: {outputHash = pkgs.lib.fakeHash;});
 
-          let fetch_result = (^${pkgs.util-linux}/bin/runuser -u $selected_bot_user -- ${pkgs.git}/bin/git -C $repo_dir fetch $remote $branch | complete)
-          if $fetch_result.exit_code != 0 {
-            if $fetch_result.stderr != "" {
-              print -e $fetch_result.stderr
-            }
-            exit $fetch_result.exit_code
-          }
-
-          let local_rev = (^${pkgs.util-linux}/bin/runuser -u $selected_bot_user -- ${pkgs.git}/bin/git -C $repo_dir rev-parse HEAD | str trim)
-          let remote_rev = (^${pkgs.util-linux}/bin/runuser -u $selected_bot_user -- ${pkgs.git}/bin/git -C $repo_dir rev-parse $"($remote)/($branch)" | str trim)
-
-          if $local_rev == $remote_rev {
-            print $"No changes (($local_rev))."
-            exit 0
-          }
-
-          print $"Updating: ($local_rev) -> ($remote_rev)"
-          let reset_result = (^${pkgs.util-linux}/bin/runuser -u $selected_bot_user -- ${pkgs.git}/bin/git -C $repo_dir reset --hard $"($remote)/($branch)" | complete)
-          if $reset_result.exit_code != 0 {
-            if $reset_result.stderr != "" {
-              print -e $reset_result.stderr
-            }
-            exit $reset_result.exit_code
-          }
-
-          ^systemctl restart signal-daemon.service
-          ^systemctl restart bot.service
-          print "Restarted signal-daemon.service and bot.service"
-        }
-      '';
-
-      install = pkgs.writeScriptBin "bot-install" ''
-        ${nuShellScript}
-
-        def render-unit [lines] {
-          $lines | str join (char nl)
-        }
-
-        def main [
-          # Signal account number for signal-cli (or use environment variable $SIGNAL_ACCOUNT)
-          --signal-account: string
-          # Repository root to install from
-          --repo-dir: string = "."
-          # The path to the config file for the bot
-          --config: string
-          # Install runtime units instead of persistent units (for testing)
-          --runtime
-        ] {
-          let signal_account = ($signal_account | default ($env | get -o SIGNAL_ACCOUNT))
-          required_flags [
-            { name: "signal-account", value: $signal_account, env: "SIGNAL_ACCOUNT" }
-            { name: "config", value: $config }
-          ]
-
-          # Expand these paths, as systemd does not handle relative paths
-          let repo_dir = ($repo_dir | path expand)
-          let config = ($config | path expand)
-
-          let bot_user = (($env | get --optional SUDO_USER) | default $env.USER)
-
-          let bot_service = (render-unit [
-            "[Unit]"
-            "Description=Vegan Activists NL Signal bot"
-            "Requires=signal-daemon.service"
-            "After=signal-daemon.service"
-            "After=network-online.target"
-            "Wants=network-online.target"
-            ""
-            "[Service]"
-            "Type=simple"
-            $"User=($bot_user)"
-            $"WorkingDirectory=($repo_dir)"
-            $"ExecStart=${runBot}/bin/bot-run --repo-dir ($repo_dir) --config ($config)"
-            ""
-            "Restart=always"
-            "RestartSec=2"
-            "StandardOutput=journal"
-            "StandardError=journal"
-            ""
-            "[Install]"
-            "WantedBy=multi-user.target"
-          ])
-
-          let daemon_service = (render-unit [
-            "[Unit]"
-            "Description=signal-cli daemon (JSON-RPC over Unix socket)"
-            "After=network-online.target"
-            "Wants=network-online.target"
-            ""
-            "[Service]"
-            "Type=simple"
-            $"User=($bot_user)"
-            $"WorkingDirectory=($repo_dir)"
-            $"ExecStart=${runSignalDaemon}/bin/signal-daemon-run --repo-dir ($repo_dir) --signal-account ($signal_account)"
-            ""
-            "Restart=always"
-            "RestartSec=2"
-            "StandardOutput=journal"
-            "StandardError=journal"
-            ""
-            "[Install]"
-            "WantedBy=multi-user.target"
-          ])
-
-          let poll_service = (render-unit [
-            "[Unit]"
-            "Description=Poll git main and restart Signal bot"
-            ""
-            "[Service]"
-            "Type=oneshot"
-            $"WorkingDirectory=($repo_dir)"
-            $"ExecStart=${pollOnce}/bin/bot-poll-once --repo-dir ($repo_dir) --bot-user ($bot_user)"
-          ])
-
-          let poll_timer = (render-unit [
-            "[Unit]"
-            "Description=Poll git main every minute for Signal bot"
-            ""
-            "[Timer]"
-            "OnBootSec=30"
-            "OnUnitActiveSec=60"
-            "Persistent=true"
-            ""
-            "[Install]"
-            "WantedBy=timers.target"
-          ])
-
-          # Write systemd unit definitions to tmp files
-          let tmp_dir = (mktemp -d | str trim)
-          mkdir $tmp_dir
-          $bot_service | save -f ($tmp_dir | path join "bot.service")
-          $daemon_service | save -f ($tmp_dir | path join "signal-daemon.service")
-          $poll_service | save -f ($tmp_dir | path join "bot-poll.service")
-          $poll_timer | save -f ($tmp_dir | path join "bot-poll.timer")
-
-          let systemd_unit_dir = if $runtime {
-            "/run/systemd/system"
-          } else {
-            "/etc/systemd/system"
-          }
-          sudo install -d $systemd_unit_dir
-          sudo install -m 0644 ($tmp_dir | path join "bot.service") ($systemd_unit_dir | path join "bot.service")
-          sudo install -m 0644 ($tmp_dir | path join "signal-daemon.service") ($systemd_unit_dir | path join "signal-daemon.service")
-          sudo install -m 0644 ($tmp_dir | path join "bot-poll.service") ($systemd_unit_dir | path join "bot-poll.service")
-          sudo install -m 0644 ($tmp_dir | path join "bot-poll.timer") ($systemd_unit_dir | path join "bot-poll.timer")
-
-          sudo systemctl daemon-reload
-          let runtime = if $runtime { ["--runtime"] } else { [] }
-          sudo systemctl ...$runtime enable --now signal-daemon.service
-          sudo systemctl ...$runtime enable --now bot.service
-          sudo systemctl ...$runtime enable --now bot-poll.timer
-
-          print "Installed and started:"
-          print " - signal-daemon.service"
-          print " - bot.service"
-          print " - bot-poll.timer"
-          print $" - user: ($bot_user)"
-          print $" - unit dir: ($systemd_unit_dir)"
-          if $systemd_unit_dir == "/run/systemd/system" {
-            print " - note: /etc/systemd/system is not writable, so units were installed as runtime units"
-          }
-        }
-      '';
-
-      uninstall = pkgs.writeScriptBin "bot-uninstall" ''
-        ${nuShellScript}
-
-        def main [] {
-          let unit_dirs = ["/etc/systemd/system" "/run/systemd/system"]
-          let units = [
-            "bot.service"
-            "bot-poll.service"
-            "bot-poll.timer"
-            "signal-daemon.service"
-            "signal-cli-daemon.service" # legacy name
-          ]
-
-          for unit in $units {
-            let result = (sudo systemctl disable --now $unit | complete)
-            if $result.exit_code != 0 {
-              let stderr = ($result.stderr | str trim)
-              if $stderr != "" {
-                print -e $stderr
-              }
-            }
-          }
-
-          for dir in $unit_dirs {
-            for unit in $units {
-              let unit_path = ($dir | path join $unit)
-              if ($unit_path | path exists) {
-                sudo rm $unit_path
-              }
-            }
-          }
-
-          sudo systemctl daemon-reload
-
-          print "Uninstalled:"
-          print " - bot.service"
-          print " - bot-poll.service"
-          print " - bot-poll.timer"
-          print " - signal-daemon.service"
-          print " - signal-cli-daemon.service (legacy)"
-        }
+      updateBotVenvHash = pkgs.writeShellScriptBin "update-bot-venv-hash" ''
+        set -euo pipefail
+        echo "Computing bot-deps' real dependency hash (this will intentionally fail once)..." >&2
+        if out=$(nix build --no-link --print-out-paths '.#bot-deps-hash-check' 2>&1); then
+          echo "Hash check unexpectedly succeeded - nothing to update?" >&2
+          exit 1
+        fi
+        real_hash=$(printf '%s\n' "$out" | grep -oP '(?<=got:\s{7})\S+' || true)
+        if [ -z "$real_hash" ]; then
+          echo "Could not find the real hash in nix's error output:" >&2
+          echo "$out" >&2
+          exit 1
+        fi
+        echo ""
+        echo "New outputHash for bot-deps (paste into bot/flake.nix): $real_hash"
       '';
 
       checkProject = pkgs.writeScriptBin "check-project" ''
@@ -386,6 +276,11 @@
         signal-cli = pkgs.signal-cli;
         install-precommit-hooks = installPrecommitHooks;
         check-project = checkProject;
+        bot-run = runBot;
+        signal-daemon-run = runSignalDaemon;
+        bot-deps = botDeps;
+        bot-deps-hash-check = botDepsHashCheck;
+        bot-venv = botVenv;
       };
 
       devShells.default = pkgs.mkShell {
@@ -417,14 +312,6 @@
           type = "app";
           program = "${link}/bin/link";
         };
-        install = {
-          type = "app";
-          program = "${install}/bin/bot-install";
-        };
-        poll-once = {
-          type = "app";
-          program = "${pollOnce}/bin/bot-poll-once";
-        };
         bot = {
           type = "app";
           program = "${runBot}/bin/bot-run";
@@ -432,10 +319,6 @@
         signal-daemon = {
           type = "app";
           program = "${runSignalDaemon}/bin/signal-daemon-run";
-        };
-        uninstall = {
-          type = "app";
-          program = "${uninstall}/bin/bot-uninstall";
         };
         install-precommit-hooks = {
           type = "app";
@@ -445,6 +328,111 @@
           type = "app";
           program = "${generateSignupKey}/bin/generate-signup-key";
         };
+        update-bot-venv-hash = {
+          type = "app";
+          program = "${updateBotVenvHash}/bin/update-bot-venv-hash";
+        };
       };
-    });
+    }))
+    // {
+      nixosModules.default = {
+        config,
+        lib,
+        pkgs,
+        ...
+      }: let
+        cfg = config.services.vanl-bot;
+        botSelf = self;
+      in {
+        options.services.vanl-bot = {
+          enable = lib.mkEnableOption "the Vegan Activists NL Signal bot and its signal-cli daemon";
+
+          configFile = lib.mkOption {
+            type = lib.types.path;
+            description = "Path to the bot's TOML config file (e.g. the bot flake input's own configs/prod.toml).";
+          };
+
+          environmentFile = lib.mkOption {
+            type = lib.types.path;
+            description = ''
+              EnvironmentFile= providing VANL_SIGNUP_PRIVATE_KEY and
+              VANL_BOT_API_SHARED_SECRET. Never committed; admin-managed,
+              e.g. /etc/vanl/bot.env.
+            '';
+          };
+
+          signalAccount = lib.mkOption {
+            type = lib.types.str;
+            description = "Signal account phone number, e.g. +316...";
+          };
+
+          user = lib.mkOption {
+            type = lib.types.str;
+            default = "vanl-bot";
+          };
+          group = lib.mkOption {
+            type = lib.types.str;
+            default = "vanl-bot";
+          };
+        };
+
+        config = lib.mkIf cfg.enable {
+          users.groups.${cfg.group} = {};
+          users.users.${cfg.user} = {
+            isSystemUser = true;
+            group = cfg.group;
+          };
+
+          # bot.service and signal-daemon.service share this StateDirectory/WorkingDirectory
+          # on purpose: bot connects to `run/signal-cli.sock`, resolved relative to CWD, so
+          # both services need to agree on the same working directory. It also holds
+          # signal-cli's own persistent registration state (~/.local/share/signal-cli, via the
+          # explicit HOME override on signal-daemon.service below).
+          systemd.services.bot = {
+            description = "Vegan Activists NL Signal bot";
+            after = ["network-online.target" "signal-daemon.service"];
+            wants = ["network-online.target"];
+            requires = ["signal-daemon.service"];
+            wantedBy = ["multi-user.target"];
+            restartTriggers = [botSelf.packages.${pkgs.system}.bot-venv];
+            serviceConfig = {
+              Type = "simple";
+              User = cfg.user;
+              Group = cfg.group;
+              WorkingDirectory = "/var/lib/${cfg.user}";
+              StateDirectory = cfg.user;
+              ExecStart = "${botSelf.packages.${pkgs.system}.bot-venv}/bin/bot --config ${cfg.configFile}";
+              EnvironmentFile = cfg.environmentFile;
+              Restart = "always";
+              RestartSec = 2;
+              StandardOutput = "journal";
+              StandardError = "journal";
+            };
+          };
+
+          systemd.services.signal-daemon = {
+            description = "signal-cli daemon (JSON-RPC over Unix socket)";
+            after = ["network-online.target"];
+            wants = ["network-online.target"];
+            wantedBy = ["multi-user.target"];
+            serviceConfig = {
+              Type = "simple";
+              User = cfg.user;
+              Group = cfg.group;
+              WorkingDirectory = "/var/lib/${cfg.user}";
+              StateDirectory = cfg.user;
+              # Decouples signal-cli's $HOME-based state resolution
+              # (~/.local/share/signal-cli) from whatever the vanl-bot user account's own
+              # configured home happens to be.
+              Environment = "HOME=/var/lib/${cfg.user}";
+              ExecStart = "${botSelf.packages.${pkgs.system}.signal-daemon-run}/bin/signal-daemon-run --repo-dir /var/lib/${cfg.user} --signal-account ${cfg.signalAccount}";
+              Restart = "always";
+              RestartSec = 2;
+              StandardOutput = "journal";
+              StandardError = "journal";
+            };
+          };
+        };
+      };
+    };
 }

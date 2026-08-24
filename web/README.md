@@ -156,9 +156,21 @@ All five are also bundled as `nix run .#check` (see `flake.nix`).
 
 ## Deployment
 
-`nix run .#install -- --config <path-to-toml>` installs `vanl-web.service` as a systemd unit,
-mirroring how the Signal bot (`../bot`) is deployed. `nix run .#uninstall` removes it. Both require
-`sudo` and are meant to be run on the target VPS, not in development.
+The site runs as part of the NixOS host described in `../server/` — this flake exposes a
+`nixosModules.default` (`services.vanl-web`) that `server/` composes in, along with the Signal
+bot (`../bot`). `nixos-rebuild switch --target-host`, run from `../server/` (see the root
+`README.md`), is the entire deploy story for both infrastructure and code changes:
+`vanl-web.service` execs a fully pre-built Nix package (`web-build`, the compiled `.output/`)
+directly, and restarts automatically whenever that package's contents change
+(`restartTriggers`) — no manual build/rsync/install step.
+
+Two things stay manual:
+
+- `nix run ./web#update-web-deps-hash`, run from `../server/` rather than from `web/` itself,
+  whenever `bun.lock` changes — see the comment on `webDeps`'s `outputHash` in `flake.nix` for
+  why it has to go through `server/`'s composed evaluation.
+- `vanl-web-migrate`, run by hand over SSH on the VPS after a deploy with schema changes — DB
+  migrations deliberately don't auto-run on every restart.
 
 ## Project layout
 
