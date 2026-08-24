@@ -24,10 +24,12 @@ body {
   text-wrap: balance;
 }
 
-p + p {
-  margin-top: 1rem;
-}
+@layer base {
+  p + p {
+    margin-top: 1rem;
+  }
 
-a {
-  text-decoration: underline;
+  a {
+    text-decoration: underline;
+  }
 }

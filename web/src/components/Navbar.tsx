@@ -98,11 +98,11 @@ export function Navbar() {
       <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
         <a href={`/${lang()}`} class="flex items-center gap-3 no-underline">
           <span class="inline-flex">
-            <img src="/apple-touch-icon.png" width={40} height={40} alt="Vegan Activists NL logo" />
+            <img src="/apple-touch-icon.png" width={60} height={60} alt="Vegan Activists NL logo" />
           </span>
           <div>
-            <p class="text-sm font-semibold leading-tight text-zinc-900">VeganActivists.nl</p>
-            <p class="text-xs text-zinc-600">
+            <p class="my-1 py-0 text-sm font-semibold leading-tight text-zinc-900">VeganActivists.nl</p>
+            <p class="my-1 py-0 text-xs text-zinc-600">
               {t(
                 "Samen sterk voor dierenrechten • Nederland",
                 "Together united for animal rights • Netherlands",
