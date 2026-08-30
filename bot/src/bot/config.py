@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 
 class WelcomeFeatureConfig(BaseModel):
+    enable: bool = True
     welcome_state_path: Path = Path("run/group_state.json")
     group_name: str
     message: str
@@ -42,7 +43,13 @@ class BotConfig(BaseModel):
     which is also an event to all the features.
     """
 
-    signal_daemon_socket_path: Path = Path("run/signal-cli.sock")
+    signal_daemon_socket_path: Path
+    """
+    Must match wherever signal-daemon.service's --signal-daemon-dir actually put the socket
+    (see flake.nix's nixosModules.default) - no default here since a silently-wrong guess means
+    the bot can never connect, rather than failing loudly at startup.
+    """
+
     welcome_feature: WelcomeFeatureConfig | None = None
     signup_feature: SignupFeatureConfig | None = None
     bot_api: BotApiConfig | None = None

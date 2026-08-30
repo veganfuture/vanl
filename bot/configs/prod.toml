@@ -1,8 +1,10 @@
 verbose = false
 sync_on_startup = false
+signal_daemon_socket_path = "/var/lib/vanl-bot/run/signal-cli.sock"
 
 [welcome_feature]
 
+enable = false
 group_name = "Intro - Vegan Activists NL"
 message = '''
 Welcome to the Vegan Activists NL community 💚

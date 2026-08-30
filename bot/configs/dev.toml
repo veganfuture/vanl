@@ -1,5 +1,6 @@
 verbose = true
 sync_on_startup = false
+signal_daemon_socket_path = "run/signal-cli.sock"
 
 [welcome_feature]
 

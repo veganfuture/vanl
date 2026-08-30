@@ -36,10 +36,12 @@ service-start time. For local development, `nix develop` runs `uv sync --frozen`
 `signal-cli` runs as a persistent daemon and exposes a local JSON-RPC Unix socket at:
 
 ```
-$repo_dir/run/signal-cli.sock
+$signal_daemon_dir/run/signal-cli.sock
 ```
 
-The Python bot connects to that socket instead of spawning a fresh `signal-cli` process for every command.
+The Python bot connects to that socket instead of spawning a fresh `signal-cli` process for every
+command — its own `signal_daemon_socket_path` config value (see `configs/dev.toml`/`configs/prod.toml`)
+must be kept in sync with wherever `--signal-daemon-dir` puts it.
 
 ### 4. systemd services
 
@@ -71,6 +73,13 @@ failing later with a confusing error.
 
 Set them in your shell (e.g. via `.envrc`/`.env` for local development), or
 as `Environment=` entries in the `bot.service` systemd unit in production.
+
+There's also `VANL_BOT_SIGNAL_ACCOUNT` — the bot's Signal phone number (e.g.
+`+316...`). It isn't part of `BotEnv`/`bot.service`; it's read by the
+`signal-daemon.service` unit (and by `nix run .#signal-daemon` locally) to
+launch `signal-cli` under the right account, so it never has to be committed
+to a NixOS config. In production it lives in the same `bot.env` file as the
+two variables above (`environmentFile` is shared by both systemd units).
 
 ## `VANL_SIGNUP_PRIVATE_KEY`
 
@@ -162,7 +171,7 @@ Run the signal daemon:
 nix run .#signal-daemon -- --signal-acount +316... 
 ```
 
-You can also make a $SIGNAL_ACCOUNT environment variable (put that in your .envrc), so that you never need to supply the phone number.
+You can also make a $VANL_BOT_SIGNAL_ACCOUNT environment variable (put that in your .envrc), so that you never need to supply the phone number.
 
 Then run the bot from a nix dev shell:
 
@@ -195,11 +204,16 @@ server, as the `vanl-bot` system user (`sudo -u vanl-bot env HOME=/var/lib/vanl-
 `bot.service`/`signal-daemon.service` both run as that user, and Signal's linked-device state
 must be set up under the same `$HOME`.
 
-1. Generate a QR code on the server for the machine your're own:
+1. Generate a QR code on the server for the machine your're own. The server has no flake
+   checkout, so use `vanl-bot-link` — a wrapper around `nix run .#link` that `../server/`'s
+   `configuration.nix` puts on the VPS's `PATH` (see `environment.systemPackages` there):
 
 ```
-nix run .#link -- -machine-name <MY-MACHINE-NAME>
+sudo -u vanl-bot env HOME=/var/lib/vanl-bot vanl-bot-link --machine-name <MY-MACHINE-NAME>
 ```
+
+   (For local development against a flake checkout, `nix run .#link -- --machine-name <NAME>`
+   works the same way.)
 
 If you don't see a QR code, because your terminal does not support graphic display, the take the `sgnl://` address and generate a QR Code to it. 
 

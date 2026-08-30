@@ -78,23 +78,25 @@
         ${nuShellScript}
 
         def main [
-          # Signal account number for signal-cli (or use environment variable $SIGNAL_ACCOUNT)
+          # Signal account number for signal-cli (or use environment variable $VANL_BOT_SIGNAL_ACCOUNT)
           --signal-account: string
-          # Repository root to install from
-          --repo-dir: string = "."
+          # Directory to hold signal-cli's runtime state: tmp/ (its own JVM tmpdir) and
+          # run/signal-cli.sock (the JSON-RPC socket the bot connects to - must match the bot's
+          # own `signal_daemon_socket_path` config, see bot/src/bot/config.py)
+          --signal-daemon-dir: string = "."
           # 0 = non-verbose, 1 = verbose, 2 = extra verbose
           --verbose-level: int = 0
           # optional signal-cli log file path
           --log-file: string = ""
         ] {
-          let signal_account = ($signal_account | default ($env | get -o SIGNAL_ACCOUNT))
+          let signal_account = ($signal_account | default ($env | get -o VANL_BOT_SIGNAL_ACCOUNT))
           required_flags [
-            { name: "signal-account", value: $signal_account, env: "SIGNAL_ACCOUNT" }
+            { name: "signal-account", value: $signal_account, env: "VANL_BOT_SIGNAL_ACCOUNT" }
           ]
-          let repo_dir = ($repo_dir | path expand)
+          let signal_daemon_dir = ($signal_daemon_dir | path expand)
 
-          let tmp_dir = ($repo_dir | path join "tmp")
-          let run_dir = ($repo_dir | path join "run")
+          let tmp_dir = ($signal_daemon_dir | path join "tmp")
+          let run_dir = ($signal_daemon_dir | path join "run")
           let signal_socket_path = ($run_dir | path join "signal-cli.sock")
 
           mkdir $tmp_dir $run_dir
@@ -118,7 +120,7 @@
 
           let log_file_args = if $log_file == "" { [] } else { ["--log-file" $log_file] }
 
-          cd $repo_dir
+          cd $signal_daemon_dir
           ^${pkgs.signal-cli}/bin/signal-cli ...$verbose_args ...$log_file_args -u $signal_account daemon --socket $signal_socket_path --receive-mode on-connection
         }
       '';
@@ -278,6 +280,7 @@
         check-project = checkProject;
         bot-run = runBot;
         signal-daemon-run = runSignalDaemon;
+        link = link;
         bot-deps = botDeps;
         bot-deps-hash-check = botDepsHashCheck;
         bot-venv = botVenv;
@@ -355,15 +358,11 @@
           environmentFile = lib.mkOption {
             type = lib.types.path;
             description = ''
-              EnvironmentFile= providing VANL_SIGNUP_PRIVATE_KEY and
-              VANL_BOT_API_SHARED_SECRET. Never committed; admin-managed,
-              e.g. /etc/vanl/bot.env.
+              EnvironmentFile= providing VANL_SIGNUP_PRIVATE_KEY,
+              VANL_BOT_API_SHARED_SECRET, and VANL_BOT_SIGNAL_ACCOUNT (the
+              Signal account phone number, e.g. +316...). Never committed;
+              admin-managed, e.g. /etc/vanl/bot.env.
             '';
-          };
-
-          signalAccount = lib.mkOption {
-            type = lib.types.str;
-            description = "Signal account phone number, e.g. +316...";
           };
 
           user = lib.mkOption {
@@ -381,7 +380,26 @@
           users.users.${cfg.user} = {
             isSystemUser = true;
             group = cfg.group;
+            # Without this, isSystemUser defaults the passwd entry's home to /var/empty - a
+            # deliberately unwritable directory. signal-cli's JVM resolves user.home via
+            # getpwuid() (confirmed empirically: it ignores the $HOME env var entirely, so even
+            # signal-daemon.service's own Environment = "HOME=..." below has no effect on it),
+            # so without a real passwd-level home it fails with "/var/empty/.local: Operation
+            # not permitted" trying to create its data directory.
+            home = "/var/lib/${cfg.user}";
           };
+
+          # vanl-bot-link: exposes bot's signal-cli device-linking helper on the host's PATH, no
+          # flake checkout or store path to know or type - `sudo -u vanl-bot env
+          # HOME=/var/lib/vanl-bot vanl-bot-link --machine-name <NAME>`. Must run as cfg.user
+          # since that's the account bot.service/signal-daemon.service run as, and Signal's
+          # linked-device state is tied to whichever $HOME did the linking.
+          environment.systemPackages = [
+            (pkgs.writeShellApplication {
+              name = "vanl-bot-link";
+              text = ''exec ${botSelf.packages.${pkgs.system}.link}/bin/link "$@"'';
+            })
+          ];
 
           # bot.service and signal-daemon.service share this StateDirectory/WorkingDirectory
           # on purpose: bot connects to `run/signal-cli.sock`, resolved relative to CWD, so
@@ -425,7 +443,8 @@
               # (~/.local/share/signal-cli) from whatever the vanl-bot user account's own
               # configured home happens to be.
               Environment = "HOME=/var/lib/${cfg.user}";
-              ExecStart = "${botSelf.packages.${pkgs.system}.signal-daemon-run}/bin/signal-daemon-run --repo-dir /var/lib/${cfg.user} --signal-account ${cfg.signalAccount}";
+              EnvironmentFile = cfg.environmentFile;
+              ExecStart = "${botSelf.packages.${pkgs.system}.signal-daemon-run}/bin/signal-daemon-run --signal-daemon-dir /var/lib/${cfg.user}";
               Restart = "always";
               RestartSec = 2;
               StandardOutput = "journal";

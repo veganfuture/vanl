@@ -11,7 +11,7 @@ changes**. There's no separate build/rsync/git-pull step for either project.
 ## Provisioning a fresh server
 
 ```sh
-nix run github:nix-community/nixos-anywhere -- --generate-hardware-config nixos-generate-config ./hardware-configuration.nix --flake .#vanl-hostkey1 --target-host root@$SERVER_IP
+nix run github:nix-community/nixos-anywhere -- --generate-hardware-config nixos-generate-config ./hardware-configuration.nix --flake .#vanl-hostkey1 --target-host $VANL_HOSTKEY1
 ```
 
 Run with `--generate-hardware-config` if the hardware has changed.
@@ -36,7 +36,7 @@ setup runbook below for how secrets get there).
 ## Deploying
 
 ```sh
-nixos-rebuild switch --flake .#vanl-hostkey1 --target-host lobo@$SERVER_IP --sudo
+nixos-rebuild switch --flake .#vanl-hostkey1 --target-host $VANL_HOSTKEY1 --sudo
 ```
 
 Run this from your own up-to-date local checkout — it picks up both infrastructure changes and
@@ -61,8 +61,9 @@ The first `nixos-rebuild switch` will leave `bot.service`, `signal-daemon.servic
 `vanl-web.service` restart-looping harmlessly, since `/etc/vanl/*.env` don't exist yet. Write
 those files by hand on the VPS (never committed — plain `EnvironmentFile=`s, admin-managed):
 
-- `/etc/vanl/bot.env` — `VANL_SIGNUP_PRIVATE_KEY`, `VANL_BOT_API_SHARED_SECRET` (see
-  `bot/README.md`, "Environment Variables", for how to generate these).
+- `/etc/vanl/bot.env` — `VANL_SIGNUP_PRIVATE_KEY`, `VANL_BOT_API_SHARED_SECRET`,
+  `VANL_BOT_SIGNAL_ACCOUNT` (the bot's Signal phone number, e.g. `+316...`; see
+  `bot/README.md`, "Environment Variables", for how to generate the first two).
 - `/etc/vanl/web.env` — `VANL_DATABASE_PASSWORD`, `VANL_BOT_API_SHARED_SECRET` (same value as the
   bot's — it's a shared secret).
 - `/etc/vanl/cloudflared-credentials.json` — from `cloudflared tunnel create` above.
@@ -70,10 +71,10 @@ those files by hand on the VPS (never committed — plain `EnvironmentFile=`s, a
 Then:
 
 ```sh
-ssh lobo@$SERVER_IP -- sudo systemctl restart bot.service signal-daemon.service vanl-web.service 'cloudflared-tunnel-*.service'
+ssh $VANL_HOSTKEY1 -- sudo systemctl restart bot.service signal-daemon.service vanl-web.service 'cloudflared-tunnel-*.service'
 # create the schema, once:
-ssh lobo@$SERVER_IP -- sudo -u vanl-web env VANL_DATABASE_PASSWORD=<from /etc/vanl/web.env> vanl-web-migrate
+ssh $VANL_HOSTKEY1 -- sudo -u vanl-web env VANL_DATABASE_PASSWORD=<from /etc/vanl/web.env> vanl-web-migrate
 ```
 
-First-time Signal device linking (`nix run ./bot#link`, run as the `vanl-bot` user with
+First-time Signal device linking (`vanl-bot-link`, run as the `vanl-bot` user with
 `HOME=/var/lib/vanl-bot`) is documented in `bot/README.md`.

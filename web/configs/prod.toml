@@ -16,8 +16,8 @@ user = "vanl"
 
 [auth]
 bot_api_base_url = "http://127.0.0.1:8787"
-# Generate a real production keypair with `nix run ./bot#generate-signup-key`,
-# put the public half here, and set the private half as VANL_SIGNUP_PRIVATE_KEY
-# in the bot's environment (never commit it). This placeholder deliberately
-# fails config validation so the server refuses to boot until it's replaced.
-signup_public_key = "REPLACE_WITH_REAL_PRODUCTION_PUBLIC_KEY"
+# Public half of the production signup keypair, generated with
+# `nix run ./bot#generate-signup-key` on 2026-08-30. The matching private half
+# is set as VANL_SIGNUP_PRIVATE_KEY in /etc/vanl/bot.env on the VPS (never
+# committed).
+signup_public_key = "U0xyzhWb_DYvbg_0IEFlGkIm2E4EhkN-j9GoQ7HJtmo"

@@ -26,25 +26,16 @@
   networking.hostName = "vanl-hostkey1";
   time.timeZone = "Europe/Amsterdam";
 
-  environment.systemPackages =
-    (map lib.lowPrio [
-      pkgs.curl
-      pkgs.gitMinimal
-    ])
-    ++ [
-      # vanl-web-migrate: exposes web's migration wrapper on the VPS's PATH after every
-      # nixos-rebuild switch, with its config baked in - `sudo -u vanl-web env
-      # VANL_DATABASE_PASSWORD=<from /etc/vanl/web.env> vanl-web-migrate`, no store path to
-      # know or type. configs/prod.toml's database.host = "127.0.0.1" means this only makes
-      # sense run on the VPS itself, not the admin's own machine.
-      (pkgs.writeShellApplication {
-        name = "vanl-web-migrate";
-        runtimeEnv = {
-          VANL_CONFIG_PATH = config.services.vanl-web.configFile;
-        };
-        text = ''exec ${web.packages.${pkgs.system}.web-migrate}/bin/web-migrate "$@"'';
-      })
-    ];
+  # SSH clients using terminals NixOS's minimal terminfo doesn't ship (e.g. Ghostty's
+  # xterm-ghostty) otherwise get "unknown terminal type" from anything that reads TERM (vim,
+  # less, tmux, ...) - installs the full ncurses terminfo db instead of the minimal subset.
+  environment.enableAllTerminfo = true;
+
+  environment.systemPackages = map lib.lowPrio [
+    pkgs.curl
+    pkgs.gitMinimal
+    pkgs.vim
+  ];
 
   users.users.lobo = {
     isNormalUser = true;
@@ -73,9 +64,11 @@
   # Tunnel (cloudflared makes an outbound-only connection to Cloudflare's edge; see
   # services.cloudflared below), and the bot doesn't need to be reachable from the internet at
   # all (it only talks outbound to Signal's servers and to the website's local API).
+  # TEMPORARY: Cloudflare Tunnel isn't set up yet (see services.cloudflared.enable below), so the
+  # web port is opened directly here for testing instead. Revert this once the tunnel exists.
   networking.firewall = {
     enable = true;
-    allowedTCPPorts = [22];
+    allowedTCPPorts = [22 config.services.vanl-web.port];
   };
 
   nix.gc = {
@@ -142,7 +135,10 @@
   # from cloudflared to the app stays on loopback). One-time setup (cloudflared tunnel login +
   # create + route dns) is documented in the root README - not Nix-managed. ---
   services.cloudflared = {
-    enable = true;
+    # TEMPORARY: disabled until the one-time tunnel setup (README's "One-time Cloudflare Tunnel
+    # setup") is done and the real UUID below is filled in - until then this unit would just
+    # restart-loop on the placeholder. The web port is opened directly above in the meantime.
+    enable = false;
     # TODO: replace with the real tunnel UUID from `cloudflared tunnel create` (see root
     # README's one-time Cloudflare Tunnel setup section) - this becomes part of a systemd unit
     # name (cloudflared-tunnel-<name>.service), so it must already be a valid unit-name
@@ -163,14 +159,17 @@
   services.vanl-bot = {
     enable = true;
     configFile = "${bot}/configs/prod.toml";
-    environmentFile = "/etc/vanl/bot.env";
-    signalAccount = "+31600000000"; # TODO: replace with the real Signal account number
+    environmentFile = "/etc/vanl/bot.env"; # must also provide VANL_BOT_SIGNAL_ACCOUNT
   };
 
   services.vanl-web = {
     enable = true;
     configFile = "${web}/configs/prod.toml";
     environmentFile = "/etc/vanl/web.env";
+    # TEMPORARY: defaults to 127.0.0.1 (only reachable via cloudflared on loopback). Bind to all
+    # interfaces so the firewall-opened port above is actually reachable without the tunnel.
+    # Revert alongside the cloudflared/firewall changes once the tunnel is set up.
+    host = "0.0.0.0";
   };
 
   system.stateVersion = "26.05";

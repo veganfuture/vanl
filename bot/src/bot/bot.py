@@ -126,7 +126,7 @@ def _build_features(
     config: BotConfig, client: SignalClient, env: BotEnv
 ) -> list[BotFeature]:
     features: list[BotFeature] = []
-    if config.welcome_feature is not None:
+    if config.welcome_feature is not None and config.welcome_feature.enable:
         features.append(WelcomeFeature(config.welcome_feature, client))
     if config.signup_feature is not None:
         features.append(SignupFeature(config.signup_feature, client, env))

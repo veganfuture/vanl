@@ -446,7 +446,25 @@
           users.users.${cfg.user} = {
             isSystemUser = true;
             group = cfg.group;
+            # Without this, isSystemUser defaults the passwd entry's home to /var/empty - a
+            # deliberately unwritable directory. See bot/flake.nix's vanl-bot user for why this
+            # matters even for tools that claim to respect $HOME (signal-cli's JVM doesn't).
+            home = "/var/lib/${cfg.user}";
           };
+
+          # vanl-web-migrate: exposes web's migration wrapper on the host's PATH, config baked
+          # in - `sudo -u vanl-web env VANL_DATABASE_PASSWORD=<from web.env> vanl-web-migrate`,
+          # no store path to know or type. cfg.configFile's database.host = "127.0.0.1" means
+          # this only makes sense run on the host itself, not the admin's own machine.
+          environment.systemPackages = [
+            (pkgs.writeShellApplication {
+              name = "vanl-web-migrate";
+              runtimeEnv = {
+                VANL_CONFIG_PATH = cfg.configFile;
+              };
+              text = ''exec ${webSelf.packages.${pkgs.system}.web-migrate}/bin/web-migrate "$@"'';
+            })
+          ];
 
           systemd.services.vanl-web = {
             description = "Vegan Activists NL website";
