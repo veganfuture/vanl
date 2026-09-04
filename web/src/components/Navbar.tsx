@@ -134,6 +134,9 @@ export function Navbar() {
               when={!me.loading && me()}
               fallback={
                 <Show when={!me.loading}>
+                  <a href={`/${lang()}/signup-help`} class={linkClass}>
+                    {t("Account aanmaken", "Create account")}
+                  </a>
                   <a href={`/${lang()}/login`} class={linkClass}>
                     {t("Inloggen", "Login")}
                   </a>
@@ -196,6 +199,13 @@ export function Navbar() {
               when={!me.loading && me()}
               fallback={
                 <Show when={!me.loading}>
+                  <a
+                    href={`/${lang()}/signup-help`}
+                    class={linkClass}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    {t("Account aanmaken", "Create account")}
+                  </a>
                   <a
                     href={`/${lang()}/login`}
                     class={linkClass}
