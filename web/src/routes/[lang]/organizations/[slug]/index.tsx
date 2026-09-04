@@ -42,6 +42,13 @@ export default function OrganizationDetailPage() {
 
   const canManage = () => org()?.isMember ?? false;
 
+  // Only shown for site admins - listEventsForViewer only returns
+  // hidden/cancelled events to them, everyone else only ever sees "visible".
+  const statusLabels: Record<string, string> = {
+    hidden: t("Verborgen", "Hidden"),
+    cancelled: t("Geannuleerd", "Cancelled"),
+  };
+
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleString(lang() === "nl" ? "nl-NL" : "en-GB", {
       dateStyle: "medium",
@@ -134,6 +141,11 @@ export default function OrganizationDetailPage() {
                             >
                               {pickLocalized(event.titleNl, event.titleEn, lang())}
                             </a>
+                            <Show when={statusLabels[event.status]}>
+                              <span class="ml-2 inline-block rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                                {statusLabels[event.status]}
+                              </span>
+                            </Show>
                             <p class="text-sm text-zinc-600">{formatDate(event.startAt)}</p>
                           </div>
                         </li>

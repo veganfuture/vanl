@@ -12,13 +12,19 @@ const ERROR_STATUS: Record<string, number> = {
   internal_error: 500,
 };
 
-/** Public listing - not gated on login, so every event's canEdit is computed against no acting user (always false). */
-export async function GET(): Promise<Response> {
-  const events = await eventService.listVisibleEvents();
+/**
+ * Public listing - not gated on login, but resolves the (possibly
+ * anonymous) acting user so site admins see every status (hidden/cancelled
+ * included, not just visible) and so canEdit reflects reality instead of
+ * always being false.
+ */
+export async function GET(event: APIEvent): Promise<Response> {
+  const actingUser = await resolveActingUser(event.request);
+  const events = await eventService.listEventsForViewer(actingUser);
   return events.match(
     (list) =>
       Response.json({
-        events: list.map((e) => toEventJson(e, canModifyEvent(e, null))),
+        events: list.map((e) => toEventJson(e, canModifyEvent(e, actingUser))),
       } satisfies ListEventsResponse),
     () => Response.json({ events: [] } satisfies ListEventsResponse),
   );

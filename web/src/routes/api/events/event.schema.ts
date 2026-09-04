@@ -35,7 +35,7 @@ export const EventJsonSchema = z.object({
   publisherUserId: z.string().nullable(),
   publisherOrgId: z.string().nullable(),
   status: z.enum(["hidden", "visible", "cancelled"]),
-  cancelReason: z.string().nullable(),
+  statusReason: z.string().nullable(),
   isFeatured: z.boolean(),
   /** Server-computed via canModifyEvent (event_service.ts) - the single source of truth for who may edit/moderate this event, so pages render controls from this instead of re-deriving the permission-matrix rule client-side. */
   canEdit: z.boolean(),
@@ -79,7 +79,7 @@ export function toEventJson(event: Event, canEdit: boolean): EventJson {
     publisherUserId: event.publisherUserId?.value ?? null,
     publisherOrgId: event.publisherOrgId?.value ?? null,
     status: event.status,
-    cancelReason: event.cancelReason,
+    statusReason: event.statusReason,
     isFeatured: event.isFeatured,
     canEdit,
   };

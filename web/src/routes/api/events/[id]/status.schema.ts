@@ -3,7 +3,7 @@ import { EventJsonSchema } from "../event.schema";
 
 export const SetEventStatusRequestSchema = z.object({
   status: z.enum(["hidden", "visible", "cancelled"]),
-  cancelReason: z.string().nullable(),
+  statusReason: z.string().nullable(),
 });
 export type SetEventStatusRequest = z.infer<typeof SetEventStatusRequestSchema>;
 

@@ -40,7 +40,7 @@ export async function POST(event: APIEvent): Promise<Response> {
     actingUser,
     eventIdResult.value,
     parsed.data.status,
-    parsed.data.cancelReason,
+    parsed.data.statusReason,
   );
 
   return result.match(

@@ -153,12 +153,16 @@ export default function EventDetailPage() {
       return;
     }
     setActionError(null);
+    const statusReasons: Record<string, string | null> = {
+      hidden: t("Verborgen door moderator", "Hidden by moderator"),
+      cancelled: t("Geannuleerd door moderator", "Cancelled by moderator"),
+      visible: null,
+    };
     const result = await apiFetch(`/api/events/${currentEvent.id}/status`, {
       request: SetEventStatusRequestSchema,
       body: {
         status,
-        cancelReason:
-          status === "cancelled" ? t("Geannuleerd door moderator", "Cancelled by moderator") : null,
+        statusReason: statusReasons[status],
       },
       response: SetEventStatusResponseSchema,
     });
@@ -201,7 +205,7 @@ export default function EventDetailPage() {
                   {currentEvent().status === "cancelled"
                     ? t("Geannuleerd", "Cancelled")
                     : t("Verborgen", "Hidden")}
-                  {currentEvent().cancelReason ? ` — ${currentEvent().cancelReason}` : ""}
+                  {currentEvent().statusReason ? ` — ${currentEvent().statusReason}` : ""}
                 </p>
               </Show>
               <p class="mb-1 text-zinc-600">{formatDate(currentEvent().startAt)}</p>
