@@ -6,7 +6,7 @@ export type EventLocationKind = "precise_address" | "meeting_point_city_only";
 
 export type EventStatus = "hidden" | "visible" | "cancelled";
 
-export type EventSource = "manual" | "signal_import" | "animalrightscalendar.com";
+export type EventSource = "manual" | "signal_import" | "external_import";
 
 export type Event = {
   id: EventId;
@@ -43,10 +43,13 @@ export type Event = {
   publisherOrgId: OrganizationId | null;
   publisherUserVisible: boolean;
   status: EventStatus;
-  cancelReason: string | null;
+  /** Why the event isn't visible - covers both hidden and cancelled, not cancelled-only. */
+  statusReason: string | null;
   isFeatured: boolean;
   source: EventSource;
   externalSourceId: string | null;
+  /** The external calendar's identity (e.g. "animalrightscalendar.com") - set only when source = "external_import". */
+  externalSourceName: string | null;
   createdBy: UserId;
   updatedBy: UserId;
   createdAt: Date;

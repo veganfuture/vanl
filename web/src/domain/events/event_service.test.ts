@@ -366,7 +366,7 @@ describe("edit/delete/cancel own event (Editor row of the permission matrix)", (
 
     const event = result._unsafeUnwrap();
     expect(event.status).toBe("cancelled");
-    expect(event.cancelReason).toBe("Rescheduling");
+    expect(event.statusReason).toBe("Rescheduling");
   });
 
   it("a different, non-admin user cannot cancel someone else's event", async () => {

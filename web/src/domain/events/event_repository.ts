@@ -42,10 +42,11 @@ const EventRowSchema = z.object({
   publisher_org_id: z.string().nullable(),
   publisher_user_visible: z.boolean(),
   status: z.enum(["hidden", "visible", "cancelled"]),
-  cancel_reason: z.string().nullable(),
+  status_reason: z.string().nullable(),
   is_featured: z.boolean(),
-  source: z.enum(["manual", "signal_import", "animalrightscalendar.com"]),
+  source: z.enum(["manual", "signal_import", "external_import"]),
   external_source_id: z.string().nullable(),
+  external_source_name: z.string().nullable(),
   created_by: z.string(),
   updated_by: z.string(),
   created_at: z.coerce.date(),
@@ -139,10 +140,11 @@ function mapEventRow(row: unknown): Result<Event, DbError> {
     publisherOrgId,
     publisherUserVisible: parsed.publisher_user_visible,
     status: parsed.status,
-    cancelReason: parsed.cancel_reason,
+    statusReason: parsed.status_reason,
     isFeatured: parsed.is_featured,
     source: parsed.source,
     externalSourceId: parsed.external_source_id,
+    externalSourceName: parsed.external_source_name,
     createdBy: createdByResult.value,
     updatedBy: updatedByResult.value,
     createdAt: parsed.created_at,
@@ -177,6 +179,7 @@ export type NewEventInput = {
   createdBy: UserId;
   source: EventSource;
   externalSourceId: string | null;
+  externalSourceName: string | null;
 };
 
 export type EditableEventFields = Omit<
@@ -187,6 +190,7 @@ export type EditableEventFields = Omit<
   | "createdBy"
   | "source"
   | "externalSourceId"
+  | "externalSourceName"
   | "organizerName"
 >;
 
@@ -201,7 +205,8 @@ export class EventRepository {
           location_kind, place_id, location_description, location_street,
           location_house_number, location_postcode, location_lat, location_lng,
           location_pdok_id, map_url, external_event_url, registration_url, organizer_name,
-          publisher_user_id, publisher_org_id, created_by, updated_by, source, external_source_id
+          publisher_user_id, publisher_org_id, created_by, updated_by, source, external_source_id,
+          external_source_name
         )
         values (
           ${input.slug}, ${input.titleNl}, ${input.titleEn}, ${input.descriptionNl},
@@ -212,7 +217,7 @@ export class EventRepository {
           ${input.externalEventUrl}, ${input.registrationUrl}, ${input.organizerName},
           ${input.publisherUserId?.value ?? null}, ${input.publisherOrgId?.value ?? null},
           ${input.createdBy.value}, ${input.createdBy.value}, ${input.source},
-          ${input.externalSourceId}
+          ${input.externalSourceId}, ${input.externalSourceName}
         )
         returning *
       `,
@@ -220,15 +225,19 @@ export class EventRepository {
     ).andThen((rows) => mapEventRow(rows[0]));
   }
 
-  findEventBySourceAndExternalId(
-    source: EventSource,
+  findEventByExternalSourceAndId(
+    externalSourceName: string,
     externalSourceId: string,
   ): ResultAsync<Event | null, DbError> {
     return ResultAsync.fromPromise(
       this.sql`
-        select * from events where source = ${source} and external_source_id = ${externalSourceId}
+        select * from events
+        where external_source_name = ${externalSourceName} and external_source_id = ${externalSourceId}
       `,
-      (cause): DbError => ({ message: "Failed to find event by source and external id", cause }),
+      (cause): DbError => ({
+        message: "Failed to find event by external source and id",
+        cause,
+      }),
     ).andThen((rows): Result<Event | null, DbError> => (rows[0] ? mapEventRow(rows[0]) : ok(null)));
   }
 
@@ -255,6 +264,55 @@ export class EventRepository {
     return ResultAsync.fromPromise(
       this.sql`select * from events where status = 'visible' order by start_at asc`,
       (cause): DbError => ({ message: "Failed to list visible events", cause }),
+    ).andThen((rows) => {
+      const mapped: Event[] = [];
+      for (const row of rows) {
+        const result = mapEventRow(row);
+        if (result.isErr()) {
+          return err<Event[], DbError>(result.error);
+        }
+        mapped.push(result.value);
+      }
+      return ok(mapped);
+    });
+  }
+
+  /** Every event regardless of status, soonest first - site_admin-aware listing only. */
+  listAllEvents(): ResultAsync<Event[], DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`select * from events order by start_at asc`,
+      (cause): DbError => ({ message: "Failed to list all events", cause }),
+    ).andThen((rows) => {
+      const mapped: Event[] = [];
+      for (const row of rows) {
+        const result = mapEventRow(row);
+        if (result.isErr()) {
+          return err<Event[], DbError>(result.error);
+        }
+        mapped.push(result.value);
+      }
+      return ok(mapped);
+    });
+  }
+
+  /**
+   * Visible events that haven't ended yet (or have no end time and haven't
+   * started yet), optionally excluding one external source by name - backs
+   * the public /events.ics feed.
+   */
+  listUpcomingVisibleEvents(excludeExternalSource: string | null): ResultAsync<Event[], DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        select * from events
+        where status = 'visible'
+          and coalesce(end_at, start_at) >= now()
+          and (
+            ${excludeExternalSource}::text is null
+            or external_source_name is distinct from ${excludeExternalSource}
+          )
+        order by start_at asc
+      `,
+      (cause): DbError => ({ message: "Failed to list upcoming visible events", cause }),
     ).andThen((rows) => {
       const mapped: Event[] = [];
       for (const row of rows) {
@@ -349,12 +407,12 @@ export class EventRepository {
   setEventStatus(
     id: EventId,
     status: EventStatus,
-    cancelReason: string | null,
+    statusReason: string | null,
     updatedBy: UserId,
   ): ResultAsync<Event, DbError> {
     return ResultAsync.fromPromise(
       this.sql`
-        update events set status = ${status}, cancel_reason = ${cancelReason},
+        update events set status = ${status}, status_reason = ${statusReason},
           updated_by = ${updatedBy.value}, updated_at = now()
         where id = ${id.value}
         returning *

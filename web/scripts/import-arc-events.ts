@@ -34,7 +34,7 @@ import { validateEvent, type ValidatableEvent } from "../src/lib/event_validatio
 const ARC_FEED_URL =
   "https://animalrightscalendar.com/cal?coordinates=5.62222%2C52.085&city=Lunteren+%F0%9F%87%B3%F0%9F%87%B1&timezone=Europe%2FAmsterdam&radius=200&showOnlineEvents=false";
 
-const EVENT_SOURCE = "animalrightscalendar.com";
+const EXTERNAL_SOURCE_NAME = "animalrightscalendar.com";
 
 /**
  * How country filtering works: PDOK's Locatieserver only indexes Dutch
@@ -476,8 +476,8 @@ async function main(): Promise<void> {
         registrationUrl: null,
       };
 
-      const existing = await eventRepository.findEventBySourceAndExternalId(
-        EVENT_SOURCE,
+      const existing = await eventRepository.findEventByExternalSourceAndId(
+        EXTERNAL_SOURCE_NAME,
         event.externalSourceId,
       );
       if (existing.isErr()) {
@@ -519,8 +519,9 @@ async function main(): Promise<void> {
             publisherUserId: mode.botUserId,
             publisherOrgId: null,
             createdBy: mode.botUserId,
-            source: EVENT_SOURCE,
+            source: "external_import",
             externalSourceId: event.externalSourceId,
+            externalSourceName: EXTERNAL_SOURCE_NAME,
           };
           const result = await eventRepository.createEvent(input);
           if (result.isErr()) {

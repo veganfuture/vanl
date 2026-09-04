@@ -58,6 +58,7 @@ function baseEventInput(overrides: Partial<NewEventInput> = {}): NewEventInput {
     createdBy: overrides.createdBy ?? overrides.publisherUserId!,
     source: "manual",
     externalSourceId: null,
+    externalSourceName: null,
     ...overrides,
   };
 }
@@ -206,7 +207,7 @@ describe("setEventStatus", () => {
     )._unsafeUnwrap();
 
     expect(cancelled.status).toBe("cancelled");
-    expect(cancelled.cancelReason).toBe("Venue fell through");
+    expect(cancelled.statusReason).toBe("Venue fell through");
   });
 });
 

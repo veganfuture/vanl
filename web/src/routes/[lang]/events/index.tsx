@@ -14,6 +14,12 @@ export default function EventsListPage() {
     precise_address: t("Exact adres", "Precise address"),
     meeting_point_city_only: t("Verzamelpunt", "Meeting point"),
   };
+  // Only shown for site admins - listVisibleEvents-only for everyone else,
+  // so a real visitor never sees a status other than "visible" here anyway.
+  const statusLabels: Record<string, string> = {
+    hidden: t("Verborgen", "Hidden"),
+    cancelled: t("Geannuleerd", "Cancelled"),
+  };
 
   const [events] = createResource(async () => {
     const result = await apiFetch("/api/events", { response: ListEventsResponseSchema });
@@ -84,6 +90,11 @@ export default function EventsListPage() {
                     >
                       {pickLocalized(event.titleNl, event.titleEn, lang())}
                     </a>
+                    <Show when={statusLabels[event.status]}>
+                      <span class="ml-2 inline-block rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                        {statusLabels[event.status]}
+                      </span>
+                    </Show>
                     <p class="text-sm text-zinc-600">{formatDate(event.startAt)}</p>
                     <p class="text-sm text-zinc-600">
                       {locationKindLabels[event.locationKind]} — {event.locationDescription}

@@ -26,7 +26,7 @@ create type event_location_kind as enum (
 
 create type event_status as enum ('hidden', 'visible', 'cancelled');
 
-create type event_source as enum ('manual', 'signal_import', 'animalrightscalendar.com');
+create type event_source as enum ('manual', 'signal_import', 'external_import');
 
 create table events (
   id uuid primary key default gen_random_uuid(),
@@ -86,19 +86,29 @@ create table events (
   publisher_user_visible boolean not null default true,
 
   status event_status not null default 'visible',
-  cancel_reason text,
-  constraint events_cancel_reason_only_when_cancelled check (
-    status = 'cancelled' or cancel_reason is null
+  -- Why the event isn't visible - a moderator's note, covering both hidden
+  -- and cancelled (not cancelled-only, hence "status", not "cancel").
+  status_reason text,
+  constraint events_status_reason_only_when_not_visible check (
+    status <> 'visible' or status_reason is null
   ),
 
   is_featured boolean not null default false,
 
   source event_source not null default 'manual',
   external_source_id text,
-  -- Nulls are distinct under a unique index, so 'manual' events (always
-  -- null) are unaffected; this only enforces one row per (source, id) for
-  -- imports, which is what makes re-running an import script idempotent.
-  constraint events_external_source_id_unique unique (source, external_source_id),
+  -- The actual external calendar's identity (e.g. 'animalrightscalendar.com'),
+  -- set only when source = 'external_import' - source itself only encodes
+  -- the ingestion mechanism (manual/signal_import/external_import), not
+  -- which external calendar, since more than one may exist eventually.
+  external_source_name text,
+  -- Nulls are distinct under a unique index, so 'manual'/'signal_import'
+  -- events (always null) are unaffected; this only enforces one row per
+  -- (external_source_name, id) for imports, which is what makes re-running
+  -- an import script idempotent - keyed on external_source_name rather than
+  -- source since multiple external calendars would otherwise share the same
+  -- source = 'external_import' value.
+  constraint events_external_source_id_unique unique (external_source_name, external_source_id),
   recurrence_rule jsonb,
 
   created_by uuid not null references users (id),

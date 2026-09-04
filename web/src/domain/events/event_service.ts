@@ -196,6 +196,7 @@ export class EventService {
           createdBy: actingUser.id,
           source: "manual",
           externalSourceId: null,
+          externalSourceName: null,
         })
         .mapErr((dbError): CreateEventError => {
           logger.error({ err: dbError }, "failed to create event");
@@ -216,6 +217,25 @@ export class EventService {
   listVisibleEvents(): ResultAsync<Event[], never> {
     return this.repository.listVisibleEvents().orElse((dbError) => {
       logger.error({ err: dbError }, "failed to list visible events");
+      return okAsync([]);
+    });
+  }
+
+  /** site_admin sees every status; everyone else gets the same visible-only listing as listVisibleEvents. */
+  listEventsForViewer(actingUser: ActingUser | null): ResultAsync<Event[], never> {
+    if (actingUser?.isSiteAdmin) {
+      return this.repository.listAllEvents().orElse((dbError) => {
+        logger.error({ err: dbError }, "failed to list all events");
+        return okAsync([]);
+      });
+    }
+    return this.listVisibleEvents();
+  }
+
+  /** Backs the public /events.ics feed - visible, not-yet-ended events, optionally excluding one external source by name. */
+  listUpcomingVisibleEvents(excludeExternalSource: string | null): ResultAsync<Event[], never> {
+    return this.repository.listUpcomingVisibleEvents(excludeExternalSource).orElse((dbError) => {
+      logger.error({ err: dbError }, "failed to list upcoming visible events");
       return okAsync([]);
     });
   }
@@ -283,11 +303,11 @@ export class EventService {
     actingUser: ActingUser,
     eventId: EventId,
     status: Event["status"],
-    cancelReason: string | null,
+    statusReason: string | null,
   ): ResultAsync<Event, SetEventStatusError> {
     return this.loadForModification(actingUser, eventId).andThen(() =>
       this.repository
-        .setEventStatus(eventId, status, cancelReason, actingUser.id)
+        .setEventStatus(eventId, status, statusReason, actingUser.id)
         .mapErr((dbError): SetEventStatusError => {
           logger.error({ err: dbError }, "failed to set event status");
           return "internal_error";
