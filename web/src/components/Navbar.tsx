@@ -68,6 +68,21 @@ function AccountMenu(props: {
   return (
     <details class="relative group">
       <summary class="list-none flex cursor-pointer items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm hover:border-zinc-400">
+        <svg
+          class="h-4 w-4 shrink-0 text-zinc-500"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+          aria-hidden="true"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z"
+          />
+        </svg>
         <span class="max-w-[10rem] truncate">{props.displayName}</span>
         <svg
           class="h-3 w-3 text-zinc-500 transition-transform duration-200 group-open:rotate-180"
@@ -131,7 +146,24 @@ function MobileAccountMenu(props: {
         onClick={() => setOpen((current) => !current)}
         class={`${linkClass} flex w-full items-center justify-between`}
       >
-        <span>{props.t("Account", "Account")}</span>
+        <span class="flex items-center gap-1.5">
+          <svg
+            class="h-4 w-4 shrink-0 text-zinc-500"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+          {props.t("Account", "Account")}
+        </span>
         <svg
           class={`h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-200 ${open() ? "rotate-180" : "rotate-0"}`}
           xmlns="http://www.w3.org/2000/svg"
