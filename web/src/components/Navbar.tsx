@@ -94,6 +94,9 @@ export function Navbar() {
         label: t("Mijn organisaties", "My organizations"),
         href: `/${lang()}/organizations/mine`,
       });
+      if (me()?.isSiteAdmin) {
+        base.push({ label: t("Gebruikers", "Users"), href: `/${lang()}/admin/users` });
+      }
     }
     return base;
   };

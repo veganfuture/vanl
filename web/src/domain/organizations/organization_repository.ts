@@ -131,6 +131,47 @@ function mapMembershipDetailRow(row: unknown): Result<OrganizationMembershipDeta
   });
 }
 
+const MembershipWithOrgNameRowSchema = z.object({
+  user_id: z.string(),
+  org_id: z.string(),
+  org_name: z.string(),
+  role: z.enum(ORG_ROLES),
+});
+
+/** A membership joined with the org's name (not the member's) - for the admin "Users" page, the mirror image of OrganizationMembershipDetail. */
+export type MembershipWithOrgName = {
+  userId: UserId;
+  orgId: string;
+  orgName: string;
+  role: OrgRole;
+};
+
+function mapMembershipWithOrgNameRow(row: unknown): Result<MembershipWithOrgName, DbError> {
+  const parsedRow = MembershipWithOrgNameRowSchema.safeParse(row);
+  if (!parsedRow.success) {
+    return err({
+      message: `Corrupt organization_memberships row: ${parsedRow.error.message}`,
+      cause: parsedRow.error,
+    });
+  }
+  const parsed = parsedRow.data;
+
+  const userIdResult = UserId.from_string(parsed.user_id);
+  if (userIdResult.isErr()) {
+    return err({
+      message: `Corrupt organization_memberships row: ${userIdResult.error.message}`,
+      cause: userIdResult.error,
+    });
+  }
+
+  return ok({
+    userId: userIdResult.value,
+    orgId: parsed.org_id,
+    orgName: parsed.org_name,
+    role: parsed.role,
+  });
+}
+
 export type NewOrganizationInput = {
   name: string;
   slug: string;
@@ -320,6 +361,30 @@ export class OrganizationRepository {
         const result = mapMembershipRow(row);
         if (result.isErr()) {
           return err<OrganizationMembership[], DbError>(result.error);
+        }
+        mapped.push(result.value);
+      }
+      return ok(mapped);
+    });
+  }
+
+  /** Every membership across every user and every active org, joined to org name - admin "Users" page only. */
+  listAllMembershipsWithOrgNames(): ResultAsync<MembershipWithOrgName[], DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        select m.user_id, m.org_id, o.name as org_name, m.role
+        from organization_memberships m
+        join organizations o on o.id = m.org_id
+        where o.status = 'active'
+        order by o.name asc
+      `,
+      (cause): DbError => ({ message: "Failed to list all memberships with org names", cause }),
+    ).andThen((rows) => {
+      const mapped: MembershipWithOrgName[] = [];
+      for (const row of rows) {
+        const result = mapMembershipWithOrgNameRow(row);
+        if (result.isErr()) {
+          return err<MembershipWithOrgName[], DbError>(result.error);
         }
         mapped.push(result.value);
       }

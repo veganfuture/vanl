@@ -182,6 +182,24 @@ export class AuthRepository {
     ).andThen((rows) => mapUserRow(rows[0]));
   }
 
+  /** Every non-deleted user - admin "Users" page only, nothing else lists the whole table. */
+  listAllUsers(): ResultAsync<User[], DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`select * from users where deleted_at is null order by account_name asc`,
+      (cause): DbError => ({ message: "Failed to list all users", cause }),
+    ).andThen((rows) => {
+      const mapped: User[] = [];
+      for (const row of rows) {
+        const result = mapUserRow(row);
+        if (result.isErr()) {
+          return err<User[], DbError>(result.error);
+        }
+        mapped.push(result.value);
+      }
+      return ok(mapped);
+    });
+  }
+
   findUserByAccountName(accountName: string): ResultAsync<User | null, DbError> {
     return ResultAsync.fromPromise(
       this.sql`
@@ -228,6 +246,27 @@ export class AuthRepository {
   }
 
   // --- Sessions ---
+
+  /** Most recent session (= most recent login) per user, across every user that has ever logged in - admin "Users" page only. */
+  listLastLoginByUser(): ResultAsync<{ userId: UserId; lastLoginAt: Date }[], DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`select user_id, max(created_at) as last_login_at from sessions group by user_id`,
+      (cause): DbError => ({ message: "Failed to list last login by user", cause }),
+    ).andThen((rows) => {
+      const mapped: { userId: UserId; lastLoginAt: Date }[] = [];
+      for (const row of rows) {
+        const userIdResult = UserId.from_string(row.user_id as string);
+        if (userIdResult.isErr()) {
+          return err<{ userId: UserId; lastLoginAt: Date }[], DbError>({
+            message: `Corrupt sessions row: ${userIdResult.error.message}`,
+            cause: userIdResult.error,
+          });
+        }
+        mapped.push({ userId: userIdResult.value, lastLoginAt: row.last_login_at as Date });
+      }
+      return ok(mapped);
+    });
+  }
 
   insertSession(input: NewSession): ResultAsync<void, DbError> {
     return ResultAsync.fromPromise(

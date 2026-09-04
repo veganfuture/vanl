@@ -336,6 +336,25 @@ export class AuthService {
     });
   }
 
+  /** Admin "Users" page only. Fails closed to an empty list on a DB error, same reasoning as isSiteAdmin. */
+  listAllUsers(): ResultAsync<User[], never> {
+    return this.repository.listAllUsers().orElse((dbError) => {
+      logger.error({ err: dbError }, "failed to list all users");
+      return okAsync([]);
+    });
+  }
+
+  /** Admin "Users" page only - keyed by UserId.value so callers can look up by the same string ActingUser.orgRoles uses. */
+  listLastLoginByUser(): ResultAsync<Map<string, Date>, never> {
+    return this.repository
+      .listLastLoginByUser()
+      .orElse((dbError) => {
+        logger.error({ err: dbError }, "failed to list last login by user");
+        return okAsync([]);
+      })
+      .map((rows) => new Map(rows.map((row) => [row.userId.value, row.lastLoginAt])));
+  }
+
   logout(cookieHeader: string | null): ResultAsync<string[], never> {
     const token = parseCookies(cookieHeader)[SESSION_COOKIE_NAME];
     if (!token) {
