@@ -222,6 +222,31 @@ export class OrganizationRepository {
     ).andThen((row) => mapOrganizationRow(row));
   }
 
+  /**
+   * Upsert keyed on name, with no admin membership created - unlike
+   * createOrganizationWithAdmin above, only for scripts/seed-organizations.ts to
+   * preload real, curated organizations that no user account owns (yet). Never
+   * call this from application code.
+   */
+  upsertSeedOrganization(input: NewOrganizationInput): ResultAsync<Organization, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        insert into organizations (name, slug, description_nl, description_en, website_url)
+        values (
+          ${input.name}, ${input.slug}, ${input.descriptionNl}, ${input.descriptionEn},
+          ${input.websiteUrl}
+        )
+        on conflict (name) do update set
+          slug = excluded.slug,
+          description_nl = excluded.description_nl,
+          description_en = excluded.description_en,
+          website_url = excluded.website_url
+        returning *
+      `,
+      (cause): DbError => ({ message: "Failed to upsert seed organization", cause }),
+    ).andThen((rows) => mapOrganizationRow(rows[0]));
+  }
+
   findOrganizationById(id: OrganizationId): ResultAsync<Organization | null, DbError> {
     return ResultAsync.fromPromise(
       this.sql`select * from organizations where id = ${id.value}`,
