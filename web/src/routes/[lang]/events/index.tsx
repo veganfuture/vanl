@@ -93,6 +93,7 @@ export default function EventsListPage() {
                     <Show when={statusLabels[event.status]}>
                       <span class="ml-2 inline-block rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
                         {statusLabels[event.status]}
+                        {event.statusReason ? ` — ${event.statusReason}` : ""}
                       </span>
                     </Show>
                     <p class="text-sm text-zinc-600">{formatDate(event.startAt)}</p>
