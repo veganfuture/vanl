@@ -375,6 +375,15 @@
           if ($env.DEV_ACI? | default "") != "" {
             ^${pkgs.bun}/bin/bun run seed-dev-user
           }
+          # seed-places must run before import-arc-events - the latter
+          # resolves each event's coordinates to a `places` row (see
+          # scripts/import-arc-events.ts's resolveDutchPlace) and silently
+          # skips every event as "no matching place" if that table is
+          # still empty. Both are idempotent upserts, safe to re-run on
+          # every dev start - see their own file header comments.
+          ^${pkgs.bun}/bin/bun run seed-places
+          ^${pkgs.bun}/bin/bun run import-arc-events
+          ^${pkgs.bun}/bin/bun run seed-test-data
           try {
             ^${pkgs.bun}/bin/bun run dev
           } catch {

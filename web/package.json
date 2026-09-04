@@ -13,6 +13,7 @@
     "migrate": "bun run scripts/migrate.ts",
     "seed-places": "bun run scripts/seed-places.ts",
     "seed-dev-user": "bun run scripts/seed-dev-user.ts",
+    "seed-test-data": "bun run scripts/seed-test-data.ts",
     "import-arc-events": "bun run scripts/import-arc-events.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
