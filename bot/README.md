@@ -165,7 +165,19 @@ You should now have precommit hookt hat runs type checks, linters, formatters an
 
 Before the bot's signal daemon will work you need to link the new device (the machine you're on) to the Signal bot, see "Link the bot to Signal".
 
-Run the signal daemon:
+The easiest way to run everything locally is:
+
+```sh
+nix run .#dev
+```
+
+This starts the signal daemon in the background and the bot in the foreground against
+`configs/dev.toml`, and stops the daemon again on Ctrl+C. It requires
+`VANL_BOT_SIGNAL_ACCOUNT`, `VANL_SIGNUP_PRIVATE_KEY`, and `VANL_BOT_API_SHARED_SECRET` to already
+be set (put them in `.envrc`) — it checks all three up front and refuses to start if any are
+missing.
+
+You can also run the two pieces separately. Run the signal daemon:
 
 ```sh
 nix run .#signal-daemon -- --signal-acount +316... 

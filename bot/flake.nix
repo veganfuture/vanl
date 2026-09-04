@@ -272,6 +272,52 @@
         print(f"signup_public_key (website config, not secret) = {public_b64}")
         '
       '';
+
+      # Dev-time convenience (`nix run .#dev`), mirroring web/flake.nix's `dev` app: starts
+      # signal-daemon-run in the background, then bot-run in the foreground against
+      # configs/dev.toml, and kills the daemon on exit (Ctrl+C included) via the EXIT trap.
+      # Plain bash rather than the nushell helper used elsewhere in this file - trap/kill/wait
+      # based cleanup of a background process is simpler to get right in bash than via nushell's
+      # newer `job spawn`/`job kill`.
+      #
+      # Checked here up front (not just left to signal-daemon-run's/bot-run's own checks) so a
+      # missing var is reported before either process starts, rather than after the daemon's
+      # already running with nothing left to clean it up on the bot's subsequent failure. Values
+      # for local development live in bot/.envrc (gitignored, direnv-sourced).
+      runDev = pkgs.writeScriptBin "bot-dev" ''
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        repo_dir="."
+        config="configs/dev.toml"
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --repo-dir) repo_dir="$2"; shift 2 ;;
+            --config) config="$2"; shift 2 ;;
+            *) echo "Unknown argument: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        missing=()
+        for var in VANL_BOT_SIGNAL_ACCOUNT VANL_SIGNUP_PRIVATE_KEY VANL_BOT_API_SHARED_SECRET; do
+          if [ -z "''${!var:-}" ]; then
+            missing+=("$var")
+          fi
+        done
+        if [ ''${#missing[@]} -gt 0 ]; then
+          echo "Error: Missing required environment variable(s) (see bot/.envrc):" >&2
+          for var in "''${missing[@]}"; do
+            echo "  - $var" >&2
+          done
+          exit 1
+        fi
+
+        ${runSignalDaemon}/bin/signal-daemon-run --signal-daemon-dir "$repo_dir" &
+        daemon_pid=$!
+        trap 'kill "$daemon_pid" 2>/dev/null || true; wait "$daemon_pid" 2>/dev/null || true' EXIT INT TERM
+
+        ${runBot}/bin/bot-run --repo-dir "$repo_dir" --config "$config"
+      '';
     in {
       packages = {
         default = pkgs.signal-cli;
@@ -280,6 +326,7 @@
         check-project = checkProject;
         bot-run = runBot;
         signal-daemon-run = runSignalDaemon;
+        bot-dev = runDev;
         link = link;
         bot-deps = botDeps;
         bot-deps-hash-check = botDepsHashCheck;
@@ -322,6 +369,10 @@
         signal-daemon = {
           type = "app";
           program = "${runSignalDaemon}/bin/signal-daemon-run";
+        };
+        dev = {
+          type = "app";
+          program = "${runDev}/bin/bot-dev";
         };
         install-precommit-hooks = {
           type = "app";
