@@ -191,6 +191,13 @@ export default function LoginPage() {
               ? t("Bezig met verzenden…", "Sending…")
               : t("Inlogcode versturen", "Send login code")}
           </button>
+          <p class="text-sm text-zinc-600">
+            {t("Nog geen account? ", "No account yet? ")}
+            <a href={`/${lang()}/signup-help`} class="underline">
+              {t("Zo maak je er een aan", "Here's how to create one")}
+            </a>
+            .
+          </p>
         </form>
       </Show>
 
