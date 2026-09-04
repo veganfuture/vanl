@@ -240,6 +240,16 @@ export class OrganizationRepository {
     );
   }
 
+  /** Exact match on the citext `name` column (case-insensitive already) - backs import-arc-events.ts's organizer-name-to-organization linking. */
+  findOrganizationByName(name: string): ResultAsync<Organization | null, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`select * from organizations where name = ${name}`,
+      (cause): DbError => ({ message: "Failed to find organization by name", cause }),
+    ).andThen((rows): Result<Organization | null, DbError> =>
+      rows[0] ? mapOrganizationRow(rows[0]) : ok(null),
+    );
+  }
+
   /** Public listing - active orgs only. */
   listActiveOrganizations(): ResultAsync<Organization[], DbError> {
     return ResultAsync.fromPromise(
