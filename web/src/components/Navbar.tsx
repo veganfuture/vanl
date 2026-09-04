@@ -223,7 +223,7 @@ export function Navbar() {
   ];
 
   return (
-    <nav class="border-b border-zinc-200 bg-white">
+    <nav class="sticky top-0 z-50 border-b border-zinc-200 bg-white md:static">
       <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
         <a href={`/${lang()}`} class="flex items-center gap-3 no-underline">
           <span class="inline-flex">
@@ -233,7 +233,7 @@ export function Navbar() {
             <p class="my-1 py-0 text-sm font-semibold leading-tight text-zinc-900">
               VeganActivists.nl
             </p>
-            <p class="my-1 py-0 text-xs text-zinc-600">
+            <p class="my-1 hidden py-0 text-xs text-zinc-600 md:block">
               {t(
                 "Samen sterk voor dierenrechten • Nederland",
                 "Together united for animal rights • Netherlands",
