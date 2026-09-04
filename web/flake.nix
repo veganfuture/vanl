@@ -371,6 +371,7 @@
           $env.VANL_DB_PORT = ((repo-db-port $repo_dir) | into string)
 
           ^${devDbStart}/bin/devdb-start --repo-dir $repo_dir
+          ^${pkgs.bun}/bin/bun run migrate
           if ($env.DEV_ACI? | default "") != "" {
             ^${pkgs.bun}/bin/bun run seed-dev-user
           }
