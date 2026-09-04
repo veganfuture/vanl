@@ -4,10 +4,19 @@ import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch } from "~/lib/api-fetch";
 import { imageUrl } from "~/lib/image-url";
 import { useLang } from "~/lib/i18n";
+import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { ListOrganizationsResponseSchema } from "~/routes/api/organizations/index.schema";
 
 export default function OrganizationsListPage() {
   const { lang, t } = useLang();
+
+  const [me] = createResource(async () => {
+    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
+    return result.match(
+      (data) => data.user,
+      () => null,
+    );
+  });
 
   const [organizations] = createResource(async () => {
     const result = await apiFetch("/api/organizations", {
@@ -25,12 +34,14 @@ export default function OrganizationsListPage() {
       <Title>{t("Organisaties", "Organizations")} — Vegan Activists NL</Title>
       <div class="mb-6 flex items-center justify-between">
         <h1 class="text-2xl font-semibold">{t("Organisaties", "Organizations")}</h1>
-        <a
-          href={`/${lang()}/organizations/new`}
-          class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
-        >
-          {t("Organisatie aanmaken", "Create organization")}
-        </a>
+        <Show when={me()}>
+          <a
+            href={`/${lang()}/organizations/new`}
+            class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            {t("Organisatie aanmaken", "Create organization")}
+          </a>
+        </Show>
       </div>
 
       <Show
@@ -74,6 +85,15 @@ export default function OrganizationsListPage() {
             </For>
           </ul>
         </Show>
+      </Show>
+
+      <Show when={!me.loading && !me()}>
+        <p class="mt-8 text-center text-sm text-zinc-600">
+          {t("Wil je een organisatie aanmaken? ", "Want to create an organization? ")}
+          <a href={`/${lang()}/signup-help`} class="underline">
+            {t("Meld je aan om een account te maken.", "Sign up to create an account.")}
+          </a>
+        </p>
       </Show>
     </main>
   );

@@ -64,12 +64,14 @@ export default function MyEventsPage() {
       <Title>{t("Mijn evenementen", "My events")} — Vegan Activists NL</Title>
       <div class="mb-6 flex items-center justify-between">
         <h1 class="text-2xl font-semibold">{t("Mijn evenementen", "My events")}</h1>
-        <a
-          href={`/${lang()}/events/new`}
-          class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
-        >
-          {t("Evenement aanmaken", "Create event")}
-        </a>
+        <Show when={me()}>
+          <a
+            href={`/${lang()}/events/new`}
+            class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            {t("Evenement aanmaken", "Create event")}
+          </a>
+        </Show>
       </div>
 
       <Show when={!me.loading} fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
