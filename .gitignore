@@ -33,6 +33,7 @@ web/out
 !*.jpg
 !*.gif
 !*.ico
+!*.svg
 !*.toml
 !*.manifest
 !*.ics
