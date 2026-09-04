@@ -40,11 +40,13 @@ export type CompleteSignupSuccess = { user: User; setCookieHeaders: string[] };
 export type CompleteSignupError =
   "invalid_token" | "already_used" | "account_name_taken" | "validation" | "internal_error";
 
-export type StartLoginError = "account_not_found" | "rate_limited" | "internal_error";
+export type StartLoginError =
+  "account_not_found" | "account_disabled" | "rate_limited" | "internal_error";
 
 export type VerifyLoginSuccess = { user: User; setCookieHeaders: string[] };
 export type VerifyLoginError =
   | "account_not_found"
+  | "account_disabled"
   | "no_active_challenge"
   | "wrong_code"
   | "attempts_exhausted"
@@ -202,6 +204,9 @@ export class AuthService {
       .andThen((user): ResultAsync<User, StartLoginError> =>
         user ? okAsync(user) : errAsync("account_not_found"),
       )
+      .andThen((user): ResultAsync<User, StartLoginError> =>
+        user.disabledAt ? errAsync("account_disabled") : okAsync(user),
+      )
       .andThen((user) =>
         this.repository
           .countLoginChallengesForUserSince(user.id, windowStart)
@@ -265,6 +270,9 @@ export class AuthService {
       .andThen((user): ResultAsync<User, VerifyLoginError> =>
         user ? okAsync(user) : errAsync("account_not_found"),
       )
+      .andThen((user): ResultAsync<User, VerifyLoginError> =>
+        user.disabledAt ? errAsync("account_disabled") : okAsync(user),
+      )
       .andThen((user) =>
         this.repository
           .findLatestActiveLoginChallenge(user.id)
@@ -317,15 +325,37 @@ export class AuthService {
     if (!token) {
       return okAsync(null);
     }
-    return this.repository
-      .findActiveSessionByTokenHash(hashSessionToken(token))
-      .andThen((session): ResultAsync<User | null, DbError> =>
-        session ? this.repository.findUserById(session.userId) : okAsync(null),
-      )
-      .orElse((dbError) => {
-        logger.error({ err: dbError }, "failed to look up session user");
-        return okAsync(null);
-      });
+    return (
+      this.repository
+        .findActiveSessionByTokenHash(hashSessionToken(token))
+        .andThen((session): ResultAsync<User | null, DbError> =>
+          session ? this.repository.findUserById(session.userId) : okAsync(null),
+        )
+        // A user disabled mid-session must not keep working on an
+        // already-issued cookie - treat it exactly like no session at all
+        // rather than revoking the row itself (nothing to undo if re-enabled).
+        .map((user) => (user?.disabledAt ? null : user))
+        .orElse((dbError) => {
+          logger.error({ err: dbError }, "failed to look up session user");
+          return okAsync(null);
+        })
+    );
+  }
+
+  /** Admin "Users" detail page only - unlike getSessionUser, does not hide a disabled user (the page needs to find them to re-enable). */
+  findUserById(id: UserId): ResultAsync<User | null, never> {
+    return this.repository.findUserById(id).orElse((dbError) => {
+      logger.error({ err: dbError }, "failed to find user by id");
+      return okAsync(null);
+    });
+  }
+
+  /** Admin "Users" detail page only - site_admin gate lives in admin_users.ts, same split as every other admin mutation there. */
+  setUserDisabled(id: UserId, disabled: boolean): ResultAsync<User, "internal_error"> {
+    return this.repository.setUserDisabled(id, disabled).mapErr((dbError) => {
+      logger.error({ err: dbError }, "failed to set user disabled");
+      return "internal_error" as const;
+    });
   }
 
   /** Fails closed: a DB error is treated as "not an admin", never as "is one". */

@@ -25,6 +25,13 @@ export default function LoginPage() {
       message: t("Geen account gevonden met die naam.", "No account found with that name."),
       isWarn: true,
     },
+    account_disabled: {
+      message: t(
+        "Dit account is uitgeschakeld. Neem contact op met een beheerder.",
+        "This account has been disabled. Contact an admin.",
+      ),
+      isWarn: true,
+    },
     no_active_challenge: {
       message: t(
         "Je code is verlopen. Vraag een nieuwe aan.",

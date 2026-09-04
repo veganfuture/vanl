@@ -17,6 +17,7 @@ export const LoginVerifyResponseSchema = z.union([
   z.object({
     error: z.enum([
       "account_not_found",
+      "account_disabled",
       "no_active_challenge",
       "wrong_code",
       "attempts_exhausted",

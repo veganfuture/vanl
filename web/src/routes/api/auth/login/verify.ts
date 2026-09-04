@@ -5,6 +5,7 @@ import { LoginVerifyRequestSchema, type LoginVerifyResponse } from "./verify.sch
 
 const ERROR_STATUS: Record<string, number> = {
   account_not_found: 404,
+  account_disabled: 403,
   no_active_challenge: 401,
   wrong_code: 401,
   attempts_exhausted: 401,

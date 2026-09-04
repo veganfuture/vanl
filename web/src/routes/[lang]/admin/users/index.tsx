@@ -82,6 +82,7 @@ export default function AdminUsersPage() {
                   <thead class="border-b border-zinc-200 bg-zinc-50">
                     <tr>
                       <th class="px-4 py-2 font-semibold">{t("Gebruikersnaam", "Account name")}</th>
+                      <th class="px-4 py-2 font-semibold">{t("Status", "Status")}</th>
                       <th class="px-4 py-2 font-semibold">{t("Laatst ingelogd", "Last login")}</th>
                       <th class="px-4 py-2 font-semibold">{t("Organisaties", "Organizations")}</th>
                     </tr>
@@ -90,7 +91,21 @@ export default function AdminUsersPage() {
                     <For each={users()}>
                       {(user) => (
                         <tr class="border-b border-zinc-100 last:border-0">
-                          <td class="px-4 py-2">@{user.accountName}</td>
+                          <td class="px-4 py-2">
+                            <a href={`/${lang()}/admin/users/${user.id}`} class="underline">
+                              @{user.accountName}
+                            </a>
+                          </td>
+                          <td class="px-4 py-2">
+                            <Show
+                              when={user.disabledAt}
+                              fallback={<span class="text-zinc-400">—</span>}
+                            >
+                              <span class="rounded bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
+                                {t("Uitgeschakeld", "Disabled")}
+                              </span>
+                            </Show>
+                          </td>
                           <td class="px-4 py-2">{formatDate(user.lastLoginAt)}</td>
                           <td class="px-4 py-2">
                             <Show

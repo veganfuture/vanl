@@ -157,6 +157,20 @@ describe("user lookups", () => {
   });
 });
 
+describe("setUserDisabled", () => {
+  it("sets and clears disabled_at, without hiding the user from findUserById", async () => {
+    const user = await makeUser({ accountName: "gina" });
+    expect(user.disabledAt).toBeNull();
+
+    const disabled = (await repository.setUserDisabled(user.id, true))._unsafeUnwrap();
+    expect(disabled.disabledAt).not.toBeNull();
+    expect((await repository.findUserById(user.id))._unsafeUnwrap()?.disabledAt).not.toBeNull();
+
+    const reenabled = (await repository.setUserDisabled(user.id, false))._unsafeUnwrap();
+    expect(reenabled.disabledAt).toBeNull();
+  });
+});
+
 describe("global roles", () => {
   it("makes the first user created site_admin", async () => {
     const first = await makeUser();

@@ -5,6 +5,7 @@ import { LoginStartRequestSchema, type LoginStartResponse } from "./start.schema
 
 const ERROR_STATUS: Record<string, number> = {
   account_not_found: 404,
+  account_disabled: 403,
   rate_limited: 429,
   internal_error: 500,
 };

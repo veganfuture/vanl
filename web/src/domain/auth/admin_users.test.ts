@@ -4,8 +4,8 @@ import { AccountName } from "./account_name";
 import { actingAs } from "./acting_user.test-helpers";
 import { AuthRepository } from "./auth_repository";
 import { SignalAci } from "./signal_aci";
-import type { UserId } from "./user_id";
-import { listAdminUserSummaries } from "./admin_users";
+import { UserId } from "./user_id";
+import { getAdminUserDetail, listAdminUserSummaries, setUserDisabled } from "./admin_users";
 import { OrganizationRepository } from "../organizations/organization_repository";
 
 const authRepository = new AuthRepository(sql);
@@ -92,5 +92,84 @@ describe("listAdminUserSummaries", () => {
     expect(byAccountName.get("lonely")?.organizations).toEqual([]);
 
     expect(summaries).toHaveLength(4);
+  });
+});
+
+describe("getAdminUserDetail", () => {
+  it("is forbidden for a non-site-admin", async () => {
+    const admin = await makeUser("admin2");
+    const target = await makeUser("target1");
+    const result = await getAdminUserDetail(actingAs(admin, false), target);
+    expect(result._unsafeUnwrapErr()).toBe("forbidden");
+  });
+
+  it("returns not_found for a nonexistent user", async () => {
+    const admin = await makeUser("admin3");
+    const bogusId = UserId.from_string(crypto.randomUUID())._unsafeUnwrap();
+    const result = await getAdminUserDetail(actingAs(admin, true), bogusId);
+    expect(result._unsafeUnwrapErr()).toBe("not_found");
+  });
+
+  it("returns full user detail including org memberships", async () => {
+    const admin = await makeUser("admin4");
+    const target = await makeUser("target2");
+    const org = (
+      await organizationRepository.createOrganizationWithAdmin(
+        {
+          name: "Detail Test Org",
+          slug: `detail-test-org-${crypto.randomUUID()}`,
+          description: null,
+          websiteUrl: null,
+        },
+        target,
+      )
+    )._unsafeUnwrap();
+
+    const result = await getAdminUserDetail(actingAs(admin, true), target);
+    const detail = result._unsafeUnwrap();
+
+    expect(detail.accountName.value).toBe("target2");
+    expect(detail.email).toBe("target2@example.com");
+    expect(detail.disabledAt).toBeNull();
+    expect(detail.organizations).toEqual([
+      { orgId: org.id.value, orgName: "Detail Test Org", role: "org_admin" },
+    ]);
+  });
+});
+
+describe("setUserDisabled", () => {
+  it("is forbidden for a non-site-admin", async () => {
+    const admin = await makeUser("admin5");
+    const target = await makeUser("target3");
+    const result = await setUserDisabled(actingAs(admin, false), target, true);
+    expect(result._unsafeUnwrapErr()).toBe("forbidden");
+  });
+
+  it("refuses to let a site admin disable their own account", async () => {
+    const admin = await makeUser("admin6");
+    const result = await setUserDisabled(actingAs(admin, true), admin, true);
+    expect(result._unsafeUnwrapErr()).toBe("cannot_disable_self");
+  });
+
+  it("returns not_found for a nonexistent user", async () => {
+    const admin = await makeUser("admin7");
+    const bogusId = UserId.from_string(crypto.randomUUID())._unsafeUnwrap();
+    const result = await setUserDisabled(actingAs(admin, true), bogusId, true);
+    expect(result._unsafeUnwrapErr()).toBe("not_found");
+  });
+
+  it("disables and re-enables a user, reflected in getAdminUserDetail", async () => {
+    const admin = await makeUser("admin8");
+    const target = await makeUser("target4");
+
+    (await setUserDisabled(actingAs(admin, true), target, true))._unsafeUnwrap();
+    const disabledDetail = (
+      await getAdminUserDetail(actingAs(admin, true), target)
+    )._unsafeUnwrap();
+    expect(disabledDetail.disabledAt).not.toBeNull();
+
+    (await setUserDisabled(actingAs(admin, true), target, false))._unsafeUnwrap();
+    const enabledDetail = (await getAdminUserDetail(actingAs(admin, true), target))._unsafeUnwrap();
+    expect(enabledDetail.disabledAt).toBeNull();
   });
 });

@@ -18,6 +18,7 @@ export const AdminUserJsonSchema = z.object({
   id: z.string(),
   accountName: z.string(),
   lastLoginAt: z.string().nullable(),
+  disabledAt: z.string().nullable(),
   organizations: z.array(AdminUserOrgMembershipJsonSchema),
 });
 export type AdminUserJson = z.infer<typeof AdminUserJsonSchema>;
@@ -27,6 +28,7 @@ export function toAdminUserJson(summary: AdminUserSummary): AdminUserJson {
     id: summary.id.value,
     accountName: summary.accountName.value,
     lastLoginAt: summary.lastLoginAt?.toISOString() ?? null,
+    disabledAt: summary.disabledAt?.toISOString() ?? null,
     organizations: summary.organizations,
   };
 }

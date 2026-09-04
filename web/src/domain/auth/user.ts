@@ -12,4 +12,5 @@ export type User = {
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
+  disabledAt: Date | null;
 };

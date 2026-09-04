@@ -27,6 +27,7 @@ const UserRowSchema = z.object({
   created_at: z.coerce.date(),
   updated_at: z.coerce.date(),
   deleted_at: z.coerce.date().nullable(),
+  disabled_at: z.coerce.date().nullable(),
 });
 
 /**
@@ -76,6 +77,7 @@ function mapUserRow(row: unknown): Result<User, DbError> {
     createdAt: parsed.created_at,
     updatedAt: parsed.updated_at,
     deletedAt: parsed.deleted_at,
+    disabledAt: parsed.disabled_at,
   });
 }
 
@@ -216,6 +218,23 @@ export class AuthRepository {
       `,
       (cause): DbError => ({ message: "Failed to find user by id", cause }),
     ).andThen((rows): Result<User | null, DbError> => (rows[0] ? mapUserRow(rows[0]) : ok(null)));
+  }
+
+  /**
+   * Deliberately not filtered by deleted_at/disabled_at (unlike
+   * findUserById) - the admin "Users" detail page needs to look up and
+   * re-enable an already-disabled account, which findUserById's normal
+   * "is this account usable" filtering would hide.
+   */
+  setUserDisabled(id: UserId, disabled: boolean): ResultAsync<User, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        update users set disabled_at = ${disabled ? new Date() : null}, updated_at = now()
+        where id = ${id.value}
+        returning *
+      `,
+      (cause): DbError => ({ message: "Failed to set user disabled", cause }),
+    ).andThen((rows) => mapUserRow(rows[0]));
   }
 
   findUserBySignalAci(aci: SignalAci): ResultAsync<User | null, DbError> {

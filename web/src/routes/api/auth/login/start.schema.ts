@@ -12,7 +12,13 @@ export type LoginStartRequest = z.infer<typeof LoginStartRequestSchema>;
 export const LoginStartResponseSchema = z.union([
   z.object({ ok: z.literal(true) }),
   z.object({
-    error: z.enum(["account_not_found", "rate_limited", "validation", "internal_error"]),
+    error: z.enum([
+      "account_not_found",
+      "account_disabled",
+      "rate_limited",
+      "validation",
+      "internal_error",
+    ]),
   }),
 ]);
 export type LoginStartResponse = z.infer<typeof LoginStartResponseSchema>;

@@ -195,6 +195,43 @@ describe("login", () => {
     expect(result._unsafeUnwrapErr()).toBe("account_not_found");
   });
 
+  it("rejects starting a login for a disabled account", async () => {
+    const token = signWithDevKey("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    const { user } = (
+      await service.completeSignup({
+        token,
+        accountName: "diana",
+        email: "diana@example.com",
+        displayName: "Diana",
+        affiliationsNote: null,
+      })
+    )._unsafeUnwrap();
+    (await repository.setUserDisabled(user.id, true))._unsafeUnwrap();
+
+    const result = await service.startLogin("diana", null);
+    expect(result._unsafeUnwrapErr()).toBe("account_disabled");
+  });
+
+  it("rejects verifying a login for an account disabled after the code was sent", async () => {
+    const token = signWithDevKey("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    const { user } = (
+      await service.completeSignup({
+        token,
+        accountName: "erin",
+        email: "erin@example.com",
+        displayName: "Erin",
+        affiliationsNote: null,
+      })
+    )._unsafeUnwrap();
+    (await service.startLogin("erin", null))._unsafeUnwrap();
+    const sentCode = vi.mocked(sendOtpViaBot).mock.calls[0][1];
+
+    (await repository.setUserDisabled(user.id, true))._unsafeUnwrap();
+
+    const result = await service.verifyLogin("erin", sentCode);
+    expect(result._unsafeUnwrapErr()).toBe("account_disabled");
+  });
+
   it("exhausts attempts after three wrong codes", async () => {
     const token = signWithDevKey("99999999-9999-9999-9999-999999999999");
     (
@@ -370,5 +407,22 @@ describe("session lifecycle", () => {
 
   it("getSessionUser returns null with no cookie", async () => {
     expect((await service.getSessionUser(null))._unsafeUnwrap()).toBeNull();
+  });
+
+  it("getSessionUser stops honoring an already-issued session once the account is disabled", async () => {
+    const token = signWithDevKey("12121212-1212-1212-1212-121212121212");
+    const signupResult = await service.completeSignup({
+      token,
+      accountName: "frank",
+      email: "frank@example.com",
+      displayName: "Frank",
+      affiliationsNote: null,
+    });
+    const { user, setCookieHeaders } = signupResult._unsafeUnwrap();
+    const cookieHeader = `${SESSION_COOKIE_NAME}=${extractCookieValue(setCookieHeaders[0], SESSION_COOKIE_NAME)}`;
+
+    expect((await service.getSessionUser(cookieHeader))._unsafeUnwrap()).not.toBeNull();
+    (await repository.setUserDisabled(user.id, true))._unsafeUnwrap();
+    expect((await service.getSessionUser(cookieHeader))._unsafeUnwrap()).toBeNull();
   });
 });
