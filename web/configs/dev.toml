@@ -9,6 +9,11 @@ level = "debug"
 
 [database]
 host = "127.0.0.1"
+# Placeholder only - the real dev Postgres port is derived per-checkout (see
+# flake.nix's `repo-db-port`) and injected via the VANL_DB_PORT env var by
+# `nix run .#dev`/`.#check`, which overrides this value (src/lib/config.ts).
+# This number only applies if you bypass both of those and run e.g. `bun run
+# dev` directly without VANL_DB_PORT set.
 port = 54329
 database = "vanl_dev"
 user = "vanl"

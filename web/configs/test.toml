@@ -15,6 +15,10 @@ level = "debug"
 
 [database]
 host = "127.0.0.1"
+# Placeholder only - see configs/dev.toml's comment. `nix run .#check`
+# injects the real per-checkout port via VANL_DB_PORT, which
+# vitest.global-setup.ts forwards and src/lib/config.ts applies as an
+# override on top of this value.
 port = 54329
 database = "vanl_test"
 user = "vanl"

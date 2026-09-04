@@ -62,7 +62,23 @@ export function loadConfig(): AppConfig {
     throw new Error(`Invalid config file ${path}: ${result.error.message}`);
   }
 
-  cachedConfig = result.data;
+  const config = result.data;
+  // VANL_DB_PORT overrides configs/*.toml's database.port. Needed because
+  // that port is per-checkout (see web/flake.nix's `repo-db-port`, derived
+  // from the checkout's absolute path so concurrent worktrees don't fight
+  // over one hardcoded port) and the toml files are checked into git, so
+  // they can't hold a value that differs per worktree. `nix run .#dev` /
+  // `.#check` set this automatically; it's a no-op otherwise.
+  const portOverride = process.env.VANL_DB_PORT;
+  if (portOverride !== undefined) {
+    const port = Number(portOverride);
+    if (!Number.isInteger(port) || port <= 0) {
+      throw new Error(`Invalid VANL_DB_PORT: ${portOverride}`);
+    }
+    config.database.port = port;
+  }
+
+  cachedConfig = config;
   return cachedConfig;
 }
 

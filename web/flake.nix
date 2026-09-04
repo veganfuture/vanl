@@ -30,7 +30,17 @@
       # LD_LIBRARY_PATH or sharp fails to load at runtime.
       nativeLibPath = "${pkgs.stdenv.cc.cc.lib}/lib";
 
-      devDbPort = 54329;
+      # Each worktree/checkout gets its own dev Postgres port, derived
+      # deterministically from the checkout's absolute path (see the
+      # `repo-db-port` nu function below, exposed standalone as the
+      # `repo-db-port` app). This used to be a single hardcoded port
+      # (54329) shared by every git worktree of this repo, so running
+      # `nix run .#dev` in two worktrees at once made the second one fail
+      # with "could not bind IPv4 address ... Address already in use" -
+      # pg_ctl's own error for "something else is already listening on
+      # this port", in this case another worktree's dev Postgres.
+      devDbPortRangeStart = 40000;
+      devDbPortRangeSize = 10000;
 
       # Fixed-output derivation: `bun install` needs network access to fetch dependencies from
       # the npm registry, which Nix only allows inside a FOD (purity comes from verifying $out's
@@ -166,6 +176,16 @@
             exit 1
           }
         }
+
+        # Deterministic per-checkout dev Postgres port - same absolute
+        # path always hashes to the same port, so re-running against an
+        # existing worktree reuses its port, but two different worktree
+        # checkouts (almost always) land on two different ports instead
+        # of both reaching for the same hardcoded one.
+        def repo-db-port [repo_dir: string]: nothing -> int {
+          let n = ($repo_dir | path expand | hash sha256 | str substring 0..7 | into int -r 16)
+          ${toString devDbPortRangeStart} + ($n mod ${toString devDbPortRangeSize})
+        }
       '';
 
       # Runs the production server (`bun run start`, i.e. the built nitro output).
@@ -202,6 +222,7 @@
           let data_dir = ($devdb_dir | path join "data")
           let socket_dir = ($devdb_dir | path join "run")
           let log_file = ($devdb_dir | path join "postgres.log")
+          let port = (repo-db-port $repo_dir)
 
           mkdir $socket_dir
 
@@ -214,11 +235,22 @@
           if ($pid_file | path exists) {
             print "Dev Postgres already running."
           } else {
-            ^${pkgs.postgresql}/bin/pg_ctl start -D $data_dir -l $log_file -o $"-p ${toString devDbPort} -k '($socket_dir)' -h 127.0.0.1"
-            print $"Dev Postgres started on 127.0.0.1:${toString devDbPort}"
+            let start_result = (^${pkgs.postgresql}/bin/pg_ctl start -D $data_dir -l $log_file -o $"-p ($port) -k '($socket_dir)' -h 127.0.0.1" | complete)
+            if $start_result.exit_code != 0 {
+              print -e $"Failed to start dev Postgres for ($repo_dir) on 127.0.0.1:($port)."
+              print -e $start_result.stdout
+              print -e $start_result.stderr
+              print -e ""
+              print -e $"Postgres log \(likely has the real reason\): ($log_file)"
+              print -e ""
+              print -e $"If the log says something like 'Address already in use' / 'Is another postmaster already running on port ($port)', another process is already bound to 127.0.0.1:($port) - check with: ss -ltnp | grep ($port)"
+              print -e $"This port is derived from this checkout's own path \(($repo_dir)\), so a collision here is NOT the usual case of two worktrees sharing one hardcoded port; it means something unrelated on the host already owns 127.0.0.1:($port), or this exact checkout has a stray postgres from an earlier run \(check `pg_ctl status -D ($data_dir)`\)."
+              exit 1
+            }
+            print $"Dev Postgres started on 127.0.0.1:($port)"
           }
 
-          let result = (^${pkgs.postgresql}/bin/createdb -h 127.0.0.1 -p ${toString devDbPort} -U vanl vanl_dev | complete)
+          let result = (^${pkgs.postgresql}/bin/createdb -h 127.0.0.1 -p $port -U vanl vanl_dev | complete)
           if $result.exit_code == 0 {
             print "Created database vanl_dev"
           }
@@ -227,7 +259,7 @@
           # used to do that against the same DB the interactive `bun run
           # dev` session uses, destroying real manually-created data more
           # than once. Same Postgres instance, different database.
-          let test_result = (^${pkgs.postgresql}/bin/createdb -h 127.0.0.1 -p ${toString devDbPort} -U vanl vanl_test | complete)
+          let test_result = (^${pkgs.postgresql}/bin/createdb -h 127.0.0.1 -p $port -U vanl vanl_test | complete)
           if $test_result.exit_code == 0 {
             print "Created database vanl_test"
           }
@@ -241,6 +273,7 @@
           let repo_dir = ($repo_dir | path expand)
           let data_dir = ($repo_dir | path join ".devdb" "data")
           let pid_file = ($data_dir | path join "postmaster.pid")
+          let port = (repo-db-port $repo_dir)
 
           if not ($pid_file | path exists) {
             print "Dev Postgres is not running."
@@ -249,7 +282,7 @@
 
           let result = (^${pkgs.postgresql}/bin/pg_ctl status -D $data_dir | complete)
           if $result.exit_code == 0 {
-            print $"Dev Postgres is running on 127.0.0.1:${toString devDbPort}."
+            print $"Dev Postgres is running on 127.0.0.1:($port)."
           } else {
             print "Dev Postgres is not running (stale postmaster.pid?)."
             exit 1
@@ -264,6 +297,7 @@
           let repo_dir = ($repo_dir | path expand)
           let data_dir = ($repo_dir | path join ".devdb" "data")
           let pid_file = ($data_dir | path join "postmaster.pid")
+          let port = (repo-db-port $repo_dir)
 
           if not ($pid_file | path exists) {
             print -e "Dev Postgres is not running. Start it with: nix run .#devdb-start"
@@ -274,7 +308,7 @@
           # `exec` — nushell's `exec` has its own -h/--help flag, so a literal
           # `-h` here gets parsed as exec's --help (swallowing every arg after
           # it) instead of being passed through to psql.
-          let psql_args = ["-h" "127.0.0.1" "-p" "${toString devDbPort}" "-U" "vanl" "vanl_dev"]
+          let psql_args = ["-h" "127.0.0.1" "-p" ($port | into string) "-U" "vanl" "vanl_dev"]
           exec ${pkgs.postgresql}/bin/psql ...$psql_args
         }
       '';
@@ -293,6 +327,18 @@
         }
       '';
 
+      # Standalone entry point for `repo-db-port` so bash scripts (e.g.
+      # check-project below) and humans debugging a port collision can get
+      # this checkout's dev Postgres port without going through one of the
+      # other nu scripts above.
+      repoDbPort = pkgs.writeScriptBin "repo-db-port" ''
+        ${nuShellScript}
+
+        def main [--repo-dir: string = "."] {
+          print (repo-db-port ($repo_dir | path expand))
+        }
+      '';
+
       # Start database, seed dev user and start webserver
       # Stops everything on Ctrl+c
       devRun = pkgs.writeScriptBin "web-dev" ''
@@ -303,6 +349,11 @@
           cd $repo_dir
           $env.PATH = $"${pkgs.lib.makeBinPath checkPkgs}:($env.PATH? | default "")"
           $env.LD_LIBRARY_PATH = $"${nativeLibPath}:($env.LD_LIBRARY_PATH? | default "")"
+          # This checkout's own dev Postgres port (see repo-db-port above) -
+          # config.ts reads VANL_DB_PORT to override configs/dev.toml's
+          # `database.port`, since that file is checked into git and can't
+          # hardcode a value that differs per worktree.
+          $env.VANL_DB_PORT = ((repo-db-port $repo_dir) | into string)
 
           ^${devDbStart}/bin/devdb-start --repo-dir $repo_dir
           if ($env.DEV_ACI? | default "") != "" {
@@ -324,6 +375,9 @@
         # PATH (not just invoked once by store path below).
         export PATH="${pkgs.lib.makeBinPath checkPkgs}:$PATH"
         export LD_LIBRARY_PATH="${nativeLibPath}:''${LD_LIBRARY_PATH:-}"
+        # See repo-db-port's comment in devRun above: vitest.global-setup.ts
+        # forwards this to configs/test.toml's port override.
+        export VANL_DB_PORT="$(${repoDbPort}/bin/repo-db-port)"
         ${pkgs.bun}/bin/bun install --frozen-lockfile
         ${pkgs.bun}/bin/bun run format:check
         ${pkgs.bun}/bin/bun run lint
@@ -392,6 +446,10 @@
         devdb-stop = {
           type = "app";
           program = "${devDbStop}/bin/devdb-stop";
+        };
+        repo-db-port = {
+          type = "app";
+          program = "${repoDbPort}/bin/repo-db-port";
         };
       };
     }))

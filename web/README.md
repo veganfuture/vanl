@@ -50,16 +50,27 @@ a couple of helper commands that manage a throwaway Postgres instance living und
 nix run .#devdb-start
 ```
 
-This initializes `.devdb/data` on first run, starts `postgres` listening on
-`127.0.0.1:54329`, and creates two databases in that same instance: `vanl_dev` (the one
-`configs/dev.toml` points at — your interactive data lives here) and `vanl_test`
-(`configs/test.toml` — what the test suite actually runs against, see below). It's safe to run
-again — it no-ops if the dev database is already running.
+This initializes `.devdb/data` on first run and starts `postgres` listening on
+`127.0.0.1:<port>`, where `<port>` is derived deterministically from this checkout's own
+absolute path (`repo-db-port` in `flake.nix` — hash the path, map into `40000-49999`), *not* a
+single fixed port shared by every checkout. This means two different worktrees of this repo can
+each run their own dev Postgres at the same time without fighting over one port — run
+`nix run .#repo-db-port` to see what port a given checkout resolves to. It also creates two
+databases in that instance: `vanl_dev` (the one `configs/dev.toml` points at by default — your
+interactive data lives here) and `vanl_test` (`configs/test.toml` — what the test suite actually
+runs against, see below). It's safe to run again — it no-ops if the dev database is already
+running.
+
+`nix run .#dev` and `nix run .#check` both set `VANL_DB_PORT` for you automatically (this is what
+makes `configs/dev.toml`/`configs/test.toml`'s checked-in `port = 54329` correct even though the
+real port differs per checkout — `src/lib/config.ts` overrides the TOML's `database.port` with
+`VANL_DB_PORT` when it's set). If you're running `bun run dev`/`bun run migrate`/psql by hand
+instead of through one of those two `nix run` commands, export it yourself first.
 
 ### Run migrations
 
 ```bash
-VANL_CONFIG_PATH=configs/dev.toml VANL_DATABASE_PASSWORD= bun run migrate
+VANL_CONFIG_PATH=configs/dev.toml VANL_DATABASE_PASSWORD= VANL_DB_PORT=$(nix run .#repo-db-port) bun run migrate
 ```
 
 (`VANL_DATABASE_PASSWORD` is empty because the dev database is started with `--auth=trust` —
@@ -71,7 +82,7 @@ password-less, loopback-only. Never do this in production.)
 nix run .#devdb-status
 ```
 
-Exits 0 and prints `Dev Postgres is running on 127.0.0.1:54329.` if it is; exits 1 with a
+Exits 0 and prints `Dev Postgres is running on 127.0.0.1:<port>.` if it is; exits 1 with a
 message otherwise.
 
 ### Open a psql prompt against it
@@ -81,6 +92,25 @@ nix run .#devdb-repl
 ```
 
 Connects to `vanl_dev` as the `vanl` user. No password needed (same `--auth=trust` as above).
+
+### If `devdb-start`/`nix run .#dev` fails to start Postgres
+
+`devdb-start` now prints the actual `pg_ctl` output plus a hint when the start fails, but in
+short: if the Postgres log (path is printed in the error, normally `.devdb/postgres.log`) says
+something like
+
+```
+could not bind IPv4 address "127.0.0.1": Address already in use
+FATAL:  could not create any TCP/IP sockets
+```
+
+then some other process already owns `127.0.0.1:<port>` for this checkout's port. Check with
+`ss -ltnp | grep <port>`. Since the port is now derived from this checkout's own path, this is
+*not* the old "two worktrees sharing one hardcoded port" bug — it means either this exact
+checkout already has a stray `postgres` running from an earlier `nix run .#dev`/`.#check` that
+didn't get cleaned up (check `nix run .#devdb-status`, or `pg_ctl status -D .devdb/data`), or
+something unrelated on the host happens to be using that port (rare, but possible — the range is
+`40000-49999`).
 
 ### Stop it
 
