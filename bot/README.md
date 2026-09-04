@@ -2,7 +2,7 @@
 
 This project runs a **Signal bot** on a NixOS server, composed declaratively via
 `../server/flake.nix`. This flake exposes a `nixosModules.default` (`services.vanl-bot`) that
-`server/` imports; the bot's code ships as a fully pre-built Nix package (`bot-venv`), so
+`server/` imports; the bot's code ships as a fully pre-built Nix package (`bot`), so
 `nixos-rebuild switch` — run from `../server/`, see the root `README.md` — is the entire deploy
 story: no git pull, no polling, no separate install step on the server itself.
 
@@ -25,7 +25,7 @@ This ensures the server always runs with the correct versions.
 
 ### 2. Python virtual environment
 
-In production, the venv is built once as a Nix package (`bot-venv`, a fixed-output derivation
+In production, the venv is built once as a Nix package (`bot`, a fixed-output derivation
 that runs `uv export`/`uv pip install --target` — see `flake.nix`) and shipped as an immutable
 Nix store path; `bot.service` execs its installed console script directly, no `uv` invocation at
 service-start time. For local development, `nix develop` runs `uv sync --frozen` into a regular
@@ -53,7 +53,7 @@ Two systemd units manage the bot, declared by `nixosModules.default` (`services.
 | `signal-daemon.service` | Runs persistent `signal-cli` daemon |
 | `bot.service`    | Runs the bot                        |
 
-Both restart automatically whenever `bot-venv`'s contents change (`restartTriggers`), which
+Both restart automatically whenever `bot`'s contents change (`restartTriggers`), which
 happens as part of `nixos-rebuild switch` — see the root `README.md`'s "Deploying" section.
 
 ---
@@ -144,7 +144,7 @@ Before the bot will work you need to link the new device (the server) to the Sig
 `nixos-rebuild switch --target-host`, run from `../server/` (see the root `README.md`), is the
 entire deploy story — for both infrastructure changes and new bot code. There's no separate
 install step, no polling, no git pull on the server: `bot.service` execs a fully pre-built Nix
-package (`bot-venv`) directly, and `restartTriggers` restarts it automatically whenever that
+package (`bot`) directly, and `restartTriggers` restarts it automatically whenever that
 package's contents change.
 
 ---

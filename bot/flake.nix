@@ -44,9 +44,12 @@
         }
       '';
 
-      # Dev-time convenience only (`nix run .#bot` against a live local checkout) - the
-      # production systemd unit no longer uses this at all, see nixosModules.default's
-      # bot.service, which execs botVenv's installed console script directly.
+      # Dev-time convenience only (`nix run .#bot` against a live local checkout, or as the
+      # foreground half of `nix run .#dev` below) - the production systemd unit no longer uses
+      # this at all, see nixosModules.default's bot.service, which execs botVenv's installed
+      # console script directly. Still useful standalone when the daemon is already running
+      # separately (e.g. iterating on bot code without restarting signal-cli/re-linking its
+      # socket).
       runBot = pkgs.writeScriptBin "bot-run" ''
         ${nuShellScript}
 
@@ -194,7 +197,7 @@
       # at all. See the comment on botDeps above for why this has to be a separate, non-FOD
       # stage in the first place.
       botVenv = pkgs.stdenv.mkDerivation {
-        pname = "bot-venv";
+        pname = "bot";
         version = "0";
         src = self;
         dontBuild = true;
@@ -274,49 +277,41 @@
       '';
 
       # Dev-time convenience (`nix run .#dev`), mirroring web/flake.nix's `dev` app: starts
-      # signal-daemon-run in the background, then bot-run in the foreground against
-      # configs/dev.toml, and kills the daemon on exit (Ctrl+C included) via the EXIT trap.
-      # Plain bash rather than the nushell helper used elsewhere in this file - trap/kill/wait
-      # based cleanup of a background process is simpler to get right in bash than via nushell's
-      # newer `job spawn`/`job kill`.
+      # signal-daemon-run as a background job, then bot-run in the foreground against
+      # configs/dev.toml, and kills the daemon job once bot-run exits - including on Ctrl+C,
+      # which lands in the catch block same as web/flake.nix's devRun.
       #
       # Checked here up front (not just left to signal-daemon-run's/bot-run's own checks) so a
       # missing var is reported before either process starts, rather than after the daemon's
       # already running with nothing left to clean it up on the bot's subsequent failure. Values
       # for local development live in bot/.envrc (gitignored, direnv-sourced).
       runDev = pkgs.writeScriptBin "bot-dev" ''
-        #!/usr/bin/env bash
-        set -euo pipefail
+        ${nuShellScript}
 
-        repo_dir="."
-        config="configs/dev.toml"
-        while [ $# -gt 0 ]; do
-          case "$1" in
-            --repo-dir) repo_dir="$2"; shift 2 ;;
-            --config) config="$2"; shift 2 ;;
-            *) echo "Unknown argument: $1" >&2; exit 1 ;;
-          esac
-        done
+        def main [
+          --repo-dir: string = "."
+          --config: string = "configs/dev.toml"
+        ] {
+          let repo_dir = ($repo_dir | path expand)
 
-        missing=()
-        for var in VANL_BOT_SIGNAL_ACCOUNT VANL_SIGNUP_PRIVATE_KEY VANL_BOT_API_SHARED_SECRET; do
-          if [ -z "''${!var:-}" ]; then
-            missing+=("$var")
-          fi
-        done
-        if [ ''${#missing[@]} -gt 0 ]; then
-          echo "Error: Missing required environment variable(s) (see bot/.envrc):" >&2
-          for var in "''${missing[@]}"; do
-            echo "  - $var" >&2
-          done
-          exit 1
-        fi
+          let missing_env = (
+            ["VANL_BOT_SIGNAL_ACCOUNT" "VANL_SIGNUP_PRIVATE_KEY" "VANL_BOT_API_SHARED_SECRET"]
+            | where {|name| ($env | get -o $name | default "") == ""}
+          )
+          if ($missing_env | length) > 0 {
+            print -e "Error: Missing required environment variable(s) (see bot/.envrc):"
+            for name in $missing_env { print -e $"  - ($name)" }
+            exit 1
+          }
 
-        ${runSignalDaemon}/bin/signal-daemon-run --signal-daemon-dir "$repo_dir" &
-        daemon_pid=$!
-        trap 'kill "$daemon_pid" 2>/dev/null || true; wait "$daemon_pid" 2>/dev/null || true' EXIT INT TERM
-
-        ${runBot}/bin/bot-run --repo-dir "$repo_dir" --config "$config"
+          let daemon_job = (job spawn { ^${runSignalDaemon}/bin/signal-daemon-run --signal-daemon-dir $repo_dir })
+          try {
+            ^${runBot}/bin/bot-run --repo-dir $repo_dir --config $config
+          } catch {
+            # Ctrl+C lands here too - fall through to stop the daemon below.
+          }
+          job kill $daemon_job
+        }
       '';
     in {
       packages = {
@@ -330,7 +325,7 @@
         link = link;
         bot-deps = botDeps;
         bot-deps-hash-check = botDepsHashCheck;
-        bot-venv = botVenv;
+        bot = botVenv;
       };
 
       devShells.default = pkgs.mkShell {
@@ -463,14 +458,14 @@
             wants = ["network-online.target"];
             requires = ["signal-daemon.service"];
             wantedBy = ["multi-user.target"];
-            restartTriggers = [botSelf.packages.${pkgs.system}.bot-venv];
+            restartTriggers = [botSelf.packages.${pkgs.system}.bot];
             serviceConfig = {
               Type = "simple";
               User = cfg.user;
               Group = cfg.group;
               WorkingDirectory = "/var/lib/${cfg.user}";
               StateDirectory = cfg.user;
-              ExecStart = "${botSelf.packages.${pkgs.system}.bot-venv}/bin/bot --config ${cfg.configFile}";
+              ExecStart = "${botSelf.packages.${pkgs.system}.bot}/bin/bot --config ${cfg.configFile}";
               EnvironmentFile = cfg.environmentFile;
               Restart = "always";
               RestartSec = 2;
