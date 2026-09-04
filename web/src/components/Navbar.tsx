@@ -57,6 +57,124 @@ function isFrontPage(pathname: string): boolean {
   return /^\/(nl|en)?\/?$/.test(pathname);
 }
 
+/** Desktop account dropdown - My events / My organizations / Account / Sign out. */
+function AccountMenu(props: {
+  lang: Locale;
+  displayName: string;
+  accountLinks: NavLink[];
+  loggingOut: boolean;
+  onLogout: () => void;
+}) {
+  return (
+    <details class="relative group">
+      <summary class="list-none flex cursor-pointer items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm hover:border-zinc-400">
+        <span class="max-w-[10rem] truncate">{props.displayName}</span>
+        <svg
+          class="h-3 w-3 text-zinc-500 transition-transform duration-200 group-open:rotate-180"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </summary>
+
+      <div class="absolute right-0 z-10 mt-2 w-48 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
+        <For each={props.accountLinks}>
+          {(link) => (
+            <a
+              href={link.href}
+              class="block px-3 py-2 text-sm text-zinc-800 no-underline hover:bg-zinc-50"
+            >
+              {link.label}
+            </a>
+          )}
+        </For>
+        <button
+          type="button"
+          disabled={props.loggingOut}
+          onClick={() => props.onLogout()}
+          class="block w-full px-3 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
+        >
+          {props.loggingOut
+            ? props.lang === "nl"
+              ? "Bezig met uitloggen…"
+              : "Logging out…"
+            : props.lang === "nl"
+              ? "Uitloggen"
+              : "Sign out"}
+        </button>
+      </div>
+    </details>
+  );
+}
+
+/** Mobile nested collapsible - same items as AccountMenu, opened inside the hamburger sheet. */
+function MobileAccountMenu(props: {
+  lang: Locale;
+  t: (nl: string, en: string) => string;
+  accountLinks: NavLink[];
+  loggingOut: boolean;
+  onNavigate: () => void;
+  onLogout: () => void;
+}) {
+  const [open, setOpen] = createSignal(false);
+
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={open()}
+        aria-controls="mobile-account-menu-panel"
+        onClick={() => setOpen((current) => !current)}
+        class={`${linkClass} flex w-full items-center justify-between`}
+      >
+        <span>{props.t("Account", "Account")}</span>
+        <svg
+          class={`h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-200 ${open() ? "rotate-180" : "rotate-0"}`}
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      <Show when={open()}>
+        <div id="mobile-account-menu-panel" class="space-y-1 py-1 pl-4">
+          <For each={props.accountLinks}>
+            {(link) => (
+              <a
+                href={link.href}
+                class={linkClass}
+                onClick={() => {
+                  setOpen(false);
+                  props.onNavigate();
+                }}
+              >
+                {link.label}
+              </a>
+            )}
+          </For>
+          <button
+            type="button"
+            disabled={props.loggingOut}
+            onClick={() => props.onLogout()}
+            class={`${linkClass} w-full text-left disabled:opacity-50`}
+          >
+            {props.loggingOut
+              ? props.t("Bezig met uitloggen…", "Logging out…")
+              : props.t("Uitloggen", "Sign out")}
+          </button>
+        </div>
+      </Show>
+    </div>
+  );
+}
+
 export function Navbar() {
   const location = useLocation();
   const { lang, t } = useLang();
@@ -88,18 +206,17 @@ export function Navbar() {
       { label: t("Evenementen", "Events"), href: `/${lang()}/events` },
       { label: t("Organisaties", "Organizations"), href: `/${lang()}/organizations` },
     ];
-    if (me()) {
-      base.push({ label: t("Mijn evenementen", "My events"), href: `/${lang()}/events/mine` });
-      base.push({
-        label: t("Mijn organisaties", "My organizations"),
-        href: `/${lang()}/organizations/mine`,
-      });
-      if (me()?.isSiteAdmin) {
-        base.push({ label: t("Gebruikers", "Users"), href: `/${lang()}/admin/users` });
-      }
+    if (me()?.isSiteAdmin) {
+      base.push({ label: t("Gebruikers", "Users"), href: `/${lang()}/admin/users` });
     }
     return base;
   };
+
+  const accountLinks = (): NavLink[] => [
+    { label: t("Mijn evenementen", "My events"), href: `/${lang()}/events/mine` },
+    { label: t("Mijn organisaties", "My organizations"), href: `/${lang()}/organizations/mine` },
+    { label: t("Account", "Account"), href: `/${lang()}/account` },
+  ];
 
   return (
     <nav class="border-b border-zinc-200 bg-white">
@@ -134,25 +251,21 @@ export function Navbar() {
               when={!me.loading && me()}
               fallback={
                 <Show when={!me.loading}>
-                  <a href={`/${lang()}/signup-help`} class={linkClass}>
-                    {t("Account aanmaken", "Create account")}
-                  </a>
                   <a href={`/${lang()}/login`} class={linkClass}>
-                    {t("Inloggen", "Login")}
+                    {t("Login / Aanmelden", "Login / Signup")}
                   </a>
                 </Show>
               }
             >
-              <button
-                type="button"
-                disabled={loggingOut()}
-                onClick={onLogout}
-                class={`${linkClass} disabled:opacity-50`}
-              >
-                {loggingOut()
-                  ? t("Bezig met uitloggen…", "Logging out…")
-                  : t("Uitloggen", "Logout")}
-              </button>
+              {(currentMe) => (
+                <AccountMenu
+                  lang={lang()}
+                  displayName={currentMe().displayName}
+                  accountLinks={accountLinks()}
+                  loggingOut={loggingOut()}
+                  onLogout={onLogout}
+                />
+              )}
             </Show>
           </Show>
           <LanguageSwitcher pathname={location.pathname} />
@@ -200,32 +313,23 @@ export function Navbar() {
               fallback={
                 <Show when={!me.loading}>
                   <a
-                    href={`/${lang()}/signup-help`}
-                    class={linkClass}
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    {t("Account aanmaken", "Create account")}
-                  </a>
-                  <a
                     href={`/${lang()}/login`}
                     class={linkClass}
                     onClick={() => setMobileOpen(false)}
                   >
-                    {t("Inloggen", "Login")}
+                    {t("Login / Aanmelden", "Login / Signup")}
                   </a>
                 </Show>
               }
             >
-              <button
-                type="button"
-                disabled={loggingOut()}
-                onClick={onLogout}
-                class={`${linkClass} w-full text-left disabled:opacity-50`}
-              >
-                {loggingOut()
-                  ? t("Bezig met uitloggen…", "Logging out…")
-                  : t("Uitloggen", "Logout")}
-              </button>
+              <MobileAccountMenu
+                lang={lang()}
+                t={t}
+                accountLinks={accountLinks()}
+                loggingOut={loggingOut()}
+                onNavigate={() => setMobileOpen(false)}
+                onLogout={onLogout}
+              />
             </Show>
           </Show>
           <div class="px-3 py-2">

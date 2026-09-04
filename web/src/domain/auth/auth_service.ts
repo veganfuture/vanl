@@ -54,6 +54,13 @@ export type VerifyLoginError =
 
 export type InspectSignupTokenError = "invalid" | "already_used" | "internal_error";
 
+export type UpdateOwnProfileInput = {
+  email: string;
+  displayName: string;
+  affiliationsNote: string | null;
+};
+export type UpdateOwnProfileError = "validation" | "internal_error";
+
 // Browsers (Chrome since 2023) cap Set-Cookie Max-Age at 400 days regardless
 // of what's requested — this is as close to "remembered indefinitely" as a
 // cookie can actually get.
@@ -348,6 +355,28 @@ export class AuthService {
       logger.error({ err: dbError }, "failed to find user by id");
       return okAsync(null);
     });
+  }
+
+  /** Account page self-service edit - account_name is deliberately not editable here. */
+  updateOwnProfile(
+    id: UserId,
+    input: UpdateOwnProfileInput,
+  ): ResultAsync<User, UpdateOwnProfileError> {
+    const email = input.email.trim();
+    const displayName = input.displayName.trim();
+    if (!email || !displayName) {
+      return errAsync("validation");
+    }
+    return this.repository
+      .updateProfile(id, {
+        email,
+        displayName,
+        affiliationsNote: input.affiliationsNote?.trim() || null,
+      })
+      .mapErr((dbError): UpdateOwnProfileError => {
+        logger.error({ err: dbError }, "failed to update own profile");
+        return "internal_error";
+      });
   }
 
   /** Admin "Users" detail page only - site_admin gate lives in admin_users.ts, same split as every other admin mutation there. */

@@ -89,6 +89,12 @@ export type NewUserInput = {
   affiliationsNote: string | null;
 };
 
+export type UpdateProfileInput = {
+  email: string;
+  displayName: string;
+  affiliationsNote: string | null;
+};
+
 export type NewSession = { userId: UserId; tokenHash: string; expiresAt: Date };
 
 export type ActiveSession = { userId: UserId; expiresAt: Date };
@@ -234,6 +240,20 @@ export class AuthRepository {
         returning *
       `,
       (cause): DbError => ({ message: "Failed to set user disabled", cause }),
+    ).andThen((rows) => mapUserRow(rows[0]));
+  }
+
+  /** Self-service profile edit (Account page) - account_name is deliberately not editable here. */
+  updateProfile(id: UserId, input: UpdateProfileInput): ResultAsync<User, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        update users
+        set email = ${input.email}, display_name = ${input.displayName},
+            affiliations_note = ${input.affiliationsNote}, updated_at = now()
+        where id = ${id.value}
+        returning *
+      `,
+      (cause): DbError => ({ message: "Failed to update user profile", cause }),
     ).andThen((rows) => mapUserRow(rows[0]));
   }
 
