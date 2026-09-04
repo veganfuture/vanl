@@ -155,7 +155,7 @@ export default function LoginPage() {
       });
       result.match(
         () => {
-          window.location.href = `/${lang()}`;
+          window.location.href = `/${lang()}/events`;
         },
         (error) => setError(describeApiError(error, LOGIN_ERROR_MESSAGES)),
       );

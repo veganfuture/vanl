@@ -4,11 +4,20 @@ import { EventThumbnail } from "~/components/EventThumbnail";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch } from "~/lib/api-fetch";
 import { pickLocalized, useLang } from "~/lib/i18n";
+import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
 import { ListOrganizationsResponseSchema } from "~/routes/api/organizations/index.schema";
 
 export default function EventsListPage() {
   const { lang, t } = useLang();
+
+  const [me] = createResource(async () => {
+    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
+    return result.match(
+      (data) => data.user,
+      () => null,
+    );
+  });
 
   const locationKindLabels: Record<string, string> = {
     precise_address: t("Exact adres", "Precise address"),
@@ -55,12 +64,14 @@ export default function EventsListPage() {
       <Title>{t("Evenementen", "Events")} — Vegan Activists NL</Title>
       <div class="mb-6 flex items-center justify-between">
         <h1 class="text-2xl font-semibold">{t("Evenementen", "Events")}</h1>
-        <a
-          href={`/${lang()}/events/new`}
-          class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
-        >
-          {t("Evenement aanmaken", "Create event")}
-        </a>
+        <Show when={me()}>
+          <a
+            href={`/${lang()}/events/new`}
+            class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            {t("Evenement aanmaken", "Create event")}
+          </a>
+        </Show>
       </div>
 
       <Show
@@ -93,6 +104,7 @@ export default function EventsListPage() {
                     <Show when={statusLabels[event.status]}>
                       <span class="ml-2 inline-block rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
                         {statusLabels[event.status]}
+                        {event.statusReason ? ` — ${event.statusReason}` : ""}
                       </span>
                     </Show>
                     <p class="text-sm text-zinc-600">{formatDate(event.startAt)}</p>
@@ -105,6 +117,15 @@ export default function EventsListPage() {
             </For>
           </ul>
         </Show>
+      </Show>
+
+      <Show when={!me.loading && !me()}>
+        <p class="mt-8 text-center text-sm text-zinc-600">
+          {t("Wil je een evenement aanmaken? ", "Want to create an event? ")}
+          <a href={`/${lang()}/signup-help`} class="underline">
+            {t("Meld je aan om een account te maken.", "Sign up to create an account.")}
+          </a>
+        </p>
       </Show>
     </main>
   );

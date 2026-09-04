@@ -146,6 +146,22 @@ export default function EventDetailPage() {
     const currentEvent = event();
     if (!currentEvent) return;
     const title = pickLocalized(currentEvent.titleNl, currentEvent.titleEn, lang());
+
+    let statusReason: string | null = null;
+    if (status === "hidden" || status === "cancelled") {
+      const promptMessage =
+        status === "cancelled"
+          ? t(`Reden voor annuleren van "${title}":`, `Reason for cancelling "${title}":`)
+          : t(`Reden voor verbergen van "${title}":`, `Reason for hiding "${title}":`);
+      const input = window.prompt(promptMessage);
+      if (input === null) return;
+      statusReason = input.trim();
+      if (!statusReason) {
+        setActionError(t("Een reden is verplicht.", "A reason is required."));
+        return;
+      }
+    }
+
     if (
       status === "cancelled" &&
       !window.confirm(t(`"${title}" annuleren?`, `Cancel "${title}"?`))
@@ -153,16 +169,11 @@ export default function EventDetailPage() {
       return;
     }
     setActionError(null);
-    const statusReasons: Record<string, string | null> = {
-      hidden: t("Verborgen door moderator", "Hidden by moderator"),
-      cancelled: t("Geannuleerd door moderator", "Cancelled by moderator"),
-      visible: null,
-    };
     const result = await apiFetch(`/api/events/${currentEvent.id}/status`, {
       request: SetEventStatusRequestSchema,
       body: {
         status,
-        statusReason: statusReasons[status],
+        statusReason,
       },
       response: SetEventStatusResponseSchema,
     });
