@@ -1,5 +1,6 @@
 import type { APIEvent } from "@solidjs/start/server";
 import { authService } from "~/domain/auth/auth_service";
+import { resolveActingUserForUser } from "~/domain/auth/acting_user";
 import type { MeResponse } from "./me.schema";
 
 export async function GET(event: APIEvent): Promise<Response> {
@@ -13,18 +14,14 @@ export async function GET(event: APIEvent): Promise<Response> {
     return Response.json({ user: null } satisfies MeResponse);
   }
 
-  const adminResult = await authService.isSiteAdmin(user.id);
-  const isSiteAdmin = adminResult.match(
-    (v) => v,
-    () => false,
-  );
+  const actingUser = await resolveActingUserForUser(user);
 
   return Response.json({
     user: {
       id: user.id.value,
       accountName: user.accountName.value,
       displayName: user.displayName,
-      isSiteAdmin,
+      isSiteAdmin: actingUser.isSiteAdmin,
     },
   } satisfies MeResponse);
 }

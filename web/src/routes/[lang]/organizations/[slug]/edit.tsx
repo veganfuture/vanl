@@ -12,9 +12,7 @@ import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError } from "~/lib/api-fetch";
 import { useLang } from "~/lib/i18n";
 import { uploadImage } from "~/lib/upload-image";
-import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { GetOrganizationBySlugResponseSchema } from "~/routes/api/organizations/by-slug/[slug].schema";
-import { MyOrganizationsResponseSchema } from "~/routes/api/organizations/mine.schema";
 import { OrganizationRequestSchema } from "~/routes/api/organizations/organization.schema";
 import { UpdateOrganizationResponseSchema } from "~/routes/api/organizations/[id].schema";
 
@@ -35,35 +33,11 @@ export default function EditOrganizationPage() {
     },
   );
 
-  const [me] = createResource(async () => {
-    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
-    return result.match(
-      (data) => data.user,
-      () => null,
-    );
-  });
-
-  const [myOrgs] = createResource(async () => {
-    const result = await apiFetch("/api/organizations/mine", {
-      response: MyOrganizationsResponseSchema,
-    });
-    return result.match(
-      (data) => data.organizations,
-      () => [],
-    );
-  });
-
-  // Client-side gate only - the server (OrganizationService.requireOrgAdmin)
-  // is the real authorization boundary. listMyOrganizations only returns
-  // orgs actingUser belongs to at all (either role), so this over-shows the
-  // form to org_editors too; they'll correctly get "forbidden" on save.
-  const canEdit = () => {
-    const currentUser = me();
-    const currentOrg = org();
-    if (!currentUser || !currentOrg) return false;
-    if (currentUser.isSiteAdmin) return true;
-    return (myOrgs() ?? []).some((myOrg) => myOrg.id === currentOrg.id);
-  };
+  // Deliberately the looser "any member" gate (org.isMember), not
+  // org.canManage - it over-shows the form to org_editors too; they'll
+  // correctly get "forbidden" on save from OrganizationService.requireOrgAdmin,
+  // the real authorization boundary.
+  const canEdit = () => org()?.isMember ?? false;
 
   async function onSubmit(values: OrganizationFormValues, logoFile: File | null) {
     const currentOrg = org();
@@ -113,10 +87,7 @@ export default function EditOrganizationPage() {
       <Title>{t("Organisatie bewerken", "Edit organization")} — Vegan Activists NL</Title>
       <h1 class="mb-6 text-2xl font-semibold">{t("Organisatie bewerken", "Edit organization")}</h1>
 
-      <Show
-        when={!org.loading && !me.loading && !myOrgs.loading}
-        fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}
-      >
+      <Show when={!org.loading} fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
         <Show
           when={org()}
           fallback={

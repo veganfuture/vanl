@@ -6,9 +6,7 @@ import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch } from "~/lib/api-fetch";
 import { imageUrl } from "~/lib/image-url";
 import { pickLocalized, useLang } from "~/lib/i18n";
-import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { GetOrganizationBySlugResponseSchema } from "~/routes/api/organizations/by-slug/[slug].schema";
-import { MyOrganizationsResponseSchema } from "~/routes/api/organizations/mine.schema";
 import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
 
 export default function OrganizationDetailPage() {
@@ -42,31 +40,7 @@ export default function OrganizationDetailPage() {
     },
   );
 
-  const [me] = createResource(async () => {
-    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
-    return result.match(
-      (data) => data.user,
-      () => null,
-    );
-  });
-
-  const [myOrgs] = createResource(async () => {
-    const result = await apiFetch("/api/organizations/mine", {
-      response: MyOrganizationsResponseSchema,
-    });
-    return result.match(
-      (data) => data.organizations,
-      () => [],
-    );
-  });
-
-  const canManage = () => {
-    const currentUser = me();
-    const currentOrg = org();
-    if (!currentUser || !currentOrg) return false;
-    if (currentUser.isSiteAdmin) return true;
-    return (myOrgs() ?? []).some((myOrg) => myOrg.id === currentOrg.id);
-  };
+  const canManage = () => org()?.isMember ?? false;
 
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleString(lang() === "nl" ? "nl-NL" : "en-GB", {

@@ -1,7 +1,11 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { organizationService } from "~/domain/organizations/organization_service";
+import {
+  canManageOrg,
+  isOrgMember,
+  organizationService,
+} from "~/domain/organizations/organization_service";
 import { OrganizationId } from "~/domain/organizations/organization_id";
-import { resolveActingUser } from "~/lib/acting-user";
+import { resolveActingUser } from "~/domain/auth/acting_user";
 import { toOrganizationJson } from "../organization.schema";
 import type { UploadLogoResponse } from "./logo.schema";
 
@@ -17,7 +21,7 @@ const ERROR_STATUS: Record<string, number> = {
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 export async function POST(event: APIEvent): Promise<Response> {
-  const actingUser = await resolveActingUser(event.request.headers.get("cookie"));
+  const actingUser = await resolveActingUser(event.request);
   if (!actingUser) {
     return Response.json({ error: "unauthorized" } satisfies UploadLogoResponse, {
       status: ERROR_STATUS.unauthorized,
@@ -47,7 +51,14 @@ export async function POST(event: APIEvent): Promise<Response> {
 
   const result = await organizationService.replaceLogo(actingUser, orgIdResult.value, bytes);
   return result.match(
-    (updated) => Response.json(toOrganizationJson(updated) satisfies UploadLogoResponse),
+    (updated) =>
+      Response.json(
+        toOrganizationJson(
+          updated,
+          canManageOrg(updated.id.value, actingUser),
+          isOrgMember(updated.id.value, actingUser),
+        ) satisfies UploadLogoResponse,
+      ),
     (error) =>
       Response.json({ error } satisfies UploadLogoResponse, { status: ERROR_STATUS[error] }),
   );

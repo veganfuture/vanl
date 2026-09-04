@@ -6,7 +6,6 @@ import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { pickLocalized, useLang } from "~/lib/i18n";
 import { imageUrl } from "~/lib/image-url";
-import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { GetEventBySlugResponseSchema } from "~/routes/api/events/by-slug/[slug].schema";
 import {
   DeleteEventResponseSchema,
@@ -114,20 +113,7 @@ export default function EventDetailPage() {
     },
   );
 
-  const [me] = createResource(async () => {
-    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
-    return result.match(
-      (data) => data.user,
-      () => null,
-    );
-  });
-
-  const canModerate = () => {
-    const currentUser = me();
-    const currentEvent = event();
-    if (!currentUser || !currentEvent) return false;
-    return currentUser.isSiteAdmin || currentUser.id === currentEvent.publisherUserId;
-  };
+  const canModerate = () => event()?.canEdit ?? false;
 
   async function onDelete() {
     const currentEvent = event();

@@ -1,7 +1,11 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { organizationService } from "~/domain/organizations/organization_service";
+import {
+  canManageOrg,
+  isOrgMember,
+  organizationService,
+} from "~/domain/organizations/organization_service";
 import { OrganizationId } from "~/domain/organizations/organization_id";
-import { resolveActingUser } from "~/lib/acting-user";
+import { resolveActingUser } from "~/domain/auth/acting_user";
 import { parseJsonBody } from "~/lib/http";
 import { OrganizationRequestSchema, toOrganizationJson } from "./organization.schema";
 import type { DeleteOrganizationResponse, UpdateOrganizationResponse } from "./[id].schema";
@@ -16,7 +20,7 @@ const ERROR_STATUS: Record<string, number> = {
 };
 
 export async function PATCH(event: APIEvent): Promise<Response> {
-  const actingUser = await resolveActingUser(event.request.headers.get("cookie"));
+  const actingUser = await resolveActingUser(event.request);
   if (!actingUser) {
     return Response.json({ error: "unauthorized" } satisfies UpdateOrganizationResponse, {
       status: ERROR_STATUS.unauthorized,
@@ -43,7 +47,14 @@ export async function PATCH(event: APIEvent): Promise<Response> {
     parsed.data,
   );
   return result.match(
-    (updated) => Response.json(toOrganizationJson(updated) satisfies UpdateOrganizationResponse),
+    (updated) =>
+      Response.json(
+        toOrganizationJson(
+          updated,
+          canManageOrg(updated.id.value, actingUser),
+          isOrgMember(updated.id.value, actingUser),
+        ) satisfies UpdateOrganizationResponse,
+      ),
     (error) =>
       Response.json({ error } satisfies UpdateOrganizationResponse, {
         status: ERROR_STATUS[error],
@@ -52,7 +63,7 @@ export async function PATCH(event: APIEvent): Promise<Response> {
 }
 
 export async function DELETE(event: APIEvent): Promise<Response> {
-  const actingUser = await resolveActingUser(event.request.headers.get("cookie"));
+  const actingUser = await resolveActingUser(event.request);
   if (!actingUser) {
     return Response.json({ error: "unauthorized" } satisfies DeleteOrganizationResponse, {
       status: ERROR_STATUS.unauthorized,

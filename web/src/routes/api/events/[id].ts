@@ -1,7 +1,7 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { eventService } from "~/domain/events/event_service";
+import { canModifyEvent, eventService } from "~/domain/events/event_service";
 import { EventId } from "~/domain/events/event_id";
-import { resolveActingUser } from "~/lib/acting-user";
+import { resolveActingUser } from "~/domain/auth/acting_user";
 import { parseJsonBody } from "~/lib/http";
 import { EventRequestSchema, toEventJson } from "./event.schema";
 import type { DeleteEventResponse, UpdateEventResponse } from "./[id].schema";
@@ -15,7 +15,7 @@ const ERROR_STATUS: Record<string, number> = {
 };
 
 export async function PATCH(event: APIEvent): Promise<Response> {
-  const actingUser = await resolveActingUser(event.request.headers.get("cookie"));
+  const actingUser = await resolveActingUser(event.request);
   if (!actingUser) {
     return Response.json({ error: "unauthorized" } satisfies UpdateEventResponse, {
       status: ERROR_STATUS.unauthorized,
@@ -43,14 +43,17 @@ export async function PATCH(event: APIEvent): Promise<Response> {
   });
 
   return result.match(
-    (updated) => Response.json(toEventJson(updated) satisfies UpdateEventResponse),
+    (updated) =>
+      Response.json(
+        toEventJson(updated, canModifyEvent(updated, actingUser)) satisfies UpdateEventResponse,
+      ),
     (error) =>
       Response.json({ error } satisfies UpdateEventResponse, { status: ERROR_STATUS[error] }),
   );
 }
 
 export async function DELETE(event: APIEvent): Promise<Response> {
-  const actingUser = await resolveActingUser(event.request.headers.get("cookie"));
+  const actingUser = await resolveActingUser(event.request);
   if (!actingUser) {
     return Response.json({ error: "unauthorized" } satisfies DeleteEventResponse, {
       status: ERROR_STATUS.unauthorized,

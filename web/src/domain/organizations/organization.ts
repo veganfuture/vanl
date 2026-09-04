@@ -1,9 +1,10 @@
 import type { UserId } from "../auth/user_id";
+import type { OrgRole } from "../auth/roles";
 import type { OrganizationId } from "./organization_id";
 
 export type OrganizationStatus = "active" | "deleted";
 
-export type OrgRole = "org_editor" | "org_admin";
+export type { OrgRole };
 
 export type Organization = {
   id: OrganizationId;

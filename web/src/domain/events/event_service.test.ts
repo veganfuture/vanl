@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { sql } from "~/lib/db";
 import { ImageRepository } from "~/domain/images/image_repository";
 import { AccountName } from "../auth/account_name";
+import { actingAs } from "../auth/acting_user.test-helpers";
 import { AuthRepository } from "../auth/auth_repository";
 import { SignalAci } from "../auth/signal_aci";
 import type { UserId } from "../auth/user_id";
@@ -11,7 +12,7 @@ import { OrganizationId } from "../organizations/organization_id";
 import { OrganizationRepository } from "../organizations/organization_repository";
 import type { OrgRole } from "../organizations/organization";
 import { EventId } from "./event_id";
-import type { ActingUser, EventInput } from "./event_service";
+import type { EventInput } from "./event_service";
 
 vi.mock("./pdok-client", () => ({
   lookupAddress: vi.fn(),
@@ -48,14 +49,6 @@ async function makeUser(accountName: string): Promise<UserId> {
     throw new Error("unexpected nonce collision in test");
   }
   return result.id;
-}
-
-function actingAs(
-  userId: UserId,
-  isSiteAdmin = false,
-  orgRoles: Record<string, OrgRole> = {},
-): ActingUser {
-  return { id: userId, isSiteAdmin, orgRoles: new Map(Object.entries(orgRoles)) };
 }
 
 function baseInput(overrides: Partial<EventInput> = {}): EventInput {

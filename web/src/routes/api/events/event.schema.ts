@@ -37,10 +37,20 @@ export const EventJsonSchema = z.object({
   status: z.enum(["hidden", "visible", "cancelled"]),
   cancelReason: z.string().nullable(),
   isFeatured: z.boolean(),
+  /** Server-computed via canModifyEvent (event_service.ts) - the single source of truth for who may edit/moderate this event, so pages render controls from this instead of re-deriving the permission-matrix rule client-side. */
+  canEdit: z.boolean(),
 });
 export type EventJson = z.infer<typeof EventJsonSchema>;
 
-export function toEventJson(event: Event): EventJson {
+/**
+ * canEdit is passed in rather than computed here (which would require
+ * importing canModifyEvent from event_service.ts, pulling its postgres/
+ * server-only dependency chain into the client bundle - this file is
+ * imported directly by client pages, e.g. events/[slug]/edit.tsx). Callers
+ * compute it server-side via canModifyEvent(event, actingUser) and pass the
+ * plain boolean through.
+ */
+export function toEventJson(event: Event, canEdit: boolean): EventJson {
   return {
     id: event.id.value,
     slug: event.slug,
@@ -71,6 +81,7 @@ export function toEventJson(event: Event): EventJson {
     status: event.status,
     cancelReason: event.cancelReason,
     isFeatured: event.isFeatured,
+    canEdit,
   };
 }
 

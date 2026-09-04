@@ -1,7 +1,7 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { eventService } from "~/domain/events/event_service";
+import { canModifyEvent, eventService } from "~/domain/events/event_service";
 import { EventId } from "~/domain/events/event_id";
-import { resolveActingUser } from "~/lib/acting-user";
+import { resolveActingUser } from "~/domain/auth/acting_user";
 import { parseJsonBody } from "~/lib/http";
 import { toEventJson } from "../event.schema";
 import { SetEventStatusRequestSchema, type SetEventStatusResponse } from "./status.schema";
@@ -15,7 +15,7 @@ const ERROR_STATUS: Record<string, number> = {
 };
 
 export async function POST(event: APIEvent): Promise<Response> {
-  const actingUser = await resolveActingUser(event.request.headers.get("cookie"));
+  const actingUser = await resolveActingUser(event.request);
   if (!actingUser) {
     return Response.json({ error: "unauthorized" } satisfies SetEventStatusResponse, {
       status: ERROR_STATUS.unauthorized,
@@ -44,7 +44,10 @@ export async function POST(event: APIEvent): Promise<Response> {
   );
 
   return result.match(
-    (updated) => Response.json(toEventJson(updated) satisfies SetEventStatusResponse),
+    (updated) =>
+      Response.json(
+        toEventJson(updated, canModifyEvent(updated, actingUser)) satisfies SetEventStatusResponse,
+      ),
     (error) =>
       Response.json({ error } satisfies SetEventStatusResponse, { status: ERROR_STATUS[error] }),
   );

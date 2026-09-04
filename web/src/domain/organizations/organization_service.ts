@@ -5,7 +5,7 @@ import type { UserId } from "~/domain/auth/user_id";
 import { isUniqueViolation, sql } from "~/lib/db";
 import { logger } from "~/lib/logger";
 import { generateSlug } from "~/lib/slug";
-import type { ActingUser } from "~/lib/acting-user";
+import type { ActingUser } from "~/domain/auth/acting_user";
 import { ImageRepository } from "~/domain/images/image_repository";
 import { processUpload, THUMBNAIL_MAX_WIDTH } from "~/domain/images/image_processing";
 import type { Organization, OrganizationMembershipDetail, OrgRole } from "./organization";
@@ -13,6 +13,31 @@ import { OrganizationId } from "./organization_id";
 import { OrganizationRepository, type EditableOrganizationFields } from "./organization_repository";
 
 const LOGO_VARIANTS = [{ maxWidth: 400 }, { maxWidth: THUMBNAIL_MAX_WIDTH }] as const;
+
+/**
+ * org_admin of orgId, or site_admin - the gate for every membership/
+ * profile-editing action (permission matrix §3). Exported (not just
+ * OrganizationService-private) so route handlers can compute the same
+ * "canManage" a client needs to render without re-deriving the rule
+ * themselves - see organization.schema.ts's toOrganizationJson.
+ */
+export function canManageOrg(orgId: string, actingUser: ActingUser | null): boolean {
+  if (!actingUser) {
+    return false;
+  }
+  if (actingUser.isSiteAdmin) {
+    return true;
+  }
+  return actingUser.orgRoles.get(orgId) === "org_admin";
+}
+
+/** Any role in orgId, or site_admin - the looser "belongs to this org at all" check (permission matrix §3's membership-listing rows). */
+export function isOrgMember(orgId: string, actingUser: ActingUser | null): boolean {
+  if (!actingUser) {
+    return false;
+  }
+  return actingUser.isSiteAdmin || actingUser.orgRoles.has(orgId);
+}
 
 /**
  * Same shape whether creating or updating - trimming/validation mirrors
@@ -126,7 +151,7 @@ export class OrganizationService {
     actingUser: ActingUser,
     orgId: OrganizationId,
   ): ResultAsync<OrganizationMembershipDetail[], ListMembersError> {
-    if (!actingUser.isSiteAdmin && !actingUser.orgRoles.has(orgId.value)) {
+    if (!isOrgMember(orgId.value, actingUser)) {
       return errAsync("forbidden");
     }
     return this.repository.listMembershipDetails(orgId).mapErr((dbError): ListMembersError => {
@@ -312,10 +337,7 @@ export class OrganizationService {
     orgId: OrganizationId,
     notFoundError: NotFoundTag,
   ): ResultAsync<void, NotFoundTag | "forbidden" | "internal_error"> {
-    if (actingUser.isSiteAdmin) {
-      return okAsync(undefined);
-    }
-    if (actingUser.orgRoles.get(orgId.value) !== "org_admin") {
+    if (!canManageOrg(orgId.value, actingUser)) {
       return errAsync("forbidden");
     }
     return this.repository

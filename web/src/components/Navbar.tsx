@@ -106,7 +106,9 @@ export function Navbar() {
             <img src="/apple-touch-icon.png" width={60} height={60} alt="Vegan Activists NL logo" />
           </span>
           <div>
-            <p class="my-1 py-0 text-sm font-semibold leading-tight text-zinc-900">VeganActivists.nl</p>
+            <p class="my-1 py-0 text-sm font-semibold leading-tight text-zinc-900">
+              VeganActivists.nl
+            </p>
             <p class="my-1 py-0 text-xs text-zinc-600">
               {t(
                 "Samen sterk voor dierenrechten • Nederland",
@@ -141,7 +143,9 @@ export function Navbar() {
                 onClick={onLogout}
                 class={`${linkClass} disabled:opacity-50`}
               >
-                {loggingOut() ? t("Bezig met uitloggen…", "Logging out…") : t("Uitloggen", "Logout")}
+                {loggingOut()
+                  ? t("Bezig met uitloggen…", "Logging out…")
+                  : t("Uitloggen", "Logout")}
               </button>
             </Show>
           </Show>
@@ -189,7 +193,11 @@ export function Navbar() {
               when={!me.loading && me()}
               fallback={
                 <Show when={!me.loading}>
-                  <a href={`/${lang()}/login`} class={linkClass} onClick={() => setMobileOpen(false)}>
+                  <a
+                    href={`/${lang()}/login`}
+                    class={linkClass}
+                    onClick={() => setMobileOpen(false)}
+                  >
                     {t("Inloggen", "Login")}
                   </a>
                 </Show>
@@ -201,7 +209,9 @@ export function Navbar() {
                 onClick={onLogout}
                 class={`${linkClass} w-full text-left disabled:opacity-50`}
               >
-                {loggingOut() ? t("Bezig met uitloggen…", "Logging out…") : t("Uitloggen", "Logout")}
+                {loggingOut()
+                  ? t("Bezig met uitloggen…", "Logging out…")
+                  : t("Uitloggen", "Logout")}
               </button>
             </Show>
           </Show>

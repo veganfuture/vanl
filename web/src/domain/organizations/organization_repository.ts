@@ -3,6 +3,7 @@ import type postgres from "postgres";
 import { z } from "zod";
 import { sql } from "~/lib/db";
 import { UserId } from "../auth/user_id";
+import { ORG_ROLES } from "../auth/roles";
 import type {
   Organization,
   OrganizationStatus,
@@ -67,7 +68,7 @@ function mapOrganizationRow(row: unknown): Result<Organization, DbError> {
 const MembershipRowSchema = z.object({
   org_id: z.string(),
   user_id: z.string(),
-  role: z.enum(["org_editor", "org_admin"]),
+  role: z.enum(ORG_ROLES),
   created_at: z.coerce.date(),
 });
 

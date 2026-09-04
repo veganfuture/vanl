@@ -1,6 +1,6 @@
 import { err, errAsync, ok, okAsync, ResultAsync, type Result } from "neverthrow";
 import { z } from "zod";
-import type { ActingUser } from "~/lib/acting-user";
+import type { ActingUser } from "~/domain/auth/acting_user";
 import { sql } from "~/lib/db";
 import { logger } from "~/lib/logger";
 import { placeRepository, type PlaceRepository } from "~/domain/places/place_repository";
@@ -16,6 +16,38 @@ import { lookupAddress } from "./pdok-client";
 import { generateSlug } from "~/lib/slug";
 
 export type { ActingUser };
+
+/**
+ * Permission matrix §3: site_admin can moderate anything; an
+ * individually-published event's own publisher can; an org's org_admin can
+ * touch any of that org's events; an org's org_editor can only touch events
+ * they personally created on behalf of that org (there's no per-event
+ * "author" distinct from the org itself, so "own org event" is tracked via
+ * created_by). Exported (not just EventService-private) so route handlers
+ * can compute the same "canEdit" a client needs to render without
+ * re-deriving the rule themselves - see event.schema.ts's toEventJson.
+ */
+export function canModifyEvent(event: Event, actingUser: ActingUser | null): boolean {
+  if (!actingUser) {
+    return false;
+  }
+  if (actingUser.isSiteAdmin) {
+    return true;
+  }
+  if (event.publisherUserId && actingUser.id.equals(event.publisherUserId)) {
+    return true;
+  }
+  if (event.publisherOrgId) {
+    const role = actingUser.orgRoles.get(event.publisherOrgId.value);
+    if (role === "org_admin") {
+      return true;
+    }
+    if (role === "org_editor" && actingUser.id.equals(event.createdBy)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 const FLYER_VARIANTS = [
   { maxWidth: 1600 },
@@ -343,30 +375,11 @@ export class EventService {
         if (!event) {
           return errAsync<Event, "not_found">("not_found");
         }
-        if (!this.canModify(actingUser, event)) {
+        if (!canModifyEvent(event, actingUser)) {
           return errAsync<Event, "forbidden">("forbidden");
         }
         return okAsync(event);
       });
-  }
-
-  private canModify(actingUser: ActingUser, event: Event): boolean {
-    if (actingUser.isSiteAdmin) {
-      return true;
-    }
-    if (event.publisherUserId && actingUser.id.equals(event.publisherUserId)) {
-      return true;
-    }
-    if (event.publisherOrgId) {
-      const role = actingUser.orgRoles.get(event.publisherOrgId.value);
-      if (role === "org_admin") {
-        return true;
-      }
-      if (role === "org_editor" && actingUser.id.equals(event.createdBy)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   /**

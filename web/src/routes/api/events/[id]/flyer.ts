@@ -1,7 +1,7 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { eventService } from "~/domain/events/event_service";
+import { canModifyEvent, eventService } from "~/domain/events/event_service";
 import { EventId } from "~/domain/events/event_id";
-import { resolveActingUser } from "~/lib/acting-user";
+import { resolveActingUser } from "~/domain/auth/acting_user";
 import { toEventJson } from "../event.schema";
 import type { UploadFlyerResponse } from "./flyer.schema";
 
@@ -17,7 +17,7 @@ const ERROR_STATUS: Record<string, number> = {
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 export async function POST(event: APIEvent): Promise<Response> {
-  const actingUser = await resolveActingUser(event.request.headers.get("cookie"));
+  const actingUser = await resolveActingUser(event.request);
   if (!actingUser) {
     return Response.json({ error: "unauthorized" } satisfies UploadFlyerResponse, {
       status: ERROR_STATUS.unauthorized,
@@ -47,7 +47,10 @@ export async function POST(event: APIEvent): Promise<Response> {
 
   const result = await eventService.replaceFlyer(actingUser, eventIdResult.value, bytes);
   return result.match(
-    (updated) => Response.json(toEventJson(updated) satisfies UploadFlyerResponse),
+    (updated) =>
+      Response.json(
+        toEventJson(updated, canModifyEvent(updated, actingUser)) satisfies UploadFlyerResponse,
+      ),
     (error) =>
       Response.json({ error } satisfies UploadFlyerResponse, { status: ERROR_STATUS[error] }),
   );

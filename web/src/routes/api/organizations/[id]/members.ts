@@ -1,7 +1,7 @@
 import type { APIEvent } from "@solidjs/start/server";
 import { organizationService } from "~/domain/organizations/organization_service";
 import { OrganizationId } from "~/domain/organizations/organization_id";
-import { resolveActingUser } from "~/lib/acting-user";
+import { resolveActingUser } from "~/domain/auth/acting_user";
 import { parseJsonBody } from "~/lib/http";
 import { AddMemberRequestSchema, toMembershipJson } from "../organization.schema";
 import type { AddMemberResponse, ListMembersResponse } from "./members.schema";
@@ -17,7 +17,7 @@ const ERROR_STATUS: Record<string, number> = {
 };
 
 export async function GET(event: APIEvent): Promise<Response> {
-  const actingUser = await resolveActingUser(event.request.headers.get("cookie"));
+  const actingUser = await resolveActingUser(event.request);
   if (!actingUser) {
     return Response.json({ error: "unauthorized" } satisfies ListMembersResponse, {
       status: ERROR_STATUS.unauthorized,
@@ -41,7 +41,7 @@ export async function GET(event: APIEvent): Promise<Response> {
 }
 
 export async function POST(event: APIEvent): Promise<Response> {
-  const actingUser = await resolveActingUser(event.request.headers.get("cookie"));
+  const actingUser = await resolveActingUser(event.request);
   if (!actingUser) {
     return Response.json({ error: "unauthorized" } satisfies AddMemberResponse, {
       status: ERROR_STATUS.unauthorized,

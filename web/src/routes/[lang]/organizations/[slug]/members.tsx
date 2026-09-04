@@ -4,11 +4,11 @@ import { createResource, createSignal, For, Show } from "solid-js";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { makeT, useLang, type Locale } from "~/lib/i18n";
-import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { GetOrganizationBySlugResponseSchema } from "~/routes/api/organizations/by-slug/[slug].schema";
 import {
   AddMemberRequestSchema,
   UpdateMemberRoleRequestSchema,
+  type MembershipJson,
 } from "~/routes/api/organizations/organization.schema";
 import {
   AddMemberResponseSchema,
@@ -106,14 +106,6 @@ export default function OrganizationMembersPage() {
     },
   );
 
-  const [me] = createResource(async () => {
-    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
-    return result.match(
-      (data) => data.user,
-      () => null,
-    );
-  });
-
   const [members, { refetch: refetchMembers }] = createResource(
     () => org()?.id,
     async (orgId) => {
@@ -127,12 +119,11 @@ export default function OrganizationMembersPage() {
     },
   );
 
-  const myRole = () => members()?.find((m) => m.userId === me()?.id)?.role ?? null;
-  const canManage = () => !!me()?.isSiteAdmin || myRole() === "org_admin";
+  const canManage = () => org()?.canManage ?? false;
 
   const [actionError, setActionError] = createSignal<string | null>(null);
   const [accountName, setAccountName] = createSignal("");
-  const [newRole, setNewRole] = createSignal<"org_editor" | "org_admin">("org_editor");
+  const [newRole, setNewRole] = createSignal<MembershipJson["role"]>("org_editor");
   const [adding, setAdding] = createSignal(false);
 
   async function onAddMember(submitEvent: SubmitEvent) {
@@ -159,7 +150,7 @@ export default function OrganizationMembersPage() {
     }
   }
 
-  async function onChangeRole(userId: string, role: "org_editor" | "org_admin") {
+  async function onChangeRole(userId: string, role: MembershipJson["role"]) {
     const currentOrg = org();
     if (!currentOrg) return;
     setActionError(null);
@@ -194,7 +185,7 @@ export default function OrganizationMembersPage() {
     <main class="mx-auto max-w-2xl px-6 py-12">
       <LocaleCookieSync lang={lang()} />
       <Show
-        when={!org.loading && !me.loading && !members.loading}
+        when={!org.loading && !members.loading}
         fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}
       >
         <Show
@@ -286,9 +277,7 @@ export default function OrganizationMembersPage() {
                     <select
                       class="mt-1 block rounded border border-zinc-300 px-3 py-2"
                       value={newRole()}
-                      onChange={(e) =>
-                        setNewRole(e.currentTarget.value as "org_editor" | "org_admin")
-                      }
+                      onChange={(e) => setNewRole(e.currentTarget.value as MembershipJson["role"])}
                     >
                       <option value="org_editor">{t("Redacteur", "Editor")}</option>
                       <option value="org_admin">{t("Beheerder", "Admin")}</option>
