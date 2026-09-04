@@ -12,7 +12,8 @@ import type { Organization, OrganizationMembershipDetail, OrgRole } from "./orga
 import { OrganizationId } from "./organization_id";
 import { OrganizationRepository, type EditableOrganizationFields } from "./organization_repository";
 
-const LOGO_VARIANTS = [{ maxWidth: 400 }, { maxWidth: THUMBNAIL_MAX_WIDTH }] as const;
+/** Exported so scripts/seed-organizations.ts processes seeded logos identically to a real upload. */
+export const LOGO_VARIANTS = [{ maxWidth: 400 }, { maxWidth: THUMBNAIL_MAX_WIDTH }] as const;
 
 /**
  * org_admin of orgId, or site_admin - the gate for every membership/

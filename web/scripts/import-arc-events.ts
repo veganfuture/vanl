@@ -8,6 +8,8 @@ import { AuthRepository } from "../src/domain/auth/auth_repository";
 import { SignalAci } from "../src/domain/auth/signal_aci";
 import type { UserId } from "../src/domain/auth/user_id";
 import { EventRepository, type NewEventInput } from "../src/domain/events/event_repository";
+import type { Organization } from "../src/domain/organizations/organization";
+import { OrganizationRepository } from "../src/domain/organizations/organization_repository";
 import { PlaceRepository } from "../src/domain/places/place_repository";
 import { reverseGeocode } from "../src/domain/events/pdok-client";
 import { generateSlug } from "../src/lib/slug";
@@ -167,6 +169,17 @@ const ORGANIZER_RULES: ReadonlyArray<{
     organizer: "Vegan Future",
     test: (_title, description) => /veganfuture\.org/i.test(description),
   },
+  { organizer: "XR Landbouw", test: (title) => /xr landbouw/i.test(title) },
+  {
+    organizer: "Active for Justice",
+    test: (title, description) =>
+      /active for justice/i.test(title) || /activeforjustice\.nl/i.test(description),
+  },
+  {
+    organizer: "Animal Equality",
+    test: (title, description) =>
+      /animal equality/i.test(title) || /animalequality\.org/i.test(description),
+  },
 ];
 
 export function detectOrganizer(event: RealEvent): string | null {
@@ -310,6 +323,30 @@ type PlaceResolutionError = { subsystem: "pdok" | "db"; message: string };
 /** Nearest-Dutch-address resolution cache, keyed by rounded coordinate - many events share a venue. */
 const geoResolutionCache = new Map<string, Result<PlaceResolution, PlaceResolutionError>>();
 
+/**
+ * detectOrganizer only produces a free-text guess (ARC has no structured organizer
+ * field - see its own comment above); this resolves that guess to a real
+ * organizations row, if scripts/seed-organizations.ts has seeded one under the exact
+ * same name. Cached per run since many events share the same organizer.
+ */
+const organizerOrgCache = new Map<string, Organization | null>();
+
+async function resolveOrganizerOrganization(
+  organizerName: string,
+  organizationRepository: OrganizationRepository,
+): Promise<Organization | null> {
+  const cached = organizerOrgCache.get(organizerName);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const result = await organizationRepository.findOrganizationByName(organizerName);
+  if (result.isErr()) {
+    throw new Error(`Failed to look up organization "${organizerName}": ${result.error.message}`);
+  }
+  organizerOrgCache.set(organizerName, result.value);
+  return result.value;
+}
+
 function resolveDutchPlace(
   geo: Geo,
   placeRepository: PlaceRepository,
@@ -377,6 +414,7 @@ async function main(): Promise<void> {
   const eventRepository = new EventRepository(sql);
   const placeRepository = new PlaceRepository(sql);
   const authRepository = new AuthRepository(sql);
+  const organizationRepository = new OrganizationRepository(sql);
 
   let filteredNonNl = 0;
   let skippedNoPlace = 0;
@@ -384,6 +422,7 @@ async function main(): Promise<void> {
   let failed = 0;
   let created = 0;
   let updated = 0;
+  let linkedToOrg = 0;
   let crossCheckMismatches = 0;
 
   try {
@@ -489,10 +528,21 @@ async function main(): Promise<void> {
       }
 
       const title = event.titleNl ?? event.titleEn;
+      const organizerName = detectOrganizer(event);
+      const organizerOrg = organizerName
+        ? await resolveOrganizerOrganization(organizerName, organizationRepository)
+        : null;
 
       if (existing.value) {
         if (mode.dryRun) {
           console.log(`[dry-run] would update "${title}" (${event.externalSourceId})`);
+          if (organizerOrg && existing.value.publisherOrgId?.value !== organizerOrg.id.value) {
+            console.log(
+              `[dry-run] would link "${title}" (${event.externalSourceId}) to organization ` +
+                `"${organizerOrg.name}"`,
+            );
+            linkedToOrg++;
+          }
         } else {
           const result = await eventRepository.updateEvent(
             existing.value.id,
@@ -506,18 +556,45 @@ async function main(): Promise<void> {
             );
             continue;
           }
+          // organizer_name/publisher_org_id are bot-owned fields (see
+          // 0002_events.sql), never touched by updateEvent above - only backfilled
+          // here, and only when a match actually exists, so an event whose
+          // organizer can no longer be detected keeps whatever it already had.
+          if (organizerOrg && existing.value.publisherOrgId?.value !== organizerOrg.id.value) {
+            const linkResult = await eventRepository.setEventPublisherOrg(
+              existing.value.id,
+              organizerName!,
+              organizerOrg.id,
+            );
+            if (linkResult.isErr()) {
+              failed++;
+              console.error(
+                `Failed to link event "${event.externalSourceId}" to organization ` +
+                  `"${organizerOrg.name}": ${linkResult.error.message}`,
+              );
+              continue;
+            }
+            linkedToOrg++;
+          }
         }
         updated++;
       } else {
         if (mode.dryRun) {
           console.log(`[dry-run] would create "${title}" (${event.externalSourceId})`);
+          if (organizerOrg) {
+            console.log(
+              `[dry-run] would link "${title}" (${event.externalSourceId}) to organization ` +
+                `"${organizerOrg.name}"`,
+            );
+            linkedToOrg++;
+          }
         } else {
           const input: NewEventInput = {
             ...fields,
             slug: generateSlug(event.titleNl ?? event.titleEn ?? ""),
-            organizerName: detectOrganizer(event),
-            publisherUserId: mode.botUserId,
-            publisherOrgId: null,
+            organizerName,
+            publisherUserId: organizerOrg ? null : mode.botUserId,
+            publisherOrgId: organizerOrg?.id ?? null,
             createdBy: mode.botUserId,
             source: "external_import",
             externalSourceId: event.externalSourceId,
@@ -531,6 +608,9 @@ async function main(): Promise<void> {
             );
             continue;
           }
+          if (organizerOrg) {
+            linkedToOrg++;
+          }
         }
         created++;
       }
@@ -538,9 +618,10 @@ async function main(): Promise<void> {
 
     console.log(
       `Done${dryRun ? " (dry-run)" : ""}. ${dryRun ? "Would create" : "Created"} ${created}, ` +
-        `${dryRun ? "would update" : "updated"} ${updated}, filtered out ${filteredNonNl} non-NL ` +
-        `events, skipped ${skippedNoPlace} for no matching place, ${skippedValidation} failing ` +
-        `validation, ${crossCheckMismatches} on a second-opinion mismatch, ${failed} failed outright.`,
+        `${dryRun ? "would update" : "updated"} ${updated}, ${dryRun ? "would link" : "linked"} ` +
+        `${linkedToOrg} to an organization, filtered out ${filteredNonNl} non-NL events, skipped ` +
+        `${skippedNoPlace} for no matching place, ${skippedValidation} failing validation, ` +
+        `${crossCheckMismatches} on a second-opinion mismatch, ${failed} failed outright.`,
     );
   } finally {
     await sql.end();

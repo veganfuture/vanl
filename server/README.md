@@ -78,3 +78,31 @@ ssh $VANL_HOSTKEY1 -- sudo -u vanl-web env VANL_DATABASE_PASSWORD=<from /etc/van
 
 First-time Signal device linking (`vanl-bot-link`, run as the `vanl-bot` user with
 `HOME=/var/lib/vanl-bot`) is documented in `bot/README.md`.
+
+## Wiping and reimporting the database
+
+Destructive - drops every table (events, organizations, users, sessions, everything).
+There's no undo beyond a backup, so double-check `$VANL_HOSTKEY1` before running this
+against prod. `vanl-web-seed-places`/`vanl-web-seed-organizations` only exist after a
+`nixos-rebuild switch` that includes them - deploy first if this is a fresh checkout.
+
+```sh
+# Stop anything holding a connection or that could run mid-wipe.
+ssh $VANL_HOSTKEY1 -- sudo systemctl stop vanl-web.service vanl-web-arc-import.timer
+
+# Drop and recreate the database (as the postgres superuser, so it's not blocked by
+# `vanl-web`'s own connections - the stop above should have already closed those, but
+# DROP DATABASE still fails if anything else is connected).
+ssh $VANL_HOSTKEY1 -- sudo -u postgres psql -c 'DROP DATABASE vanl;' -c 'CREATE DATABASE vanl OWNER vanl;'
+
+# Rebuild the schema, then reload - seed-places and seed-organizations must both run
+# before arc-import (see each script's own header comment for why: arc-import resolves
+# event locations against `places`, and links detected organizers against `organizations`).
+ssh $VANL_HOSTKEY1 -- sudo -u vanl-web env VANL_DATABASE_PASSWORD=<from /etc/vanl/web.env> vanl-web-migrate
+ssh $VANL_HOSTKEY1 -- sudo -u vanl-web env VANL_DATABASE_PASSWORD=<from /etc/vanl/web.env> vanl-web-seed-places
+ssh $VANL_HOSTKEY1 -- sudo -u vanl-web env VANL_DATABASE_PASSWORD=<from /etc/vanl/web.env> vanl-web-seed-organizations
+ssh $VANL_HOSTKEY1 -- sudo -u vanl-web env VANL_DATABASE_PASSWORD=<from /etc/vanl/web.env> vanl-web-arc-import
+
+# Bring everything back.
+ssh $VANL_HOSTKEY1 -- sudo systemctl start vanl-web.service vanl-web-arc-import.timer
+```

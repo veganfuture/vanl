@@ -471,6 +471,33 @@ export class EventRepository {
     ).andThen((rows) => mapEventRow(rows[0]));
   }
 
+  /**
+   * Backfills organizer_name/publisher_org_id together on an already-imported event -
+   * import-arc-events.ts's own re-derivation of these bot-owned fields (see
+   * 0002_events.sql's organizer_name comment for why they're excluded from the general
+   * edit path above), for events created before a matching organization existed or
+   * before its ORGANIZER_RULES entry did. Always clears publisher_user_id to satisfy
+   * events_exactly_one_publisher - only call this once a real org match is confirmed.
+   */
+  setEventPublisherOrg(
+    id: EventId,
+    organizerName: string,
+    orgId: OrganizationId,
+  ): ResultAsync<Event, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        update events set
+          organizer_name = ${organizerName},
+          publisher_org_id = ${orgId.value},
+          publisher_user_id = null,
+          updated_at = now()
+        where id = ${id.value}
+        returning *
+      `,
+      (cause): DbError => ({ message: "Failed to set event publisher org", cause }),
+    ).andThen((rows) => mapEventRow(rows[0]));
+  }
+
   /** Hard delete - see docs/architecture.md's Event notes on why. */
   deleteEvent(id: EventId): ResultAsync<void, DbError> {
     return ResultAsync.fromPromise(

@@ -51,6 +51,37 @@ describe("detectOrganizer", () => {
     expect(detectOrganizer(event)).toBe("Vegan Future");
   });
 
+  it("recognizes XR Landbouw in the title", () => {
+    const event = baseEvent({ titleNl: "XR Landbouw actiedag Den Haag" });
+    expect(detectOrganizer(event)).toBe("XR Landbouw");
+  });
+
+  it("recognizes Active for Justice in the title", () => {
+    const event = baseEvent({ titleEn: "Active for Justice demonstration - Maastricht" });
+    expect(detectOrganizer(event)).toBe("Active for Justice");
+  });
+
+  it("recognizes an activeforjustice.nl link in the description as Active for Justice", () => {
+    const event = baseEvent({
+      titleEn: "Demo",
+      descriptionEn: "Details on https://activeforjustice.nl/events",
+    });
+    expect(detectOrganizer(event)).toBe("Active for Justice");
+  });
+
+  it("recognizes Animal Equality in the title", () => {
+    const event = baseEvent({ titleEn: "Animal Equality: undercover footage screening" });
+    expect(detectOrganizer(event)).toBe("Animal Equality");
+  });
+
+  it("recognizes an animalequality.org link in the description as Animal Equality", () => {
+    const event = baseEvent({
+      titleEn: "Screening night",
+      descriptionEn: "Organized with https://animalequality.org support.",
+    });
+    expect(detectOrganizer(event)).toBe("Animal Equality");
+  });
+
   it("returns null when nothing matches", () => {
     const event = baseEvent({ titleEn: "Vegan potluck", descriptionEn: "Bring a dish to share." });
     expect(detectOrganizer(event)).toBeNull();
