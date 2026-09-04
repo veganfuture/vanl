@@ -110,7 +110,7 @@ const ORGANIZATIONS: OrgSeed[] = [
     name: "Animal Save",
     slug: "animal-save",
     websiteUrl: "https://savemovement.nl/",
-    logoAssetPath: "scripts/seed-assets/organizations/animal-save.png",
+    logoAssetPath: "scripts/seed-assets/organizations/animal-save.jpg",
     descriptionEn:
       "Animal Save Nederland is the Dutch chapter of the international Save Movement, a global " +
       "network of grassroots groups holding peaceful vigils for farmed animals being transported " +
