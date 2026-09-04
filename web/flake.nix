@@ -144,36 +144,61 @@
       };
 
       # web-build's $out only contains .output/ (the built server), not the full source +
-      # node_modules that scripts/migrate.ts needs - so migrations get their own small wrapper:
-      # symlink webDeps' node_modules alongside the full source and run the script directly.
-      # configs/prod.toml has database.host = "127.0.0.1", so this only makes sense run *on* the
-      # VPS (not the admin's own machine) - server/configuration.nix exposes it via
-      # environment.systemPackages as `vanl-web-migrate`.
-      webMigrate = pkgs.writeShellScriptBin "web-migrate" ''
-        set -euo pipefail
-        workdir=$(mktemp -d)
-        trap 'rm -rf "$workdir"' EXIT
-        cp -r ${self}/. "$workdir/"
-        chmod -R u+w "$workdir"
-        ln -sfn ${webDeps}/node_modules "$workdir/node_modules"
-        cd "$workdir"
-        exec ${pkgs.bun}/bin/bun run scripts/migrate.ts "$@"
+      # node_modules that a bare `scripts/*.ts` needs to run directly - migrate, arc-import,
+      # and both seeds all need exactly this same treatment (symlink webDeps' node_modules
+      # alongside a writable copy of the full source, then run the script from there), so
+      # they share one wrapper generator instead of repeating it four times. configs/prod.toml
+      # has database.host = "127.0.0.1", so none of these make sense run anywhere but *on* the
+      # VPS - server/configuration.nix exposes each as `vanl-web-<name>` via
+      # environment.systemPackages (see its own comment for which ones also get a systemd
+      # service/timer, vs. only ever run by hand per server/README.md's runbooks).
+      mkBunScriptWrapper = { name, scriptPath }: pkgs.writeScriptBin name ''
+        #!${pkgs.nushell}/bin/nu
+        def main [...args: string] {
+          # seed-organizations.ts's sharp dependency needs this - see runWeb/checkProject below
+          # for the same requirement.
+          $env.LD_LIBRARY_PATH = $"${nativeLibPath}:($env.LD_LIBRARY_PATH? | default "")"
+          let workdir = (^${pkgs.coreutils}/bin/mktemp -d)
+          let original_dir = (pwd)
+          ^${pkgs.coreutils}/bin/cp -r ${self}/. $"($workdir)/"
+          ^${pkgs.coreutils}/bin/chmod -R u+w $workdir
+          ln -sfn ${webDeps}/node_modules ($workdir | path join "node_modules")
+          cd $workdir
+          # try/catch as a value-producing expression, not a `mut` flag set from inside the
+          # catch block - nushell's closures (which catch blocks are) can't capture/mutate an
+          # outer `mut` variable, only return a value. Unlike `| complete`, this still streams
+          # stdout/stderr live instead of buffering it until the script exits.
+          let exit_code = (try {
+            ^${pkgs.bun}/bin/bun run ${scriptPath} ...$args
+            0
+          } catch {
+            1
+          })
+          cd $original_dir
+          ^${pkgs.coreutils}/bin/rm -rf $workdir
+          exit $exit_code
+        }
       '';
 
-      # web-arc-import: same shape as webMigrate above - scripts/import-arc-events.ts needs the
-      # full source + node_modules, not web-build's .output-only $out. Run hourly on the VPS via
-      # systemd.timers.vanl-web-arc-import (nixosModules.default below); configs/prod.toml's
-      # database.host = "127.0.0.1" means this only makes sense run on the host itself.
-      webArcImport = pkgs.writeShellScriptBin "web-arc-import" ''
-        set -euo pipefail
-        workdir=$(mktemp -d)
-        trap 'rm -rf "$workdir"' EXIT
-        cp -r ${self}/. "$workdir/"
-        chmod -R u+w "$workdir"
-        ln -sfn ${webDeps}/node_modules "$workdir/node_modules"
-        cd "$workdir"
-        exec ${pkgs.bun}/bin/bun run scripts/import-arc-events.ts "$@"
-      '';
+      webMigrate = mkBunScriptWrapper {
+        name = "web-migrate";
+        scriptPath = "scripts/migrate.ts";
+      };
+      webArcImport = mkBunScriptWrapper {
+        name = "web-arc-import";
+        scriptPath = "scripts/import-arc-events.ts";
+      };
+      # Real, one-time (well, idempotent-upsert-so-safe-to-rerun) data loads, not dev-only test
+      # fixtures (unlike seed-test-data, deliberately not given this treatment) - see
+      # server/README.md's runbook for when to actually run these on the VPS.
+      webSeedPlaces = mkBunScriptWrapper {
+        name = "web-seed-places";
+        scriptPath = "scripts/seed-places.ts";
+      };
+      webSeedOrganizations = mkBunScriptWrapper {
+        name = "web-seed-organizations";
+        scriptPath = "scripts/seed-organizations.ts";
+      };
 
       nuShellScript = ''
         #!${pkgs.nushell}/bin/nu
@@ -434,6 +459,8 @@
         web-run = runWeb;
         web-migrate = webMigrate;
         web-arc-import = webArcImport;
+        web-seed-places = webSeedPlaces;
+        web-seed-organizations = webSeedOrganizations;
       };
 
       devShells.default = pkgs.mkShell {
@@ -558,6 +585,24 @@
                 VANL_CONFIG_PATH = cfg.configFile;
               };
               text = ''exec ${webSelf.packages.${pkgs.system}.web-arc-import}/bin/web-arc-import "$@"'';
+            })
+            # vanl-web-seed-places/vanl-web-seed-organizations: same shape as vanl-web-migrate
+            # above - both idempotent upserts, safe to rerun, but not run automatically (no
+            # systemd service/timer) since they only ever need running once, or after a
+            # from-scratch wipe - see server/README.md's runbook.
+            (pkgs.writeShellApplication {
+              name = "vanl-web-seed-places";
+              runtimeEnv = {
+                VANL_CONFIG_PATH = cfg.configFile;
+              };
+              text = ''exec ${webSelf.packages.${pkgs.system}.web-seed-places}/bin/web-seed-places "$@"'';
+            })
+            (pkgs.writeShellApplication {
+              name = "vanl-web-seed-organizations";
+              runtimeEnv = {
+                VANL_CONFIG_PATH = cfg.configFile;
+              };
+              text = ''exec ${webSelf.packages.${pkgs.system}.web-seed-organizations}/bin/web-seed-organizations "$@"'';
             })
           ];
 
