@@ -64,11 +64,9 @@
   # Tunnel (cloudflared makes an outbound-only connection to Cloudflare's edge; see
   # services.cloudflared below), and the bot doesn't need to be reachable from the internet at
   # all (it only talks outbound to Signal's servers and to the website's local API).
-  # TEMPORARY: Cloudflare Tunnel isn't set up yet (see services.cloudflared.enable below), so the
-  # web port is opened directly here for testing instead. Revert this once the tunnel exists.
   networking.firewall = {
     enable = true;
-    allowedTCPPorts = [22 config.services.vanl-web.port];
+    allowedTCPPorts = [22];
   };
 
   nix.gc = {
@@ -129,21 +127,18 @@
   systemd.services.vanl-web.after = ["postgresql-set-vanl-password.service"];
   systemd.services.vanl-web.wants = ["postgresql-set-vanl-password.service"];
 
+  # Same ordering constraint as vanl-web above - the hourly ARC import writes to the same DB.
+  systemd.services.vanl-web-arc-import.after = ["postgresql-set-vanl-password.service"];
+  systemd.services.vanl-web-arc-import.wants = ["postgresql-set-vanl-password.service"];
+
   # --- Cloudflare Tunnel: the website's only path to the public internet. cloudflared makes an
   # outbound-only connection to Cloudflare's edge, so no inbound port needs to be opened, and no
   # origin TLS is needed either (the tunnel itself is what's encrypted to Cloudflare - traffic
   # from cloudflared to the app stays on loopback). One-time setup (cloudflared tunnel login +
   # create + route dns) is documented in the root README - not Nix-managed. ---
   services.cloudflared = {
-    # TEMPORARY: disabled until the one-time tunnel setup (README's "One-time Cloudflare Tunnel
-    # setup") is done and the real UUID below is filled in - until then this unit would just
-    # restart-loop on the placeholder. The web port is opened directly above in the meantime.
-    enable = false;
-    # TODO: replace with the real tunnel UUID from `cloudflared tunnel create` (see root
-    # README's one-time Cloudflare Tunnel setup section) - this becomes part of a systemd unit
-    # name (cloudflared-tunnel-<name>.service), so it must already be a valid unit-name
-    # fragment; a real tunnel UUID always is.
-    tunnels."REPLACE-WITH-REAL-TUNNEL-UUID" = {
+    enable = true;
+    tunnels."9b918186-1da6-44ae-b420-7952804916f3" = {
       credentialsFile = "/etc/vanl/cloudflared-credentials.json";
       default = "http_status:404";
       ingress."veganactivists.nl" = "http://127.0.0.1:${toString config.services.vanl-web.port}";
@@ -166,10 +161,6 @@
     enable = true;
     configFile = "${web}/configs/prod.toml";
     environmentFile = "/etc/vanl/web.env";
-    # TEMPORARY: defaults to 127.0.0.1 (only reachable via cloudflared on loopback). Bind to all
-    # interfaces so the firewall-opened port above is actually reachable without the tunnel.
-    # Revert alongside the cloudflared/firewall changes once the tunnel is set up.
-    host = "0.0.0.0";
   };
 
   system.stateVersion = "26.05";

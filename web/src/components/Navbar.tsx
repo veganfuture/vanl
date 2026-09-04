@@ -52,6 +52,11 @@ function LanguageSwitcher(props: { pathname: string; onNavigate?: () => void }) 
   );
 }
 
+/** True for the bare front page ("/", "/nl", "/en"), false for any deeper route. */
+function isFrontPage(pathname: string): boolean {
+  return /^\/(nl|en)?\/?$/.test(pathname);
+}
+
 export function Navbar() {
   const location = useLocation();
   const { lang, t } = useLang();
@@ -112,31 +117,33 @@ export function Navbar() {
         </a>
 
         <div class="hidden items-center gap-1 md:flex">
-          <For each={links()}>
-            {(link) => (
-              <a href={link.href} class={linkClass}>
-                {link.label}
-              </a>
-            )}
-          </For>
-          <Show
-            when={!me.loading && me()}
-            fallback={
-              <Show when={!me.loading}>
-                <a href={`/${lang()}/login`} class={linkClass}>
-                  {t("Inloggen", "Login")}
+          <Show when={!isFrontPage(location.pathname)}>
+            <For each={links()}>
+              {(link) => (
+                <a href={link.href} class={linkClass}>
+                  {link.label}
                 </a>
-              </Show>
-            }
-          >
-            <button
-              type="button"
-              disabled={loggingOut()}
-              onClick={onLogout}
-              class={`${linkClass} disabled:opacity-50`}
+              )}
+            </For>
+            <Show
+              when={!me.loading && me()}
+              fallback={
+                <Show when={!me.loading}>
+                  <a href={`/${lang()}/login`} class={linkClass}>
+                    {t("Inloggen", "Login")}
+                  </a>
+                </Show>
+              }
             >
-              {loggingOut() ? t("Bezig met uitloggen…", "Logging out…") : t("Uitloggen", "Logout")}
-            </button>
+              <button
+                type="button"
+                disabled={loggingOut()}
+                onClick={onLogout}
+                class={`${linkClass} disabled:opacity-50`}
+              >
+                {loggingOut() ? t("Bezig met uitloggen…", "Logging out…") : t("Uitloggen", "Logout")}
+              </button>
+            </Show>
           </Show>
           <LanguageSwitcher pathname={location.pathname} />
         </div>
@@ -170,31 +177,33 @@ export function Navbar() {
 
       <Show when={mobileOpen()}>
         <div class="space-y-1 border-t border-zinc-200 px-6 py-3 md:hidden">
-          <For each={links()}>
-            {(link) => (
-              <a href={link.href} class={linkClass} onClick={() => setMobileOpen(false)}>
-                {link.label}
-              </a>
-            )}
-          </For>
-          <Show
-            when={!me.loading && me()}
-            fallback={
-              <Show when={!me.loading}>
-                <a href={`/${lang()}/login`} class={linkClass} onClick={() => setMobileOpen(false)}>
-                  {t("Inloggen", "Login")}
+          <Show when={!isFrontPage(location.pathname)}>
+            <For each={links()}>
+              {(link) => (
+                <a href={link.href} class={linkClass} onClick={() => setMobileOpen(false)}>
+                  {link.label}
                 </a>
-              </Show>
-            }
-          >
-            <button
-              type="button"
-              disabled={loggingOut()}
-              onClick={onLogout}
-              class={`${linkClass} w-full text-left disabled:opacity-50`}
+              )}
+            </For>
+            <Show
+              when={!me.loading && me()}
+              fallback={
+                <Show when={!me.loading}>
+                  <a href={`/${lang()}/login`} class={linkClass} onClick={() => setMobileOpen(false)}>
+                    {t("Inloggen", "Login")}
+                  </a>
+                </Show>
+              }
             >
-              {loggingOut() ? t("Bezig met uitloggen…", "Logging out…") : t("Uitloggen", "Logout")}
-            </button>
+              <button
+                type="button"
+                disabled={loggingOut()}
+                onClick={onLogout}
+                class={`${linkClass} w-full text-left disabled:opacity-50`}
+              >
+                {loggingOut() ? t("Bezig met uitloggen…", "Logging out…") : t("Uitloggen", "Logout")}
+              </button>
+            </Show>
           </Show>
           <div class="px-3 py-2">
             <LanguageSwitcher

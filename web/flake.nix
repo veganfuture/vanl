@@ -160,6 +160,21 @@
         exec ${pkgs.bun}/bin/bun run scripts/migrate.ts "$@"
       '';
 
+      # web-arc-import: same shape as webMigrate above - scripts/import-arc-events.ts needs the
+      # full source + node_modules, not web-build's .output-only $out. Run hourly on the VPS via
+      # systemd.timers.vanl-web-arc-import (nixosModules.default below); configs/prod.toml's
+      # database.host = "127.0.0.1" means this only makes sense run on the host itself.
+      webArcImport = pkgs.writeShellScriptBin "web-arc-import" ''
+        set -euo pipefail
+        workdir=$(mktemp -d)
+        trap 'rm -rf "$workdir"' EXIT
+        cp -r ${self}/. "$workdir/"
+        chmod -R u+w "$workdir"
+        ln -sfn ${webDeps}/node_modules "$workdir/node_modules"
+        cd "$workdir"
+        exec ${pkgs.bun}/bin/bun run scripts/import-arc-events.ts "$@"
+      '';
+
       nuShellScript = ''
         #!${pkgs.nushell}/bin/nu
 
@@ -404,6 +419,7 @@
         web-build = webBuild;
         web-run = runWeb;
         web-migrate = webMigrate;
+        web-arc-import = webArcImport;
       };
 
       devShells.default = pkgs.mkShell {
@@ -522,6 +538,13 @@
               };
               text = ''exec ${webSelf.packages.${pkgs.system}.web-migrate}/bin/web-migrate "$@"'';
             })
+            (pkgs.writeShellApplication {
+              name = "vanl-web-arc-import";
+              runtimeEnv = {
+                VANL_CONFIG_PATH = cfg.configFile;
+              };
+              text = ''exec ${webSelf.packages.${pkgs.system}.web-arc-import}/bin/web-arc-import "$@"'';
+            })
           ];
 
           systemd.services.vanl-web = {
@@ -544,6 +567,36 @@
               RestartSec = 2;
               StandardOutput = "journal";
               StandardError = "journal";
+            };
+          };
+
+          # Hourly import of events from animalrightscalendar.com - idempotent upsert (keyed on
+          # source + external_source_id), safe to rerun. Needs the DB password already set, same
+          # as vanl-web itself - server/configuration.nix adds the matching
+          # after/wants=["postgresql-set-vanl-password.service"] (list options concatenate across
+          # modules, see the comment there on systemd.services.vanl-web.after).
+          systemd.services.vanl-web-arc-import = {
+            description = "Import events from animalrightscalendar.com (ARC)";
+            environment = {
+              VANL_CONFIG_PATH = cfg.configFile;
+            };
+            serviceConfig = {
+              Type = "oneshot";
+              User = cfg.user;
+              Group = cfg.group;
+              ExecStart = "${webSelf.packages.${pkgs.system}.web-arc-import}/bin/web-arc-import";
+              EnvironmentFile = cfg.environmentFile;
+              StandardOutput = "journal";
+              StandardError = "journal";
+            };
+          };
+
+          systemd.timers.vanl-web-arc-import = {
+            description = "Run the ARC events import hourly";
+            wantedBy = ["timers.target"];
+            timerConfig = {
+              OnCalendar = "hourly";
+              Persistent = true;
             };
           };
         };
