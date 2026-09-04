@@ -37,7 +37,8 @@ async function makeUser(accountName: string): Promise<UserId> {
 function baseInput(overrides: Partial<OrganizationInput> = {}): OrganizationInput {
   return {
     name: `Test Org ${crypto.randomUUID()}`,
-    description: null,
+    descriptionNl: null,
+    descriptionEn: null,
     websiteUrl: null,
     ...overrides,
   };
@@ -86,11 +87,20 @@ describe("createOrganization", () => {
     expect(result._unsafeUnwrapErr()).toBe("validation");
   });
 
-  it("rejects a description over 10000 characters", async () => {
-    const creator = await makeUser("org-creator-long-description");
+  it("rejects a Dutch description over 10000 characters", async () => {
+    const creator = await makeUser("org-creator-long-description-nl");
     const result = await service.createOrganization(
       actingAs(creator),
-      baseInput({ name: "Long Description Org", description: "a".repeat(10001) }),
+      baseInput({ name: "Long Description Org NL", descriptionNl: "a".repeat(10001) }),
+    );
+    expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
+  it("rejects an English description over 10000 characters", async () => {
+    const creator = await makeUser("org-creator-long-description-en");
+    const result = await service.createOrganization(
+      actingAs(creator),
+      baseInput({ name: "Long Description Org EN", descriptionEn: "a".repeat(10001) }),
     );
     expect(result._unsafeUnwrapErr()).toBe("validation");
   });

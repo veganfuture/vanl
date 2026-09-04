@@ -21,7 +21,9 @@ alter table events add constraint events_external_event_url_length
 alter table events add constraint events_registration_url_length
   check (char_length(registration_url) <= 2000);
 
-alter table organizations add constraint organizations_description_length
-  check (char_length(description) <= 10000);
+alter table organizations add constraint organizations_description_nl_length
+  check (char_length(description_nl) <= 10000);
+alter table organizations add constraint organizations_description_en_length
+  check (char_length(description_en) <= 10000);
 alter table organizations add constraint organizations_website_url_length
   check (char_length(website_url) <= 2000);

@@ -15,7 +15,8 @@ export const OrganizationJsonSchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
-  description: z.string().nullable(),
+  descriptionNl: z.string().nullable(),
+  descriptionEn: z.string().nullable(),
   websiteUrl: z.string().nullable(),
   logoFullImageId: z.string().nullable(),
   logoThumbnailImageId: z.string().nullable(),
@@ -44,7 +45,8 @@ export function toOrganizationJson(
     id: org.id.value,
     name: org.name,
     slug: org.slug,
-    description: org.description,
+    descriptionNl: org.descriptionNl,
+    descriptionEn: org.descriptionEn,
     websiteUrl: org.websiteUrl,
     logoFullImageId: org.logoFullImageId,
     logoThumbnailImageId: org.logoThumbnailImageId,
@@ -57,7 +59,8 @@ export function toOrganizationJson(
 /** Request body shared by create (POST) and update (PATCH). */
 export const OrganizationRequestSchema = z.object({
   name: z.string(),
-  description: z.string().nullable(),
+  descriptionNl: z.string().nullable(),
+  descriptionEn: z.string().nullable(),
   websiteUrl: z.string().nullable(),
 });
 export type OrganizationRequest = z.infer<typeof OrganizationRequestSchema>;

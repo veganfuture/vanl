@@ -51,18 +51,20 @@ export function organizationFormErrorMessages(
 
 export type OrganizationFormValues = {
   name: string;
-  description: string;
+  descriptionNl: string;
+  descriptionEn: string;
   websiteUrl: string;
 };
 
 export function emptyOrganizationFormValues(): OrganizationFormValues {
-  return { name: "", description: "", websiteUrl: "" };
+  return { name: "", descriptionNl: "", descriptionEn: "", websiteUrl: "" };
 }
 
 export function organizationFormValuesFromOrg(org: OrganizationJson): OrganizationFormValues {
   return {
     name: org.name,
-    description: org.description ?? "",
+    descriptionNl: org.descriptionNl ?? "",
+    descriptionEn: org.descriptionEn ?? "",
     websiteUrl: org.websiteUrl ?? "",
   };
 }
@@ -70,7 +72,8 @@ export function organizationFormValuesFromOrg(org: OrganizationJson): Organizati
 export function toOrganizationRequestBody(values: OrganizationFormValues) {
   return {
     name: values.name.trim(),
-    description: values.description.trim() || null,
+    descriptionNl: values.descriptionNl.trim() || null,
+    descriptionEn: values.descriptionEn.trim() || null,
     websiteUrl: values.websiteUrl.trim() || null,
   };
 }
@@ -129,17 +132,30 @@ export function OrganizationForm(props: {
         currentImageId={props.currentLogoImageId}
         onChange={setLogoFile}
       />
-      <label class="block">
-        <span class="block text-sm font-medium">
-          {t("Beschrijving (optioneel)", "Description (optional)")}
-        </span>
-        <textarea
-          class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
-          rows={4}
-          value={values().description}
-          onInput={(e) => setValues({ ...values(), description: e.currentTarget.value })}
-        />
-      </label>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <label class="block">
+          <span class="block text-sm font-medium">
+            🇳🇱 {t("Beschrijving (optioneel)", "Description (optional)")}
+          </span>
+          <textarea
+            class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+            rows={4}
+            value={values().descriptionNl}
+            onInput={(e) => setValues({ ...values(), descriptionNl: e.currentTarget.value })}
+          />
+        </label>
+        <label class="block">
+          <span class="block text-sm font-medium">
+            🇬🇧 {t("Beschrijving (optioneel)", "Description (optional)")}
+          </span>
+          <textarea
+            class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+            rows={4}
+            value={values().descriptionEn}
+            onInput={(e) => setValues({ ...values(), descriptionEn: e.currentTarget.value })}
+          />
+        </label>
+      </div>
       <label class="block">
         <span class="block text-sm font-medium">
           {t("Website (optioneel)", "Website (optional)")}

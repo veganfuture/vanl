@@ -99,8 +99,12 @@ export default function OrganizationDetailPage() {
                   </div>
                 </Show>
               </div>
-              <Show when={currentOrg().description}>
-                <p class="mb-4 whitespace-pre-wrap text-zinc-700">{currentOrg().description}</p>
+              <Show
+                when={pickLocalized(currentOrg().descriptionNl, currentOrg().descriptionEn, lang())}
+              >
+                {(description) => (
+                  <p class="mb-4 whitespace-pre-wrap text-zinc-700">{description()}</p>
+                )}
               </Show>
               <Show when={currentOrg().websiteUrl}>
                 <p class="mb-8">

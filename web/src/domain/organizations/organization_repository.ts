@@ -24,7 +24,8 @@ const OrganizationRowSchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
-  description: z.string().nullable(),
+  description_nl: z.string().nullable(),
+  description_en: z.string().nullable(),
   website_url: z.string().nullable(),
   logo_full_image_id: z.string().nullable(),
   logo_thumbnail_image_id: z.string().nullable(),
@@ -55,7 +56,8 @@ function mapOrganizationRow(row: unknown): Result<Organization, DbError> {
     id: idResult.value,
     name: parsed.name,
     slug: parsed.slug,
-    description: parsed.description,
+    descriptionNl: parsed.description_nl,
+    descriptionEn: parsed.description_en,
     websiteUrl: parsed.website_url,
     logoFullImageId: parsed.logo_full_image_id,
     logoThumbnailImageId: parsed.logo_thumbnail_image_id,
@@ -175,13 +177,15 @@ function mapMembershipWithOrgNameRow(row: unknown): Result<MembershipWithOrgName
 export type NewOrganizationInput = {
   name: string;
   slug: string;
-  description: string | null;
+  descriptionNl: string | null;
+  descriptionEn: string | null;
   websiteUrl: string | null;
 };
 
 export type EditableOrganizationFields = {
   name: string;
-  description: string | null;
+  descriptionNl: string | null;
+  descriptionEn: string | null;
   websiteUrl: string | null;
 };
 
@@ -201,8 +205,11 @@ export class OrganizationRepository {
     return ResultAsync.fromPromise(
       this.sql.begin(async (tx) => {
         const rows = await tx`
-          insert into organizations (name, slug, description, website_url)
-          values (${input.name}, ${input.slug}, ${input.description}, ${input.websiteUrl})
+          insert into organizations (name, slug, description_nl, description_en, website_url)
+          values (
+            ${input.name}, ${input.slug}, ${input.descriptionNl}, ${input.descriptionEn},
+            ${input.websiteUrl}
+          )
           returning *
         `;
         await tx`
@@ -259,7 +266,8 @@ export class OrganizationRepository {
       this.sql`
         update organizations set
           name = ${fields.name},
-          description = ${fields.description},
+          description_nl = ${fields.descriptionNl},
+          description_en = ${fields.descriptionEn},
           website_url = ${fields.websiteUrl},
           updated_at = now()
         where id = ${id.value}

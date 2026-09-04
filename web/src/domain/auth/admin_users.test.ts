@@ -52,7 +52,8 @@ describe("listAdminUserSummaries", () => {
         {
           name: "Test Org",
           slug: `test-org-${crypto.randomUUID()}`,
-          description: null,
+          descriptionNl: null,
+          descriptionEn: null,
           websiteUrl: null,
         },
         orgAdminUser,
@@ -118,7 +119,8 @@ describe("getAdminUserDetail", () => {
         {
           name: "Detail Test Org",
           slug: `detail-test-org-${crypto.randomUUID()}`,
-          description: null,
+          descriptionNl: null,
+          descriptionEn: null,
           websiteUrl: null,
         },
         target,

@@ -32,7 +32,8 @@ function baseOrgInput(overrides: Partial<NewOrganizationInput> = {}): NewOrganiz
   return {
     name: `Test Org ${crypto.randomUUID()}`,
     slug: `test-org-${crypto.randomUUID()}`,
-    description: null,
+    descriptionNl: null,
+    descriptionEn: null,
     websiteUrl: null,
     ...overrides,
   };
@@ -115,13 +116,15 @@ describe("updateOrganization", () => {
     const updated = (
       await repository.updateOrganization(org.id, {
         name: "New Name",
-        description: "A description now",
+        descriptionNl: "Een beschrijving nu",
+        descriptionEn: "A description now",
         websiteUrl: "https://example.org",
       })
     )._unsafeUnwrap();
 
     expect(updated.name).toBe("New Name");
-    expect(updated.description).toBe("A description now");
+    expect(updated.descriptionNl).toBe("Een beschrijving nu");
+    expect(updated.descriptionEn).toBe("A description now");
     expect(updated.websiteUrl).toBe("https://example.org");
   });
 });
