@@ -152,32 +152,25 @@
       # VPS - server/configuration.nix exposes each as `vanl-web-<name>` via
       # environment.systemPackages (see its own comment for which ones also get a systemd
       # service/timer, vs. only ever run by hand per server/README.md's runbooks).
-      mkBunScriptWrapper = { name, scriptPath }: pkgs.writeScriptBin name ''
-        #!${pkgs.nushell}/bin/nu
-        def main [...args: string] {
-          # seed-organizations.ts's sharp dependency needs this - see runWeb/checkProject below
-          # for the same requirement.
-          $env.LD_LIBRARY_PATH = $"${nativeLibPath}:($env.LD_LIBRARY_PATH? | default "")"
-          let workdir = (^${pkgs.coreutils}/bin/mktemp -d)
-          let original_dir = (pwd)
-          ^${pkgs.coreutils}/bin/cp -r ${self}/. $"($workdir)/"
-          ^${pkgs.coreutils}/bin/chmod -R u+w $workdir
-          ln -sfn ${webDeps}/node_modules ($workdir | path join "node_modules")
-          cd $workdir
-          # try/catch as a value-producing expression, not a `mut` flag set from inside the
-          # catch block - nushell's closures (which catch blocks are) can't capture/mutate an
-          # outer `mut` variable, only return a value. Unlike `| complete`, this still streams
-          # stdout/stderr live instead of buffering it until the script exits.
-          let exit_code = (try {
-            ^${pkgs.bun}/bin/bun run ${scriptPath} ...$args
-            0
-          } catch {
-            1
-          })
-          cd $original_dir
-          ^${pkgs.coreutils}/bin/rm -rf $workdir
-          exit $exit_code
-        }
+      #
+      # Deliberately bash, not nushell (like most of the rest of this file's wrapper scripts) -
+      # these are invoked as `sudo -u vanl-web ... vanl-web-migrate` from an admin's own
+      # interactive root shell, which does *not* chdir; the child inherits root's cwd as-is.
+      # nushell's engine unconditionally tries to resolve/canonicalize its inherited cwd at
+      # startup and hard-fails with a permission error if the current user can't stat it (e.g.
+      # root's home dir, which vanl-web has no access to) - verified by hand, happens even for
+      # a trivial `nu -c 'print 1'` with no script content at all, so there's no in-script
+      # workaround. bash has no such requirement.
+      mkBunScriptWrapper = { name, scriptPath }: pkgs.writeShellScriptBin name ''
+        set -euo pipefail
+        export LD_LIBRARY_PATH="${nativeLibPath}:''${LD_LIBRARY_PATH:-}"
+        workdir=$(mktemp -d)
+        trap 'rm -rf "$workdir"' EXIT
+        cp -r ${self}/. "$workdir/"
+        chmod -R u+w "$workdir"
+        ln -sfn ${webDeps}/node_modules "$workdir/node_modules"
+        cd "$workdir"
+        ${pkgs.bun}/bin/bun run ${scriptPath} "$@"
       '';
 
       webMigrate = mkBunScriptWrapper {
