@@ -46,7 +46,8 @@ export function isOrgMember(orgId: string, actingUser: ActingUser | null): boole
  */
 export type OrganizationInput = {
   name: string;
-  description: string | null;
+  descriptionNl: string | null;
+  descriptionEn: string | null;
   websiteUrl: string | null;
 };
 
@@ -58,7 +59,8 @@ const nullableTrimmed = z
 
 const OrganizationInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  description: nullableTrimmed,
+  descriptionNl: nullableTrimmed,
+  descriptionEn: nullableTrimmed,
   websiteUrl: z.string().trim().url().max(2000).nullable(),
 });
 
@@ -98,7 +100,8 @@ export class OrganizationService {
         {
           name: parsed.data.name,
           slug: generateSlug(parsed.data.name),
-          description: parsed.data.description,
+          descriptionNl: parsed.data.descriptionNl,
+          descriptionEn: parsed.data.descriptionEn,
           websiteUrl: parsed.data.websiteUrl,
         },
         actingUser.id,
@@ -173,7 +176,8 @@ export class OrganizationService {
       }
       const fields: EditableOrganizationFields = {
         name: parsed.data.name,
-        description: parsed.data.description,
+        descriptionNl: parsed.data.descriptionNl,
+        descriptionEn: parsed.data.descriptionEn,
         websiteUrl: parsed.data.websiteUrl,
       };
       return this.repository.updateOrganization(orgId, fields).mapErr((dbError) => {

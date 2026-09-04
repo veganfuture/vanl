@@ -10,7 +10,8 @@ export type Organization = {
   id: OrganizationId;
   name: string;
   slug: string;
-  description: string | null;
+  descriptionNl: string | null;
+  descriptionEn: string | null;
   websiteUrl: string | null;
   /** sha256 of each resized variant - see src/domain/images/image_processing.ts. */
   logoFullImageId: string | null;

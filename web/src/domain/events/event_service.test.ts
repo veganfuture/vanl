@@ -75,7 +75,13 @@ function baseInput(overrides: Partial<EventInput> = {}): EventInput {
 async function makeOrg(name: string, adminUserId: UserId): Promise<string> {
   const org = (
     await organizationRepository.createOrganizationWithAdmin(
-      { name, slug: `${name}-${crypto.randomUUID()}`, description: null, websiteUrl: null },
+      {
+        name,
+        slug: `${name}-${crypto.randomUUID()}`,
+        descriptionNl: null,
+        descriptionEn: null,
+        websiteUrl: null,
+      },
       adminUserId,
     )
   )._unsafeUnwrap();

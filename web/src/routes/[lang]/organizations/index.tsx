@@ -3,7 +3,7 @@ import { createResource, For, Show } from "solid-js";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch } from "~/lib/api-fetch";
 import { imageUrl } from "~/lib/image-url";
-import { useLang } from "~/lib/i18n";
+import { pickLocalized, useLang } from "~/lib/i18n";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { ListOrganizationsResponseSchema } from "~/routes/api/organizations/index.schema";
 
@@ -76,8 +76,8 @@ export default function OrganizationsListPage() {
                     >
                       {org.name}
                     </a>
-                    <Show when={org.description}>
-                      <p class="text-sm text-zinc-600">{org.description}</p>
+                    <Show when={pickLocalized(org.descriptionNl, org.descriptionEn, lang())}>
+                      {(description) => <p class="text-sm text-zinc-600">{description()}</p>}
                     </Show>
                   </div>
                 </li>

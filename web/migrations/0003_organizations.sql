@@ -10,7 +10,8 @@ create table organizations (
   id uuid primary key default gen_random_uuid(),
   name citext not null unique,
   slug text not null unique,
-  description text,
+  description_nl text,
+  description_en text,
   website_url text,
   -- logo_image_id intentionally omitted - arrives in M6 alongside Image,
   -- same reasoning as events' own flyer columns not existing yet either.

@@ -44,19 +44,22 @@ const TEST_ORG_EDITOR: TestUser = {
 type TestOrg = {
   name: string;
   slug: string;
-  description: string;
+  descriptionNl: string;
+  descriptionEn: string;
 };
 
 const TEST_ORG_ONE: TestOrg = {
   name: "Test Org One",
   slug: "test-org-one",
-  description: "Fixture organization for local dev/testing.",
+  descriptionNl: "Testorganisatie voor lokale ontwikkeling/testen.",
+  descriptionEn: "Fixture organization for local dev/testing.",
 };
 
 const TEST_ORG_TWO: TestOrg = {
   name: "Test Org Two",
   slug: "test-org-two",
-  description: "Second fixture organization, for testing cross-org boundaries.",
+  descriptionNl: "Tweede testorganisatie, voor het testen van grenzen tussen organisaties.",
+  descriptionEn: "Second fixture organization, for testing cross-org boundaries.",
 };
 
 async function upsertUser(sql: postgres.Sql, user: TestUser): Promise<string> {
@@ -71,9 +74,11 @@ async function upsertUser(sql: postgres.Sql, user: TestUser): Promise<string> {
 
 async function upsertOrg(sql: postgres.Sql, org: TestOrg): Promise<string> {
   const [row] = await sql`
-    insert into organizations (name, slug, description)
-    values (${org.name}, ${org.slug}, ${org.description})
-    on conflict (name) do update set description = excluded.description
+    insert into organizations (name, slug, description_nl, description_en)
+    values (${org.name}, ${org.slug}, ${org.descriptionNl}, ${org.descriptionEn})
+    on conflict (name) do update set
+      description_nl = excluded.description_nl,
+      description_en = excluded.description_en
     returning id
   `;
   return row.id as string;
