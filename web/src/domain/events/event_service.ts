@@ -9,7 +9,11 @@ import { ImageRepository } from "~/domain/images/image_repository";
 import { processUpload, THUMBNAIL_MAX_WIDTH } from "~/domain/images/image_processing";
 import type { UserId } from "../auth/user_id";
 import type { Event, EventLocationKind } from "./event";
-import { EventRepository, type EditableEventFields } from "./event_repository";
+import {
+  EventRepository,
+  type EditableEventFields,
+  type EventWithPublisherOrgName,
+} from "./event_repository";
 import type { EventId } from "./event_id";
 import { validateEvent } from "~/lib/event_validation";
 import { lookupAddress } from "./pdok-client";
@@ -233,7 +237,9 @@ export class EventService {
   }
 
   /** Backs the public /events.ics feed - visible, not-yet-ended events, optionally excluding one external source by name. */
-  listUpcomingVisibleEvents(excludeExternalSource: string | null): ResultAsync<Event[], never> {
+  listUpcomingVisibleEvents(
+    excludeExternalSource: string | null,
+  ): ResultAsync<EventWithPublisherOrgName[], never> {
     return this.repository.listUpcomingVisibleEvents(excludeExternalSource).orElse((dbError) => {
       logger.error({ err: dbError }, "failed to list upcoming visible events");
       return okAsync([]);

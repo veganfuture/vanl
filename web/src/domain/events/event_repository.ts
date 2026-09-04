@@ -152,6 +152,27 @@ function mapEventRow(row: unknown): Result<Event, DbError> {
   });
 }
 
+const EventWithPublisherOrgNameRowSchema = EventRowSchema.extend({
+  publisher_org_name: z.string().nullable(),
+});
+
+/** An Event joined with its publishing org's name (null unless publisherOrgId is set) - backs the /events.ics ORG field. */
+export type EventWithPublisherOrgName = Event & { publisherOrgName: string | null };
+
+function mapEventWithPublisherOrgNameRow(row: unknown): Result<EventWithPublisherOrgName, DbError> {
+  const parsedRow = EventWithPublisherOrgNameRowSchema.safeParse(row);
+  if (!parsedRow.success) {
+    return err({
+      message: `Corrupt events row: ${parsedRow.error.message}`,
+      cause: parsedRow.error,
+    });
+  }
+  return mapEventRow(row).map((event) => ({
+    ...event,
+    publisherOrgName: parsedRow.data.publisher_org_name,
+  }));
+}
+
 export type NewEventInput = {
   slug: string;
   titleNl: string | null;
@@ -298,27 +319,33 @@ export class EventRepository {
   /**
    * Visible events that haven't ended yet (or have no end time and haven't
    * started yet), optionally excluding one external source by name - backs
-   * the public /events.ics feed.
+   * the public /events.ics feed. Left-joined with the publishing org's name
+   * (null for events published by an individual) since the feed exposes it
+   * as an ORG field.
    */
-  listUpcomingVisibleEvents(excludeExternalSource: string | null): ResultAsync<Event[], DbError> {
+  listUpcomingVisibleEvents(
+    excludeExternalSource: string | null,
+  ): ResultAsync<EventWithPublisherOrgName[], DbError> {
     return ResultAsync.fromPromise(
       this.sql`
-        select * from events
-        where status = 'visible'
-          and coalesce(end_at, start_at) >= now()
+        select e.*, o.name as publisher_org_name
+        from events e
+        left join organizations o on o.id = e.publisher_org_id
+        where e.status = 'visible'
+          and coalesce(e.end_at, e.start_at) >= now()
           and (
             ${excludeExternalSource}::text is null
-            or external_source_name is distinct from ${excludeExternalSource}
+            or e.external_source_name is distinct from ${excludeExternalSource}
           )
-        order by start_at asc
+        order by e.start_at asc
       `,
       (cause): DbError => ({ message: "Failed to list upcoming visible events", cause }),
     ).andThen((rows) => {
-      const mapped: Event[] = [];
+      const mapped: EventWithPublisherOrgName[] = [];
       for (const row of rows) {
-        const result = mapEventRow(row);
+        const result = mapEventWithPublisherOrgNameRow(row);
         if (result.isErr()) {
-          return err<Event[], DbError>(result.error);
+          return err<EventWithPublisherOrgName[], DbError>(result.error);
         }
         mapped.push(result.value);
       }

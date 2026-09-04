@@ -1,5 +1,5 @@
 import { defineHandler, getQuery } from "h3";
-import type { Event } from "~/domain/events/event";
+import type { EventWithPublisherOrgName } from "~/domain/events/event_repository";
 import { eventService } from "~/domain/events/event_service";
 import { pickLocalized } from "~/lib/i18n";
 
@@ -43,7 +43,7 @@ function formatIcsDate(date: Date): string {
     .replace(/\.\d{3}Z$/, "Z");
 }
 
-function eventToVEvent(event: Event): string {
+function eventToVEvent(event: EventWithPublisherOrgName): string {
   const summary = pickLocalized(event.titleNl, event.titleEn, "nl");
   const description = pickLocalized(event.descriptionNl, event.descriptionEn, "nl");
   const locationParts = [
@@ -53,6 +53,13 @@ function eventToVEvent(event: Event): string {
     event.locationPostcode,
     event.locationDescription,
   ].filter((part): part is string => !!part);
+  /**
+   * Which real-world organization published the event: an imported event
+   * carries organizerName directly (see Event.organizerName), otherwise
+   * it's whichever org the event was published on behalf of, if any -
+   * never set for an event published by an individual.
+   */
+  const organizationName = event.organizerName ?? event.publisherOrgName;
 
   const lines = [
     "BEGIN:VEVENT",
@@ -64,6 +71,7 @@ function eventToVEvent(event: Event): string {
     description ? `DESCRIPTION:${escapeIcsText(description)}` : null,
     locationParts.length > 0 ? `LOCATION:${escapeIcsText(locationParts.join(", "))}` : null,
     event.externalEventUrl ? `URL:${escapeIcsText(event.externalEventUrl)}` : null,
+    organizationName ? `ORG:${escapeIcsText(organizationName)}` : null,
     "END:VEVENT",
   ].filter((line): line is string => line !== null);
 
