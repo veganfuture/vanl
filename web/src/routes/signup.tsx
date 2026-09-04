@@ -11,6 +11,7 @@ import {
   SignupResponseSchema,
   type SignupResponse,
 } from "~/routes/api/auth/signup.schema";
+import { useLang } from "~/lib/i18n";
 
 function firstParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
@@ -55,6 +56,7 @@ export default function SignupPage() {
     },
   );
 
+  const { lang } = useLang();
   const [accountName, setAccountName] = createSignal("");
   const [email, setEmail] = createSignal("");
   const [displayName, setDisplayName] = createSignal("");
@@ -101,7 +103,7 @@ export default function SignupPage() {
             fallback={
               <p class="text-emerald-700">
                 Account created! You can now{" "}
-                <a href="/login" class="underline">
+                <a href={`/${lang()}/login`} class="underline">
                   log in
                 </a>
                 .
