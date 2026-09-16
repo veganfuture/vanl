@@ -163,6 +163,56 @@ const ORGANIZATIONS: OrgSeed[] = [
       "Delhaize om dierenwelzijnsbeloften in Nederland na te komen), en publieksvoorlichting in " +
       "Europa, Amerika en Azië.",
   },
+  {
+    name: "Animal Rebellion",
+    slug: "animal-rebellion",
+    websiteUrl: "https://nl.animalrebellion.org/",
+    logoAssetPath: "scripts/seed-assets/organizations/animal-rebellion.png",
+    descriptionEn:
+      "Animal Rebellion Netherlands is the Dutch chapter of Animal Rebellion, an international " +
+      "movement that grew out of Extinction Rebellion and uses nonviolent civil disobedience to " +
+      "push for a just and sustainable transition to a plant-based food system. It frames this " +
+      "transition as necessary both to avert a sixth mass extinction and to secure justice for " +
+      "animals, and it demands that the Dutch government tell the truth about the climate crisis, " +
+      "cut emissions to net zero, and hand citizens a binding role in the transition through a " +
+      "citizens' assembly.",
+    descriptionNl:
+      "Animal Rebellion Netherlands is de Nederlandse afdeling van Animal Rebellion, een " +
+      "internationale beweging die is voortgekomen uit Extinction Rebellion en geweldloze " +
+      "burgerlijke ongehoorzaamheid inzet voor een rechtvaardige en duurzame transitie naar een " +
+      "plantaardig voedselsysteem. De organisatie ziet deze transitie als noodzakelijk om zowel " +
+      "een zesde massa-uitsterving te voorkomen als rechtvaardigheid voor dieren te bereiken, en " +
+      "eist van de Nederlandse overheid dat die eerlijk is over de klimaatcrisis, de uitstoot " +
+      "terugdringt naar netto nul, en burgers via een burgerberaad een bindende rol geeft in de " +
+      "transitie.",
+  },
+  {
+    name: "Bite Back",
+    slug: "bite-back",
+    websiteUrl: "https://www.biteback.nl/",
+    logoAssetPath: "scripts/seed-assets/organizations/bite-back.png",
+    descriptionEn:
+      "Bite Back is a Dutch-Belgian animal rights organisation, based in Utrecht, that campaigns " +
+      "regionally, nationally and internationally for the rights and welfare of animals through " +
+      "nonviolent direct action, including demonstrations, undercover investigations and public " +
+      "information stands run by volunteer regional groups. Its campaigns include Dolfinarium-vrij " +
+      "Nederland, pressuring companies to end ties with the Harderwijk dolphinarium, Uitgemolken " +
+      "against the dairy industry, and Stop de Visserij against commercial fishing, and it partners " +
+      "internationally in the Empty the Tanks campaign for captive marine mammals. Bite Back frames " +
+      "animal rights as part of a broader fight against speciesism, racism, sexism and other forms " +
+      "of oppression.",
+    descriptionNl:
+      "Bite Back is een Nederlands-Belgische dierenrechtenorganisatie, gevestigd in Utrecht, die " +
+      "regionaal, nationaal en internationaal campagne voert voor de rechten en het welzijn van " +
+      "dieren door middel van geweldloze directe actie, waaronder demonstraties, " +
+      "undercoveronderzoeken en informatiestands, uitgevoerd door regionale vrijwilligersgroepen. " +
+      "Campagnes zijn onder meer Dolfinariumvrij Nederland, gericht tegen bedrijven die " +
+      "samenwerken met het Dolfinarium in Harderwijk, Uitgemolken tegen de zuivelindustrie, en Stop " +
+      "de Visserij tegen de commerciële visserij, en de organisatie is internationaal partner in de " +
+      "campagne Empty the Tanks voor in gevangenschap gehouden zeezoogdieren. Bite Back ziet " +
+      "dierenrechten als onderdeel van een bredere strijd tegen speciësisme, racisme, seksisme en " +
+      "andere vormen van onderdrukking.",
+  },
 ];
 
 async function seedOrganizationLogo(
