@@ -360,6 +360,64 @@ export class EventRepository {
     });
   }
 
+  /**
+   * Visible, not-yet-ended events published by one org, soonest first -
+   * backs the organization detail page's "upcoming events" section. Same
+   * "hasn't ended yet" rule as listUpcomingVisibleEvents.
+   */
+  listUpcomingVisibleEventsByOrg(orgId: OrganizationId): ResultAsync<Event[], DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        select * from events
+        where status = 'visible'
+          and publisher_org_id = ${orgId.value}
+          and coalesce(end_at, start_at) >= now()
+        order by start_at asc
+      `,
+      (cause): DbError => ({ message: "Failed to list upcoming visible events by org", cause }),
+    ).andThen((rows) => {
+      const mapped: Event[] = [];
+      for (const row of rows) {
+        const result = mapEventRow(row);
+        if (result.isErr()) {
+          return err<Event[], DbError>(result.error);
+        }
+        mapped.push(result.value);
+      }
+      return ok(mapped);
+    });
+  }
+
+  /**
+   * The single soonest visible, not-yet-ended event for every org that has
+   * one, keyed by publisher_org_id via `distinct on` - backs the
+   * organizations list page's "next event" preview with one query instead
+   * of one per org.
+   */
+  listNextUpcomingVisibleEventPerOrg(): ResultAsync<Event[], DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        select distinct on (publisher_org_id) *
+        from events
+        where status = 'visible'
+          and publisher_org_id is not null
+          and coalesce(end_at, start_at) >= now()
+        order by publisher_org_id, start_at asc
+      `,
+      (cause): DbError => ({ message: "Failed to list next upcoming event per org", cause }),
+    ).andThen((rows) => {
+      const mapped: Event[] = [];
+      for (const row of rows) {
+        const result = mapEventRow(row);
+        if (result.isErr()) {
+          return err<Event[], DbError>(result.error);
+        }
+        mapped.push(result.value);
+      }
+      return ok(mapped);
+    });
+  }
+
   /** All of a publisher's own events regardless of status, soonest first - backs "My events". */
   listEventsByPublisher(publisherUserId: UserId): ResultAsync<Event[], DbError> {
     return ResultAsync.fromPromise(
