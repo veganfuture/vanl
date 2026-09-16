@@ -294,6 +294,34 @@ export class EventService {
   }
 
   /**
+   * Backs the organization detail page's "upcoming events" section -
+   * visible, not-yet-ended events published by one org, soonest first.
+   * Tolerates a malformed orgId (empty list) the same way
+   * getOrganizationBySlug tolerates a not-found slug.
+   */
+  listUpcomingVisibleEventsByOrg(orgId: string): ResultAsync<Event[], never> {
+    const orgIdResult = OrganizationId.from_string(orgId);
+    if (orgIdResult.isErr()) {
+      return okAsync([]);
+    }
+    return this.repository.listUpcomingVisibleEventsByOrg(orgIdResult.value).orElse((dbError) => {
+      logger.error({ err: dbError }, "failed to list upcoming visible events by org");
+      return okAsync([]);
+    });
+  }
+
+  /**
+   * Backs the organizations list page's "next event" preview - the soonest
+   * upcoming visible event for every org that has one, in a single query.
+   */
+  listNextUpcomingEventsByOrg(): ResultAsync<Event[], never> {
+    return this.repository.listNextUpcomingVisibleEventPerOrg().orElse((dbError) => {
+      logger.error({ err: dbError }, "failed to list next upcoming events by org");
+      return okAsync([]);
+    });
+  }
+
+  /**
    * "My events" - every status, not just visible, since it's for managing
    * your own events: everything published as the caller themselves, unioned
    * with everything published by any org they belong to (any role).

@@ -6,9 +6,18 @@ import { imageUrl } from "~/lib/image-url";
 import { pickLocalized, useLang } from "~/lib/i18n";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { ListOrganizationsResponseSchema } from "~/routes/api/organizations/index.schema";
+import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
+import type { EventJson } from "~/routes/api/events/event.schema";
 
 export default function OrganizationsListPage() {
   const { lang, t } = useLang();
+
+  function formatDate(iso: string): string {
+    return new Date(iso).toLocaleString(lang() === "nl" ? "nl-NL" : "en-GB", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  }
 
   const [me] = createResource(async () => {
     const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
@@ -27,6 +36,26 @@ export default function OrganizationsListPage() {
       () => [],
     );
   });
+
+  const [nextEvents] = createResource(async () => {
+    const result = await apiFetch("/api/events?nextPerOrg=true", {
+      response: ListEventsResponseSchema,
+    });
+    return result.match(
+      (data) => data.events,
+      () => [],
+    );
+  });
+
+  const nextEventByOrgId = () => {
+    const map = new Map<string, EventJson>();
+    for (const event of nextEvents() ?? []) {
+      if (event.publisherOrgId) {
+        map.set(event.publisherOrgId, event);
+      }
+    }
+    return map;
+  };
 
   return (
     <main class="mx-auto max-w-3xl px-6 py-12">
@@ -78,6 +107,21 @@ export default function OrganizationsListPage() {
                     </a>
                     <Show when={pickLocalized(org.descriptionNl, org.descriptionEn, lang())}>
                       {(description) => <p class="text-sm text-zinc-600">{description()}</p>}
+                    </Show>
+                    <Show when={nextEventByOrgId().get(org.id)}>
+                      {(event) => (
+                        <p class="mt-1 text-sm text-zinc-600">
+                          {t("Volgende evenement: ", "Next event: ")}
+                          <a
+                            href={`/${lang()}/events/${event().slug}`}
+                            class="font-medium hover:underline"
+                          >
+                            {pickLocalized(event().titleNl, event().titleEn, lang())}
+                          </a>
+                          {" — "}
+                          {formatDate(event().startAt)}
+                        </p>
+                      )}
                     </Show>
                   </div>
                 </li>

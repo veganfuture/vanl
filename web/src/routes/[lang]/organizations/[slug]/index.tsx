@@ -26,29 +26,20 @@ export default function OrganizationDetailPage() {
     },
   );
 
-  // No org-scoped filter on the public events listing yet (same "basic,
-  // unfiltered" stage as the events index page - see event_repository.ts's
-  // listVisibleEvents), so this filters the full visible list client-side.
   const [events] = createResource(
     () => org()?.id,
     async (orgId) => {
-      const result = await apiFetch("/api/events", { response: ListEventsResponseSchema });
+      const result = await apiFetch(`/api/events?orgId=${encodeURIComponent(orgId)}`, {
+        response: ListEventsResponseSchema,
+      });
       return result.match(
-        (data) => data.events.filter((event) => event.publisherOrgId === orgId),
+        (data) => data.events,
         () => [],
       );
     },
   );
 
   const canManage = () => org()?.isMember ?? false;
-
-  // Only shown for site admins - listEventsForViewer only returns
-  // draft/hidden/cancelled events to them, everyone else only ever sees "visible".
-  const statusLabels: Record<string, string> = {
-    draft: t("Concept", "Draft"),
-    hidden: t("Verborgen", "Hidden"),
-    cancelled: t("Geannuleerd", "Cancelled"),
-  };
 
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleString(lang() === "nl" ? "nl-NL" : "en-GB", {
@@ -120,7 +111,9 @@ export default function OrganizationDetailPage() {
                 </p>
               </Show>
 
-              <h2 class="mb-4 text-lg font-semibold">{t("Evenementen", "Events")}</h2>
+              <h2 class="mb-4 text-lg font-semibold">
+                {t("Aankomende evenementen", "Upcoming events")}
+              </h2>
               <Show
                 when={!events.loading}
                 fallback={<p class="text-zinc-600">{t("Evenementen laden…", "Loading events…")}</p>}
@@ -128,7 +121,9 @@ export default function OrganizationDetailPage() {
                 <Show
                   when={events() && events()!.length > 0}
                   fallback={
-                    <p class="text-zinc-600">{t("Nog geen evenementen.", "No events yet.")}</p>
+                    <p class="text-zinc-600">
+                      {t("Geen aankomende evenementen.", "No upcoming events.")}
+                    </p>
                   }
                 >
                   <ul class="space-y-4">
@@ -146,11 +141,6 @@ export default function OrganizationDetailPage() {
                             >
                               {pickLocalized(event.titleNl, event.titleEn, lang())}
                             </a>
-                            <Show when={statusLabels[event.status]}>
-                              <span class="ml-2 inline-block rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-                                {statusLabels[event.status]}
-                              </span>
-                            </Show>
                             <p class="text-sm text-zinc-600">{formatDate(event.startAt)}</p>
                           </div>
                         </li>

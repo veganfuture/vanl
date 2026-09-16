@@ -17,10 +17,27 @@ const ERROR_STATUS: Record<string, number> = {
  * anonymous) acting user so site admins see every status (hidden/cancelled
  * included, not just visible) and so canEdit reflects reality instead of
  * always being false.
+ *
+ * Two optional query params narrow the listing instead of the default
+ * "everything the viewer may see": `nextPerOrg=true` returns just the
+ * soonest upcoming event per org (organizations list page's preview);
+ * `orgId=<uuid>` returns every upcoming event for one org (organization
+ * detail page). Both are public, visible-only listings regardless of who's
+ * asking - unlike the unfiltered default, they don't expose draft/hidden/
+ * cancelled events to site admins.
  */
 export async function GET(event: APIEvent): Promise<Response> {
   const actingUser = await resolveActingUser(event.request);
-  const events = await eventService.listEventsForViewer(actingUser);
+  const url = new URL(event.request.url);
+  const nextPerOrg = url.searchParams.get("nextPerOrg") === "true";
+  const orgId = url.searchParams.get("orgId");
+
+  const events = nextPerOrg
+    ? await eventService.listNextUpcomingEventsByOrg()
+    : orgId
+      ? await eventService.listUpcomingVisibleEventsByOrg(orgId)
+      : await eventService.listEventsForViewer(actingUser);
+
   return events.match(
     (list) =>
       Response.json({
