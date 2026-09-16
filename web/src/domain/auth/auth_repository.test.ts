@@ -157,6 +157,35 @@ describe("user lookups", () => {
   });
 });
 
+describe("searchAccountNames", () => {
+  it("prefix-matches account names case-insensitively, ordered alphabetically", async () => {
+    await makeUser({ accountName: "erika" });
+    await makeUser({ accountName: "erik" });
+    await makeUser({ accountName: "someone-else" });
+
+    const results = (await repository.searchAccountNames("ERI", 10))._unsafeUnwrap();
+
+    expect(results.map((u) => u.accountName.value)).toEqual(["erik", "erika"]);
+  });
+
+  it("excludes disabled accounts", async () => {
+    const user = await makeUser({ accountName: "fenna" });
+    (await repository.setUserDisabled(user.id, true))._unsafeUnwrap();
+
+    const results = (await repository.searchAccountNames("fenna", 10))._unsafeUnwrap();
+    expect(results).toHaveLength(0);
+  });
+
+  it("respects the limit", async () => {
+    await makeUser({ accountName: "harry1" });
+    await makeUser({ accountName: "harry2" });
+    await makeUser({ accountName: "harry3" });
+
+    const results = (await repository.searchAccountNames("harry", 2))._unsafeUnwrap();
+    expect(results).toHaveLength(2);
+  });
+});
+
 describe("setUserDisabled", () => {
   it("sets and clears disabled_at, without hiding the user from findUserById", async () => {
     const user = await makeUser({ accountName: "gina" });
