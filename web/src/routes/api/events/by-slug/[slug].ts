@@ -1,5 +1,5 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { canModifyEvent, eventService } from "~/domain/events/event_service";
+import { canLinkEventOrg, canModifyEvent, eventService } from "~/domain/events/event_service";
 import { resolveActingUser } from "~/domain/auth/acting_user";
 import { toEventJson } from "../event.schema";
 import type { GetEventBySlugResponse } from "./[slug].schema";
@@ -14,7 +14,11 @@ export async function GET(event: APIEvent): Promise<Response> {
     (found) =>
       found
         ? Response.json({
-            event: toEventJson(found, canModifyEvent(found, actingUser)),
+            event: toEventJson(
+              found,
+              canModifyEvent(found, actingUser),
+              canLinkEventOrg(found, actingUser),
+            ),
           } satisfies GetEventBySlugResponse)
         : Response.json({ error: "not_found" } satisfies GetEventBySlugResponse, { status: 404 }),
     () => Response.json({ error: "not_found" } satisfies GetEventBySlugResponse, { status: 404 }),

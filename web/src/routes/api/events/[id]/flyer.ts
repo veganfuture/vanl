@@ -1,5 +1,5 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { canModifyEvent, eventService } from "~/domain/events/event_service";
+import { canLinkEventOrg, canModifyEvent, eventService } from "~/domain/events/event_service";
 import { EventId } from "~/domain/events/event_id";
 import { resolveActingUser } from "~/domain/auth/acting_user";
 import { toEventJson } from "../event.schema";
@@ -49,7 +49,11 @@ export async function POST(event: APIEvent): Promise<Response> {
   return result.match(
     (updated) =>
       Response.json(
-        toEventJson(updated, canModifyEvent(updated, actingUser)) satisfies UploadFlyerResponse,
+        toEventJson(
+          updated,
+          canModifyEvent(updated, actingUser),
+          canLinkEventOrg(updated, actingUser),
+        ) satisfies UploadFlyerResponse,
       ),
     (error) =>
       Response.json({ error } satisfies UploadFlyerResponse, { status: ERROR_STATUS[error] }),

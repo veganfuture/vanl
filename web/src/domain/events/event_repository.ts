@@ -506,6 +506,57 @@ export class EventRepository {
     ).andThen((rows) => mapEventRow(rows[0]));
   }
 
+  /**
+   * Attaches an already-existing event to an organization - the org becomes
+   * its publisher, replacing whichever individual published it before (the
+   * events_exactly_one_publisher CHECK requires clearing publisher_user_id
+   * whenever publisher_org_id is set). Unlike setEventPublisherOrg (the
+   * import script's own variant above), this never touches organizer_name -
+   * that field is bot-owned only, never set by a human action.
+   */
+  attachEventToOrganization(
+    id: EventId,
+    orgId: OrganizationId,
+    updatedBy: UserId,
+  ): ResultAsync<Event, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        update events set
+          publisher_org_id = ${orgId.value},
+          publisher_user_id = null,
+          updated_by = ${updatedBy.value},
+          updated_at = now()
+        where id = ${id.value}
+        returning *
+      `,
+      (cause): DbError => ({ message: "Failed to attach event to organization", cause }),
+    ).andThen((rows) => mapEventRow(rows[0]));
+  }
+
+  /**
+   * Reverses attachEventToOrganization - publisherUserId is the caller-chosen
+   * individual to revert to (event_service.ts's removeEventFromOrganization
+   * always passes the event's own creator).
+   */
+  detachEventFromOrganization(
+    id: EventId,
+    publisherUserId: UserId,
+    updatedBy: UserId,
+  ): ResultAsync<Event, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        update events set
+          publisher_org_id = null,
+          publisher_user_id = ${publisherUserId.value},
+          updated_by = ${updatedBy.value},
+          updated_at = now()
+        where id = ${id.value}
+        returning *
+      `,
+      (cause): DbError => ({ message: "Failed to detach event from organization", cause }),
+    ).andThen((rows) => mapEventRow(rows[0]));
+  }
+
   /** Hard delete - see docs/architecture.md's Event notes on why. */
   deleteEvent(id: EventId): ResultAsync<void, DbError> {
     return ResultAsync.fromPromise(

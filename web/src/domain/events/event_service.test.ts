@@ -28,7 +28,12 @@ const organizationRepository = new OrganizationRepository(sql);
 const repository = new EventRepository(sql);
 const placeRepository = new PlaceRepository(sql);
 const imageRepository = new ImageRepository(sql);
-const service = new EventService(repository, placeRepository, imageRepository);
+const service = new EventService(
+  repository,
+  placeRepository,
+  imageRepository,
+  organizationRepository,
+);
 
 let testPlaceId: string;
 
@@ -433,11 +438,7 @@ describe("draft status", () => {
     )._unsafeUnwrap();
 
     const updated = (
-      await service.updateEvent(
-        actingAs(publisher),
-        created.id,
-        baseInput({ status: "visible" }),
-      )
+      await service.updateEvent(actingAs(publisher), created.id, baseInput({ status: "visible" }))
     )._unsafeUnwrap();
 
     expect(updated.status).toBe("visible");
@@ -643,6 +644,207 @@ describe("replaceFlyer", () => {
       actingAs(publisher),
       EventId.from_string(crypto.randomUUID())._unsafeUnwrap(),
       bytes,
+    );
+
+    expect(result._unsafeUnwrapErr()).toBe("not_found");
+  });
+});
+
+describe("addEventToOrganization / removeEventFromOrganization", () => {
+  it("the event's own creator can attach it to an org they're an org_editor of", async () => {
+    const author = await makeUser("org-link-author-editor");
+    const admin = await makeUser("org-link-admin-for-editor");
+    const orgId = await makeOrg("Org Link Editor Org", admin);
+    await addOrgMember(orgId, author, "org_editor");
+    const event = (await service.createEvent(actingAs(author), baseInput()))._unsafeUnwrap();
+
+    const result = await service.addEventToOrganization(
+      actingAs(author, false, { [orgId]: "org_editor" }),
+      event.id,
+      OrganizationId.from_string(orgId)._unsafeUnwrap(),
+    );
+
+    const updated = result._unsafeUnwrap();
+    expect(updated.publisherOrgId?.value).toBe(orgId);
+    expect(updated.publisherUserId).toBeNull();
+  });
+
+  it("the event's own creator can attach it to an org they're an org_admin of", async () => {
+    const author = await makeUser("org-link-author-admin");
+    const orgId = await makeOrg("Org Link Admin Org", author);
+    const event = (await service.createEvent(actingAs(author), baseInput()))._unsafeUnwrap();
+
+    const result = await service.addEventToOrganization(
+      actingAs(author, false, { [orgId]: "org_admin" }),
+      event.id,
+      OrganizationId.from_string(orgId)._unsafeUnwrap(),
+    );
+
+    expect(result._unsafeUnwrap().publisherOrgId?.value).toBe(orgId);
+  });
+
+  it("a non-creator cannot attach someone else's event to an org, even one they belong to", async () => {
+    const author = await makeUser("org-link-author-for-stranger");
+    const stranger = await makeUser("org-link-stranger");
+    const orgId = await makeOrg("Org Link Stranger Org", stranger);
+    const event = (await service.createEvent(actingAs(author), baseInput()))._unsafeUnwrap();
+
+    const result = await service.addEventToOrganization(
+      actingAs(stranger, false, { [orgId]: "org_admin" }),
+      event.id,
+      OrganizationId.from_string(orgId)._unsafeUnwrap(),
+    );
+
+    expect(result._unsafeUnwrapErr()).toBe("forbidden");
+  });
+
+  it("the creator cannot attach their own event to an org they don't belong to", async () => {
+    const author = await makeUser("org-link-author-not-member");
+    const otherAdmin = await makeUser("org-link-other-admin");
+    const orgId = await makeOrg("Org Link Not Member Org", otherAdmin);
+    const event = (await service.createEvent(actingAs(author), baseInput()))._unsafeUnwrap();
+
+    const result = await service.addEventToOrganization(
+      actingAs(author),
+      event.id,
+      OrganizationId.from_string(orgId)._unsafeUnwrap(),
+    );
+
+    expect(result._unsafeUnwrapErr()).toBe("forbidden");
+  });
+
+  it("a site_admin can attach any event to any org, regardless of membership", async () => {
+    const author = await makeUser("org-link-author-for-site-admin");
+    const orgOwner = await makeUser("org-link-owner-for-site-admin");
+    const admin = await makeUser("org-link-site-admin");
+    const orgId = await makeOrg("Org Link Site Admin Org", orgOwner);
+    const event = (await service.createEvent(actingAs(author), baseInput()))._unsafeUnwrap();
+
+    const result = await service.addEventToOrganization(
+      actingAs(admin, true),
+      event.id,
+      OrganizationId.from_string(orgId)._unsafeUnwrap(),
+    );
+
+    expect(result._unsafeUnwrap().publisherOrgId?.value).toBe(orgId);
+  });
+
+  it("returns already_in_org when the event is already attached to that org", async () => {
+    const author = await makeUser("org-link-already-author");
+    const orgId = await makeOrg("Org Link Already Org", author);
+    const event = (
+      await service.createEvent(
+        actingAs(author, false, { [orgId]: "org_admin" }),
+        baseInput({ orgId }),
+      )
+    )._unsafeUnwrap();
+
+    const result = await service.addEventToOrganization(
+      actingAs(author, false, { [orgId]: "org_admin" }),
+      event.id,
+      OrganizationId.from_string(orgId)._unsafeUnwrap(),
+    );
+
+    expect(result._unsafeUnwrapErr()).toBe("already_in_org");
+  });
+
+  it("returns org_not_found for a well-formed but nonexistent org id", async () => {
+    const author = await makeUser("org-link-missing-org-author");
+    const event = (await service.createEvent(actingAs(author, true), baseInput()))._unsafeUnwrap();
+
+    const result = await service.addEventToOrganization(
+      actingAs(author, true),
+      event.id,
+      OrganizationId.from_string(crypto.randomUUID())._unsafeUnwrap(),
+    );
+
+    expect(result._unsafeUnwrapErr()).toBe("org_not_found");
+  });
+
+  it("returns not_found for a nonexistent event", async () => {
+    const admin = await makeUser("org-link-missing-event-admin");
+    const orgId = await makeOrg("Org Link Missing Event Org", admin);
+
+    const result = await service.addEventToOrganization(
+      actingAs(admin, true),
+      EventId.from_string(crypto.randomUUID())._unsafeUnwrap(),
+      OrganizationId.from_string(orgId)._unsafeUnwrap(),
+    );
+
+    expect(result._unsafeUnwrapErr()).toBe("not_found");
+  });
+
+  it("the creator can detach their own event from its org, reverting it to self-published", async () => {
+    const author = await makeUser("org-unlink-author");
+    const orgId = await makeOrg("Org Unlink Author Org", author);
+    const event = (
+      await service.createEvent(
+        actingAs(author, false, { [orgId]: "org_admin" }),
+        baseInput({ orgId }),
+      )
+    )._unsafeUnwrap();
+
+    const result = await service.removeEventFromOrganization(
+      actingAs(author, false, { [orgId]: "org_admin" }),
+      event.id,
+    );
+
+    const updated = result._unsafeUnwrap();
+    expect(updated.publisherOrgId).toBeNull();
+    expect(updated.publisherUserId?.equals(author)).toBe(true);
+  });
+
+  it("a site_admin can detach any event from its org", async () => {
+    const author = await makeUser("org-unlink-author-for-admin");
+    const admin = await makeUser("org-unlink-site-admin");
+    const orgId = await makeOrg("Org Unlink Site Admin Org", author);
+    const event = (
+      await service.createEvent(
+        actingAs(author, false, { [orgId]: "org_admin" }),
+        baseInput({ orgId }),
+      )
+    )._unsafeUnwrap();
+
+    const result = await service.removeEventFromOrganization(actingAs(admin, true), event.id);
+
+    expect(result._unsafeUnwrap().publisherOrgId).toBeNull();
+  });
+
+  it("a non-creator org_admin cannot detach an event they didn't create", async () => {
+    const author = await makeUser("org-unlink-author-vs-admin");
+    const otherAdmin = await makeUser("org-unlink-other-admin");
+    const orgId = await makeOrg("Org Unlink Other Admin Org", author);
+    await addOrgMember(orgId, otherAdmin, "org_admin");
+    const event = (
+      await service.createEvent(
+        actingAs(author, false, { [orgId]: "org_admin" }),
+        baseInput({ orgId }),
+      )
+    )._unsafeUnwrap();
+
+    const result = await service.removeEventFromOrganization(
+      actingAs(otherAdmin, false, { [orgId]: "org_admin" }),
+      event.id,
+    );
+
+    expect(result._unsafeUnwrapErr()).toBe("forbidden");
+  });
+
+  it("returns not_in_org when the event has no org to detach from", async () => {
+    const author = await makeUser("org-unlink-no-org-author");
+    const event = (await service.createEvent(actingAs(author), baseInput()))._unsafeUnwrap();
+
+    const result = await service.removeEventFromOrganization(actingAs(author), event.id);
+
+    expect(result._unsafeUnwrapErr()).toBe("not_in_org");
+  });
+
+  it("returns not_found for a nonexistent event", async () => {
+    const admin = await makeUser("org-unlink-missing-event-admin");
+
+    const result = await service.removeEventFromOrganization(
+      actingAs(admin, true),
+      EventId.from_string(crypto.randomUUID())._unsafeUnwrap(),
     );
 
     expect(result._unsafeUnwrapErr()).toBe("not_found");
