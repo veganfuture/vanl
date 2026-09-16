@@ -39,6 +39,8 @@ export const EventJsonSchema = z.object({
   isFeatured: z.boolean(),
   /** Server-computed via canModifyEvent (event_service.ts) - the single source of truth for who may edit/moderate this event, so pages render controls from this instead of re-deriving the permission-matrix rule client-side. */
   canEdit: z.boolean(),
+  /** Server-computed via canLinkEventOrg (event_service.ts) - stricter than canEdit: only site_admin or the event's own creator may attach/detach its organization, regardless of who else may otherwise edit it. */
+  canManageOrgLink: z.boolean(),
 });
 export type EventJson = z.infer<typeof EventJsonSchema>;
 
@@ -50,7 +52,7 @@ export type EventJson = z.infer<typeof EventJsonSchema>;
  * compute it server-side via canModifyEvent(event, actingUser) and pass the
  * plain boolean through.
  */
-export function toEventJson(event: Event, canEdit: boolean): EventJson {
+export function toEventJson(event: Event, canEdit: boolean, canManageOrgLink: boolean): EventJson {
   return {
     id: event.id.value,
     slug: event.slug,
@@ -82,6 +84,7 @@ export function toEventJson(event: Event, canEdit: boolean): EventJson {
     statusReason: event.statusReason,
     isFeatured: event.isFeatured,
     canEdit,
+    canManageOrgLink,
   };
 }
 

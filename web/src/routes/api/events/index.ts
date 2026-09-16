@@ -1,5 +1,5 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { canModifyEvent, eventService } from "~/domain/events/event_service";
+import { canLinkEventOrg, canModifyEvent, eventService } from "~/domain/events/event_service";
 import { resolveActingUser } from "~/domain/auth/acting_user";
 import { parseJsonBody } from "~/lib/http";
 import { EventRequestSchema, toEventJson } from "./event.schema";
@@ -24,7 +24,9 @@ export async function GET(event: APIEvent): Promise<Response> {
   return events.match(
     (list) =>
       Response.json({
-        events: list.map((e) => toEventJson(e, canModifyEvent(e, actingUser))),
+        events: list.map((e) =>
+          toEventJson(e, canModifyEvent(e, actingUser), canLinkEventOrg(e, actingUser)),
+        ),
       } satisfies ListEventsResponse),
     () => Response.json({ events: [] } satisfies ListEventsResponse),
   );
@@ -54,7 +56,11 @@ export async function POST(event: APIEvent): Promise<Response> {
   return result.match(
     (created) =>
       Response.json(
-        toEventJson(created, canModifyEvent(created, actingUser)) satisfies CreateEventResponse,
+        toEventJson(
+          created,
+          canModifyEvent(created, actingUser),
+          canLinkEventOrg(created, actingUser),
+        ) satisfies CreateEventResponse,
         {
           status: 201,
         },

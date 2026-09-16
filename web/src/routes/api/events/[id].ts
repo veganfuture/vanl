@@ -1,5 +1,5 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { canModifyEvent, eventService } from "~/domain/events/event_service";
+import { canLinkEventOrg, canModifyEvent, eventService } from "~/domain/events/event_service";
 import { EventId } from "~/domain/events/event_id";
 import { resolveActingUser } from "~/domain/auth/acting_user";
 import { parseJsonBody } from "~/lib/http";
@@ -45,7 +45,11 @@ export async function PATCH(event: APIEvent): Promise<Response> {
   return result.match(
     (updated) =>
       Response.json(
-        toEventJson(updated, canModifyEvent(updated, actingUser)) satisfies UpdateEventResponse,
+        toEventJson(
+          updated,
+          canModifyEvent(updated, actingUser),
+          canLinkEventOrg(updated, actingUser),
+        ) satisfies UpdateEventResponse,
       ),
     (error) =>
       Response.json({ error } satisfies UpdateEventResponse, { status: ERROR_STATUS[error] }),

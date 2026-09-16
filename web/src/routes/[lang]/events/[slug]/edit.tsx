@@ -1,6 +1,6 @@
 import { useParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
-import { createResource, Show } from "solid-js";
+import { createResource, createSignal, For, Show } from "solid-js";
 import {
   EventForm,
   eventFormErrorMessages,
@@ -9,19 +9,89 @@ import {
   type EventFormValues,
 } from "~/components/EventForm";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
-import { apiFetch, describeApiError } from "~/lib/api-fetch";
-import { useLang } from "~/lib/i18n";
+import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
+import { makeT, useLang, type Locale } from "~/lib/i18n";
 import { uploadImage } from "~/lib/upload-image";
 import { GetEventBySlugResponseSchema } from "~/routes/api/events/by-slug/[slug].schema";
 import { EventRequestSchema } from "~/routes/api/events/event.schema";
 import { UpdateEventResponseSchema } from "~/routes/api/events/[id].schema";
+import {
+  SetEventOrgRequestSchema,
+  EventOrgResponseSchema,
+} from "~/routes/api/events/[id]/org.schema";
 import { GetPlaceResponseSchema } from "~/routes/api/places/[id].schema";
+import { MeResponseSchema } from "~/routes/api/auth/me.schema";
+import { ListOrganizationsResponseSchema } from "~/routes/api/organizations/index.schema";
+import { MyOrganizationsResponseSchema } from "~/routes/api/organizations/mine.schema";
+
+type OrgLinkError =
+  | "unauthorized"
+  | "not_found"
+  | "org_not_found"
+  | "forbidden"
+  | "already_in_org"
+  | "not_in_org"
+  | "validation"
+  | "internal_error";
+
+function orgLinkErrorMessages(lang: Locale): ErrorMessagesFor<{ error: OrgLinkError }> {
+  const t = makeT(lang);
+  return {
+    unauthorized: {
+      message: t("Je moet inloggen om dat te doen.", "You need to log in to do that."),
+      isWarn: true,
+    },
+    not_found: {
+      message: t("Dat evenement bestaat niet meer.", "That event no longer exists."),
+      isWarn: true,
+    },
+    org_not_found: {
+      message: t("Deze organisatie bestaat niet meer.", "That organization no longer exists."),
+      isWarn: true,
+    },
+    forbidden: {
+      message: t(
+        "Je hebt geen toestemming om dat te doen.",
+        "You don't have permission to do that.",
+      ),
+      isWarn: true,
+    },
+    already_in_org: {
+      message: t(
+        "Dit evenement hoort al bij deze organisatie.",
+        "This event already belongs to that organization.",
+      ),
+      isWarn: true,
+    },
+    not_in_org: {
+      message: t(
+        "Dit evenement hoort niet bij een organisatie.",
+        "This event doesn't belong to an organization.",
+      ),
+      isWarn: true,
+    },
+    validation: {
+      message: t(
+        "Controleer het formulier en probeer het opnieuw.",
+        "Please check the form and try again.",
+      ),
+      isWarn: false,
+    },
+    internal_error: {
+      message: t(
+        "Er is iets misgegaan. Probeer het opnieuw.",
+        "Something went wrong. Please try again.",
+      ),
+      isWarn: false,
+    },
+  };
+}
 
 export default function EditEventPage() {
   const params = useParams<{ slug: string }>();
   const { lang, t } = useLang();
 
-  const [event] = createResource(
+  const [event, { refetch: refetchEvent }] = createResource(
     () => params.slug ?? "",
     async (slug) => {
       const result = await apiFetch(`/api/events/by-slug/${encodeURIComponent(slug)}`, {
@@ -30,6 +100,31 @@ export default function EditEventPage() {
       return result.match(
         (data) => data.event,
         () => null,
+      );
+    },
+  );
+
+  const [me] = createResource(async () => {
+    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
+    return result.match(
+      (data) => data.user,
+      () => null,
+    );
+  });
+
+  // site_admin may attach an event to any org, so it needs the full listing -
+  // everyone else can only ever attach to an org they belong to (org_editor
+  // or org_admin - see event_service.ts's canLinkEventToOrg), same set as
+  // "mine".
+  const [orgOptions] = createResource(
+    () => (me.loading ? undefined : (me()?.isSiteAdmin ?? false)),
+    async (isSiteAdmin) => {
+      const result = isSiteAdmin
+        ? await apiFetch("/api/organizations", { response: ListOrganizationsResponseSchema })
+        : await apiFetch("/api/organizations/mine", { response: MyOrganizationsResponseSchema });
+      return result.match(
+        (data) => data.organizations,
+        () => [],
       );
     },
   );
@@ -46,6 +141,63 @@ export default function EditEventPage() {
   );
 
   const canEdit = () => event()?.canEdit ?? false;
+
+  const [selectedOrgId, setSelectedOrgId] = createSignal("");
+  const [orgLinkError, setOrgLinkError] = createSignal<string | null>(null);
+  const [orgLinkBusy, setOrgLinkBusy] = createSignal(false);
+
+  async function onAddToOrg() {
+    const currentEvent = event();
+    if (!currentEvent || !selectedOrgId()) return;
+    setOrgLinkError(null);
+    setOrgLinkBusy(true);
+    try {
+      const result = await apiFetch(`/api/events/${currentEvent.id}/org`, {
+        method: "POST",
+        request: SetEventOrgRequestSchema,
+        body: { orgId: selectedOrgId() },
+        response: EventOrgResponseSchema,
+      });
+      result.match(
+        () => {
+          setSelectedOrgId("");
+          refetchEvent();
+        },
+        (error) => setOrgLinkError(describeApiError(error, orgLinkErrorMessages(lang()))),
+      );
+    } finally {
+      setOrgLinkBusy(false);
+    }
+  }
+
+  async function onRemoveFromOrg() {
+    const currentEvent = event();
+    if (!currentEvent) return;
+    if (
+      !window.confirm(
+        t(
+          "Dit evenement uit de organisatie verwijderen?",
+          "Remove this event from the organization?",
+        ),
+      )
+    ) {
+      return;
+    }
+    setOrgLinkError(null);
+    setOrgLinkBusy(true);
+    try {
+      const result = await apiFetch(`/api/events/${currentEvent.id}/org`, {
+        method: "DELETE",
+        response: EventOrgResponseSchema,
+      });
+      result.match(
+        () => refetchEvent(),
+        (error) => setOrgLinkError(describeApiError(error, orgLinkErrorMessages(lang()))),
+      );
+    } finally {
+      setOrgLinkBusy(false);
+    }
+  }
 
   async function onSubmit(values: EventFormValues, flyerFile: File | null) {
     const currentEvent = event();
@@ -125,6 +277,68 @@ export default function EditEventPage() {
                 currentFlyerImageId={currentEvent().flyerThumbnailImageId}
                 onSubmit={onSubmit}
               />
+
+              <Show when={currentEvent().canManageOrgLink}>
+                <section class="mt-8 border-t border-zinc-200 pt-6">
+                  <h2 class="mb-3 text-lg font-semibold">{t("Organisatie", "Organization")}</h2>
+
+                  <Show when={orgLinkError()}>
+                    {(message) => <p class="mb-3 text-red-700">{message()}</p>}
+                  </Show>
+
+                  <Show
+                    when={currentEvent().publisherOrgId}
+                    fallback={
+                      <div class="flex flex-wrap items-end gap-3">
+                        <label class="block">
+                          <span class="block text-sm font-medium">
+                            {t("Toevoegen aan organisatie", "Add to organization")}
+                          </span>
+                          <select
+                            class="mt-1 block rounded border border-zinc-300 px-3 py-2"
+                            value={selectedOrgId()}
+                            onChange={(e) => setSelectedOrgId(e.currentTarget.value)}
+                          >
+                            <option value="">
+                              {t("Kies een organisatie…", "Choose an organization…")}
+                            </option>
+                            <For each={orgOptions()}>
+                              {(org) => <option value={org.id}>{org.name}</option>}
+                            </For>
+                          </select>
+                        </label>
+                        <button
+                          type="button"
+                          disabled={orgLinkBusy() || !selectedOrgId()}
+                          onClick={onAddToOrg}
+                          class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {t("Toevoegen", "Add")}
+                        </button>
+                      </div>
+                    }
+                  >
+                    {(orgId) => (
+                      <div class="flex items-center justify-between rounded-lg border border-zinc-200 p-3">
+                        <p>
+                          {t("Hoort bij", "Belongs to")}{" "}
+                          <span class="font-medium">
+                            {orgOptions()?.find((org) => org.id === orgId())?.name ?? orgId()}
+                          </span>
+                        </p>
+                        <button
+                          type="button"
+                          disabled={orgLinkBusy()}
+                          onClick={onRemoveFromOrg}
+                          class="rounded border border-red-300 px-2 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {t("Verwijderen uit organisatie", "Remove from organization")}
+                        </button>
+                      </div>
+                    )}
+                  </Show>
+                </section>
+              </Show>
             </Show>
           )}
         </Show>

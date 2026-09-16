@@ -5,6 +5,7 @@ import { sql } from "~/lib/db";
 import { logger } from "~/lib/logger";
 import { placeRepository, type PlaceRepository } from "~/domain/places/place_repository";
 import { OrganizationId } from "~/domain/organizations/organization_id";
+import { OrganizationRepository } from "~/domain/organizations/organization_repository";
 import { ImageRepository } from "~/domain/images/image_repository";
 import { processUpload, THUMBNAIL_MAX_WIDTH } from "~/domain/images/image_processing";
 import type { UserId } from "../auth/user_id";
@@ -51,6 +52,39 @@ export function canModifyEvent(event: Event, actingUser: ActingUser | null): boo
     }
   }
   return false;
+}
+
+/**
+ * Whether actingUser may attach/detach eventId's org link at all (permission
+ * matrix: "add/remove event to/from an organization"): site_admin can do
+ * this to any event, otherwise only the event's own creator - not the
+ * broader canModifyEvent set, e.g. an org_admin of the event's *current*
+ * publishing org doesn't qualify by that alone. Exported so route handlers
+ * can compute the same flag a client needs to render without re-deriving
+ * the rule themselves - see event.schema.ts's toEventJson.
+ */
+export function canLinkEventOrg(event: Event, actingUser: ActingUser | null): boolean {
+  if (!actingUser) {
+    return false;
+  }
+  if (actingUser.isSiteAdmin) {
+    return true;
+  }
+  return actingUser.id.equals(event.createdBy);
+}
+
+/**
+ * The stricter per-org half of canLinkEventOrg: also requires actingUser to
+ * be an org_editor or org_admin of orgId specifically (site_admin is exempt,
+ * same as everywhere else). Since ORG_ROLES only ever contains those two
+ * roles, "has any role in orgId" and "is org_editor or org_admin of orgId"
+ * are the same check.
+ */
+function canLinkEventToOrg(event: Event, orgId: string, actingUser: ActingUser): boolean {
+  if (actingUser.isSiteAdmin) {
+    return true;
+  }
+  return actingUser.id.equals(event.createdBy) && actingUser.orgRoles.has(orgId);
 }
 
 const FLYER_VARIANTS = [
@@ -134,6 +168,9 @@ export type UpdateEventError = "not_found" | "forbidden" | "validation" | "inter
 export type SetEventStatusError = "not_found" | "forbidden" | "internal_error";
 export type DeleteEventError = "not_found" | "forbidden" | "internal_error";
 export type ReplaceFlyerError = "not_found" | "forbidden" | "validation" | "internal_error";
+export type AddEventToOrgError =
+  "not_found" | "org_not_found" | "forbidden" | "already_in_org" | "internal_error";
+export type RemoveEventFromOrgError = "not_found" | "forbidden" | "not_in_org" | "internal_error";
 
 type PdokFields = {
   locationStreet: string | null;
@@ -158,6 +195,7 @@ export class EventService {
     private readonly repository: EventRepository,
     private readonly placeRepository: PlaceRepository,
     private readonly imageRepository: ImageRepository,
+    private readonly organizationRepository: OrganizationRepository,
   ) {}
 
   /**
@@ -394,6 +432,87 @@ export class EventService {
   }
 
   /**
+   * Attaches an event to an organization (permission matrix: "add event
+   * to/from an organization"): site_admin may target any org; otherwise
+   * only the event's own creator, and only for an org they're an
+   * org_editor or org_admin of - see canLinkEventToOrg.
+   */
+  addEventToOrganization(
+    actingUser: ActingUser,
+    eventId: EventId,
+    orgId: OrganizationId,
+  ): ResultAsync<Event, AddEventToOrgError> {
+    return this.repository
+      .findEventById(eventId)
+      .mapErr((dbError): AddEventToOrgError => {
+        logger.error({ err: dbError }, "failed to look up event for org link");
+        return "internal_error";
+      })
+      .andThen((event): ResultAsync<Event, AddEventToOrgError> =>
+        event ? okAsync(event) : errAsync("not_found"),
+      )
+      .andThen((event) => {
+        if (!canLinkEventToOrg(event, orgId.value, actingUser)) {
+          return errAsync<Event, AddEventToOrgError>("forbidden");
+        }
+        if (event.publisherOrgId?.equals(orgId)) {
+          return errAsync<Event, AddEventToOrgError>("already_in_org");
+        }
+        return this.organizationRepository
+          .findOrganizationById(orgId)
+          .mapErr((dbError): AddEventToOrgError => {
+            logger.error({ err: dbError }, "failed to look up organization for event link");
+            return "internal_error";
+          })
+          .andThen((org) =>
+            org
+              ? this.repository
+                  .attachEventToOrganization(eventId, orgId, actingUser.id)
+                  .mapErr((dbError): AddEventToOrgError => {
+                    logger.error({ err: dbError }, "failed to attach event to organization");
+                    return "internal_error";
+                  })
+              : errAsync<Event, AddEventToOrgError>("org_not_found"),
+          );
+      });
+  }
+
+  /**
+   * Detaches an event from its current organization, reverting it to being
+   * published by its own creator - the same actingUser rules as
+   * addEventToOrganization, checked against the org the event is currently
+   * in (not the org being removed-to, since there isn't one).
+   */
+  removeEventFromOrganization(
+    actingUser: ActingUser,
+    eventId: EventId,
+  ): ResultAsync<Event, RemoveEventFromOrgError> {
+    return this.repository
+      .findEventById(eventId)
+      .mapErr((dbError): RemoveEventFromOrgError => {
+        logger.error({ err: dbError }, "failed to look up event for org unlink");
+        return "internal_error";
+      })
+      .andThen((event): ResultAsync<Event, RemoveEventFromOrgError> =>
+        event ? okAsync(event) : errAsync("not_found"),
+      )
+      .andThen((event) => {
+        if (!event.publisherOrgId) {
+          return errAsync<Event, RemoveEventFromOrgError>("not_in_org");
+        }
+        if (!canLinkEventToOrg(event, event.publisherOrgId.value, actingUser)) {
+          return errAsync<Event, RemoveEventFromOrgError>("forbidden");
+        }
+        return this.repository
+          .detachEventFromOrganization(eventId, event.createdBy, actingUser.id)
+          .mapErr((dbError): RemoveEventFromOrgError => {
+            logger.error({ err: dbError }, "failed to detach event from organization");
+            return "internal_error";
+          });
+      });
+  }
+
+  /**
    * Loads the event and checks actingUser may modify it (permission matrix
    * §3): site_admin can moderate anything; an individually-published
    * event's own publisher can; an org's org_admin can touch any of that
@@ -506,4 +625,5 @@ export const eventService = new EventService(
   new EventRepository(sql),
   placeRepository,
   new ImageRepository(sql),
+  new OrganizationRepository(sql),
 );
