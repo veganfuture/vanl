@@ -180,7 +180,24 @@ const ORGANIZER_RULES: ReadonlyArray<{
     test: (title, description) =>
       /animal equality/i.test(title) || /animalequality\.org/i.test(description),
   },
+  {
+    organizer: "Bite Back",
+    test: (title, description) =>
+      /\bbite\s*back\b/i.test(title) || /biteback\.nl/i.test(description),
+  },
 ];
+
+/**
+ * seed-organizations.ts also seeds "Animal Rebellion" - deliberately no rule for
+ * it here. Checked by hand against a live feed pull: every Animal Rebellion-hosted
+ * event links to groups.animalrebellion.nl, but that's a shared community-calendar
+ * platform Animal Rebellion runs for a wide range of unaffiliated local groups
+ * (XR Amersfoort trainings, Palestine-solidarity sit-ins, a housing protest, other
+ * orgs' own actions like "Boxtel Pig Save") - not a signal that Animal Rebellion
+ * organized the event. No event in that pull named "Animal Rebellion" in its own
+ * title or description either. Add a rule here if ARC's feed ever gains a cleaner
+ * signal (e.g. events actually titled/attributed to them).
+ */
 
 export function detectOrganizer(event: RealEvent): string | null {
   const title = `${event.titleNl ?? ""} ${event.titleEn ?? ""}`;
