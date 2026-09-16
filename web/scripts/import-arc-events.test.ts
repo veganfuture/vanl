@@ -82,6 +82,33 @@ describe("detectOrganizer", () => {
     expect(detectOrganizer(event)).toBe("Animal Equality");
   });
 
+  it("recognizes Bite Back in the title", () => {
+    const event = baseEvent({ titleNl: "Bite Back vegan outreach Utrecht - Dierendag" });
+    expect(detectOrganizer(event)).toBe("Bite Back");
+  });
+
+  it("recognizes a biteback.nl link in the description as Bite Back", () => {
+    const event = baseEvent({
+      titleEn: "World Plant Milk Day",
+      descriptionNl: "Vragen? Mail info@biteback.nl.",
+    });
+    expect(detectOrganizer(event)).toBe("Bite Back");
+  });
+
+  it("does not attribute a joint demonstration to Bite Back on a bare mention", () => {
+    // Real ARC event: Bite Back is one of many co-participants listed in the
+    // body text, not the organizer - no "Bite Back" in the title, no
+    // biteback.nl link, so this must not match.
+    const event = baseEvent({
+      titleNl: "Dierendagdemonstratie Amsterdam 2026",
+      descriptionNl:
+        "Wie doen er mee: Active for Justice, Animal Equality, Animal Rights, " +
+        "Animal Save Nederland, Anonymous for the Voiceless, Bite Back, DAM, " +
+        "NEON Black, Red een Legkip, Vegan Amsterdam",
+    });
+    expect(detectOrganizer(event)).not.toBe("Bite Back");
+  });
+
   it("returns null when nothing matches", () => {
     const event = baseEvent({ titleEn: "Vegan potluck", descriptionEn: "Bring a dish to share." });
     expect(detectOrganizer(event)).toBeNull();
