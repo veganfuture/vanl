@@ -13,6 +13,7 @@ import type { Event, EventLocationKind } from "./event";
 import {
   EventRepository,
   type EditableEventFields,
+  type EventListFilters,
   type EventWithPublisherOrgName,
 } from "./event_repository";
 import type { EventId } from "./event_id";
@@ -264,23 +265,26 @@ export class EventService {
     });
   }
 
-  /** Public, basic/unfiltered (Milestone 4 adds city/province filtering and past-event handling). */
-  listVisibleEvents(): ResultAsync<Event[], never> {
-    return this.repository.listVisibleEvents().orElse((dbError) => {
+  /** Public, optionally narrowed by province and/or publisher org (see EventListFilters). */
+  listVisibleEvents(filters?: EventListFilters): ResultAsync<Event[], never> {
+    return this.repository.listVisibleEvents(filters).orElse((dbError) => {
       logger.error({ err: dbError }, "failed to list visible events");
       return okAsync([]);
     });
   }
 
-  /** site_admin sees every status; everyone else gets the same visible-only listing as listVisibleEvents. */
-  listEventsForViewer(actingUser: ActingUser | null): ResultAsync<Event[], never> {
+  /** site_admin sees every status; everyone else gets the same visible-only listing as listVisibleEvents. Same optional filters either way. */
+  listEventsForViewer(
+    actingUser: ActingUser | null,
+    filters?: EventListFilters,
+  ): ResultAsync<Event[], never> {
     if (actingUser?.isSiteAdmin) {
-      return this.repository.listAllEvents().orElse((dbError) => {
+      return this.repository.listAllEvents(filters).orElse((dbError) => {
         logger.error({ err: dbError }, "failed to list all events");
         return okAsync([]);
       });
     }
-    return this.listVisibleEvents();
+    return this.listVisibleEvents(filters);
   }
 
   /** Backs the public /events.ics feed - visible, not-yet-ended events, optionally excluding one external source by name. */

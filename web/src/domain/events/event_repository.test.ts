@@ -4,12 +4,27 @@ import { AccountName } from "../auth/account_name";
 import { AuthRepository } from "../auth/auth_repository";
 import { SignalAci } from "../auth/signal_aci";
 import type { UserId } from "../auth/user_id";
+import type { NewOrganizationInput } from "../organizations/organization_repository";
+import { OrganizationRepository } from "../organizations/organization_repository";
 import { EventRepository, type NewEventInput } from "./event_repository";
 
 const authRepository = new AuthRepository(sql);
+const organizationRepository = new OrganizationRepository(sql);
 const repository = new EventRepository(sql);
 
 let testPlaceId: string;
+let zeelandPlaceId: string;
+
+function baseOrgInput(overrides: Partial<NewOrganizationInput> = {}): NewOrganizationInput {
+  return {
+    name: `Test Org ${crypto.randomUUID()}`,
+    slug: `test-org-${crypto.randomUUID()}`,
+    descriptionNl: null,
+    descriptionEn: null,
+    websiteUrl: null,
+    ...overrides,
+  };
+}
 
 async function makeUser(accountName: string): Promise<UserId> {
   const result = (
@@ -72,10 +87,18 @@ beforeAll(async () => {
     returning id
   `;
   testPlaceId = rows[0].id as string;
+
+  const zeelandRows = await sql`
+    insert into places (name, municipality_name, province, source_id)
+    values ('Zeeland Fixture City', 'Zeeland Fixture City', 'Zeeland', 'test-fixture-place-zeeland')
+    on conflict (source_id) do update set name = excluded.name
+    returning id
+  `;
+  zeelandPlaceId = zeelandRows[0].id as string;
 });
 
 beforeEach(async () => {
-  await sql`truncate table events, signup_nonces, login_challenges, sessions, global_roles, users cascade`;
+  await sql`truncate table events, organizations, signup_nonces, login_challenges, sessions, global_roles, users cascade`;
 });
 
 afterAll(async () => {
@@ -169,6 +192,81 @@ describe("listVisibleEvents", () => {
     expect(visible.map((event) => event.slug)).toEqual(["soon-event", "later-event"]);
     void later_;
     void soon_;
+  });
+
+  it("narrows by province, joining through place_id -> places", async () => {
+    const publisher = await makeUser("publisher-erin");
+    await repository.createEvent(
+      baseEventInput({ publisherUserId: publisher, slug: "utrecht-event", placeId: testPlaceId }),
+    );
+    await repository.createEvent(
+      baseEventInput({
+        publisherUserId: publisher,
+        slug: "zeeland-event",
+        placeId: zeelandPlaceId,
+      }),
+    );
+
+    const zeelandOnly = (
+      await repository.listVisibleEvents({ provinces: ["Zeeland"], orgIds: [] })
+    )._unsafeUnwrap();
+
+    expect(zeelandOnly.map((event) => event.slug)).toEqual(["zeeland-event"]);
+  });
+
+  it("narrows by publisher org", async () => {
+    const admin = await makeUser("publisher-frank");
+    const org = (
+      await organizationRepository.createOrganizationWithAdmin(baseOrgInput(), admin)
+    )._unsafeUnwrap();
+    await repository.createEvent(
+      baseEventInput({
+        publisherUserId: null,
+        publisherOrgId: org.id,
+        createdBy: admin,
+        slug: "org-event",
+      }),
+    );
+    await repository.createEvent(
+      baseEventInput({ publisherUserId: admin, slug: "individual-event" }),
+    );
+
+    const orgOnly = (
+      await repository.listVisibleEvents({ provinces: [], orgIds: [org.id.value] })
+    )._unsafeUnwrap();
+
+    expect(orgOnly.map((event) => event.slug)).toEqual(["org-event"]);
+  });
+
+  it("combines province and org filters with AND", async () => {
+    const admin = await makeUser("publisher-grace");
+    const org = (
+      await organizationRepository.createOrganizationWithAdmin(baseOrgInput(), admin)
+    )._unsafeUnwrap();
+    await repository.createEvent(
+      baseEventInput({
+        publisherUserId: null,
+        publisherOrgId: org.id,
+        createdBy: admin,
+        slug: "org-utrecht-event",
+        placeId: testPlaceId,
+      }),
+    );
+    await repository.createEvent(
+      baseEventInput({
+        publisherUserId: null,
+        publisherOrgId: org.id,
+        createdBy: admin,
+        slug: "org-zeeland-event",
+        placeId: zeelandPlaceId,
+      }),
+    );
+
+    const matches = (
+      await repository.listVisibleEvents({ provinces: ["Utrecht"], orgIds: [org.id.value] })
+    )._unsafeUnwrap();
+
+    expect(matches.map((event) => event.slug)).toEqual(["org-utrecht-event"]);
   });
 });
 

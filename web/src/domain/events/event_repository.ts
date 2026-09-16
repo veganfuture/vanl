@@ -13,6 +13,14 @@ import { EventId } from "./event_id";
 
 export type DbError = { readonly message: string; readonly cause: unknown };
 
+/** Narrows listVisibleEvents/listAllEvents - an empty array means "don't filter on this dimension". */
+export type EventListFilters = {
+  provinces: string[];
+  orgIds: string[];
+};
+
+const EMPTY_EVENT_LIST_FILTERS: EventListFilters = { provinces: [], orgIds: [] };
+
 const EventRowSchema = z.object({
   id: z.string(),
   slug: z.string(),
@@ -283,14 +291,22 @@ export class EventRepository {
     ).andThen((rows): Result<Event | null, DbError> => (rows[0] ? mapEventRow(rows[0]) : ok(null)));
   }
 
-  /**
-   * Basic, unfiltered public listing (Milestone 3 scope - city/province
-   * filtering and past-event exclusion arrive in Milestone 4). Only
-   * `visible` events, soonest first.
-   */
-  listVisibleEvents(): ResultAsync<Event[], DbError> {
+  /** Visible-only listing, optionally narrowed by province (joined via place_id -> places) and/or publisher org. Soonest first. */
+  listVisibleEvents(
+    filters: EventListFilters = EMPTY_EVENT_LIST_FILTERS,
+  ): ResultAsync<Event[], DbError> {
+    const provinces = filters.provinces;
+    const orgIds = filters.orgIds;
     return ResultAsync.fromPromise(
-      this.sql`select * from events where status = 'visible' order by start_at asc`,
+      this.sql`
+        select e.*
+        from events e
+        join places p on p.id = e.place_id
+        where e.status = 'visible'
+          and (${provinces.length === 0} or p.province = any(${provinces}))
+          and (${orgIds.length === 0} or e.publisher_org_id = any(${orgIds}))
+        order by e.start_at asc
+      `,
       (cause): DbError => ({ message: "Failed to list visible events", cause }),
     ).andThen((rows) => {
       const mapped: Event[] = [];
@@ -305,10 +321,21 @@ export class EventRepository {
     });
   }
 
-  /** Every event regardless of status, soonest first - site_admin-aware listing only. */
-  listAllEvents(): ResultAsync<Event[], DbError> {
+  /** Every event regardless of status, soonest first - site_admin-aware listing only. Same optional province/org narrowing as listVisibleEvents. */
+  listAllEvents(
+    filters: EventListFilters = EMPTY_EVENT_LIST_FILTERS,
+  ): ResultAsync<Event[], DbError> {
+    const provinces = filters.provinces;
+    const orgIds = filters.orgIds;
     return ResultAsync.fromPromise(
-      this.sql`select * from events order by start_at asc`,
+      this.sql`
+        select e.*
+        from events e
+        join places p on p.id = e.place_id
+        where (${provinces.length === 0} or p.province = any(${provinces}))
+          and (${orgIds.length === 0} or e.publisher_org_id = any(${orgIds}))
+        order by e.start_at asc
+      `,
       (cause): DbError => ({ message: "Failed to list all events", cause }),
     ).andThen((rows) => {
       const mapped: Event[] = [];
