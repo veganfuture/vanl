@@ -217,6 +217,29 @@ export class AuthRepository {
     ).andThen((rows): Result<User | null, DbError> => (rows[0] ? mapUserRow(rows[0]) : ok(null)));
   }
 
+  /** Account-picker autocomplete (org member add, etc.) - excludes disabled/deleted accounts, since those can't usefully be picked. */
+  searchAccountNames(query: string, limit: number): ResultAsync<User[], DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        select * from users
+        where account_name ilike ${query + "%"} and deleted_at is null and disabled_at is null
+        order by account_name asc
+        limit ${limit}
+      `,
+      (cause): DbError => ({ message: "Failed to search account names", cause }),
+    ).andThen((rows) => {
+      const mapped: User[] = [];
+      for (const row of rows) {
+        const result = mapUserRow(row);
+        if (result.isErr()) {
+          return err<User[], DbError>(result.error);
+        }
+        mapped.push(result.value);
+      }
+      return ok(mapped);
+    });
+  }
+
   findUserById(id: UserId): ResultAsync<User | null, DbError> {
     return ResultAsync.fromPromise(
       this.sql`

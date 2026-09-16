@@ -349,6 +349,18 @@ export class AuthService {
     );
   }
 
+  /** Account-picker autocomplete - fails closed to an empty list on a DB error, same reasoning as isSiteAdmin/listAllUsers. */
+  searchAccounts(query: string): ResultAsync<User[], never> {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      return okAsync([]);
+    }
+    return this.repository.searchAccountNames(trimmed, 8).orElse((dbError) => {
+      logger.error({ err: dbError }, "failed to search account names");
+      return okAsync([]);
+    });
+  }
+
   /** Admin "Users" detail page only - unlike getSessionUser, does not hide a disabled user (the page needs to find them to re-enable). */
   findUserById(id: UserId): ResultAsync<User | null, never> {
     return this.repository.findUserById(id).orElse((dbError) => {

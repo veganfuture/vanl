@@ -4,7 +4,10 @@ import { errAsync, okAsync } from "neverthrow";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadConfig } from "~/lib/config";
 import { sql } from "~/lib/db";
+import { AccountName } from "./account_name";
 import { AuthRepository } from "./auth_repository";
+import { SignalAci } from "./signal_aci";
+import type { User } from "./user";
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..");
 const BOT_PYTHON = join(REPO_ROOT, "bot", ".venv", "bin", "python");
@@ -51,6 +54,25 @@ function extractCookieValue(setCookieHeader: string, name: string): string {
   const match = new RegExp(`${name}=([^;]+)`).exec(setCookieHeader);
   if (!match) throw new Error(`Cookie ${name} not found in ${setCookieHeader}`);
   return decodeURIComponent(match[1]);
+}
+
+async function makeUser(accountName: string): Promise<User> {
+  const result = (
+    await repository.createUserFromSignup(
+      {
+        signalAci: SignalAci.from_string(crypto.randomUUID())._unsafeUnwrap(),
+        accountName: AccountName.from_string(accountName)._unsafeUnwrap(),
+        email: "person@example.com",
+        displayName: "Test Person",
+        affiliationsNote: null,
+      },
+      crypto.randomUUID(),
+    )
+  )._unsafeUnwrap();
+  if (result === "nonce_already_used") {
+    throw new Error("unexpected nonce collision in test");
+  }
+  return result;
 }
 
 describe("inspectSignupToken", () => {
@@ -424,5 +446,19 @@ describe("session lifecycle", () => {
     expect((await service.getSessionUser(cookieHeader))._unsafeUnwrap()).not.toBeNull();
     (await repository.setUserDisabled(user.id, true))._unsafeUnwrap();
     expect((await service.getSessionUser(cookieHeader))._unsafeUnwrap()).toBeNull();
+  });
+});
+
+describe("searchAccounts", () => {
+  it("returns matches for a query of at least 2 characters", async () => {
+    await makeUser("wendy");
+    const results = (await service.searchAccounts("wen"))._unsafeUnwrap();
+    expect(results.map((u) => u.accountName.value)).toEqual(["wendy"]);
+  });
+
+  it("returns an empty list for a query shorter than 2 characters, without querying the database", async () => {
+    await makeUser("xavier");
+    expect((await service.searchAccounts("x"))._unsafeUnwrap()).toEqual([]);
+    expect((await service.searchAccounts(""))._unsafeUnwrap()).toEqual([]);
   });
 });

@@ -4,6 +4,10 @@ import { createResource, createSignal, For, Show } from "solid-js";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { makeT, useLang, type Locale } from "~/lib/i18n";
+import {
+  SearchAccountsResponseSchema,
+  type SearchAccountsResponse,
+} from "~/routes/api/accounts/search.schema";
 import { GetOrganizationBySlugResponseSchema } from "~/routes/api/organizations/by-slug/[slug].schema";
 import {
   AddMemberRequestSchema,
@@ -89,6 +93,14 @@ function membershipActionErrorMessages(
   };
 }
 
+function debounced<T>(fn: (arg: T) => void, delayMs: number): (arg: T) => void {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  return (arg: T) => {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => fn(arg), delayMs);
+  };
+}
+
 export default function OrganizationMembersPage() {
   const params = useParams<{ slug: string }>();
   const { lang, t } = useLang();
@@ -126,6 +138,22 @@ export default function OrganizationMembersPage() {
   const [newRole, setNewRole] = createSignal<MembershipJson["role"]>("org_editor");
   const [adding, setAdding] = createSignal(false);
 
+  const [accountResults, setAccountResults] = createSignal<SearchAccountsResponse["accounts"]>([]);
+  const [accountPicked, setAccountPicked] = createSignal(false);
+  const searchAccounts = debounced(async (query: string) => {
+    if (query.trim().length < 2) {
+      setAccountResults([]);
+      return;
+    }
+    const result = await apiFetch(`/api/accounts/search?q=${encodeURIComponent(query)}`, {
+      response: SearchAccountsResponseSchema,
+    });
+    result.match(
+      (data) => setAccountResults(data.accounts),
+      () => setAccountResults([]),
+    );
+  }, 250);
+
   async function onAddMember(submitEvent: SubmitEvent) {
     submitEvent.preventDefault();
     const currentOrg = org();
@@ -141,6 +169,8 @@ export default function OrganizationMembersPage() {
       result.match(
         () => {
           setAccountName("");
+          setAccountResults([]);
+          setAccountPicked(false);
           refetchMembers();
         },
         (error) => setActionError(describeApiError(error, membershipActionErrorMessages(lang()))),
@@ -261,17 +291,50 @@ export default function OrganizationMembersPage() {
               <Show when={canManage()}>
                 <h2 class="mb-4 text-lg font-semibold">{t("Lid toevoegen", "Add a member")}</h2>
                 <form class="flex flex-wrap items-end gap-3" onSubmit={onAddMember}>
-                  <label class="block">
-                    <span class="block text-sm font-medium">
-                      {t("Gebruikersnaam", "Account name")}
-                    </span>
-                    <input
-                      class="mt-1 block rounded border border-zinc-300 px-3 py-2"
-                      required
-                      value={accountName()}
-                      onInput={(e) => setAccountName(e.currentTarget.value)}
-                    />
-                  </label>
+                  <div class="relative block">
+                    <label class="block">
+                      <span class="block text-sm font-medium">
+                        {t("Gebruikersnaam", "Account name")}
+                      </span>
+                      <input
+                        class="mt-1 block rounded border border-zinc-300 px-3 py-2"
+                        required
+                        autocomplete="off"
+                        data-1p-ignore="true"
+                        data-lpignore="true"
+                        data-bwignore="true"
+                        value={accountName()}
+                        onInput={(e) => {
+                          const query = e.currentTarget.value;
+                          setAccountName(query);
+                          setAccountPicked(false);
+                          searchAccounts(query);
+                        }}
+                      />
+                    </label>
+                    <Show when={accountResults().length > 0 && !accountPicked()}>
+                      <ul class="absolute z-10 mt-1 w-full rounded border border-zinc-300 bg-white shadow-lg">
+                        <For each={accountResults()}>
+                          {(account) => (
+                            <li>
+                              <button
+                                type="button"
+                                class="block w-full px-3 py-2 text-left hover:bg-zinc-100"
+                                onClick={() => {
+                                  setAccountName(account.accountName);
+                                  setAccountPicked(true);
+                                  setAccountResults([]);
+                                }}
+                              >
+                                @{account.accountName}{" "}
+                                <span class="text-zinc-500">({account.displayName})</span>
+                              </button>
+                            </li>
+                          )}
+                        </For>
+                      </ul>
+                    </Show>
+                  </div>
                   <label class="block">
                     <span class="block text-sm font-medium">{t("Rol", "Role")}</span>
                     <select
