@@ -190,9 +190,12 @@ export function EventForm(props: {
   orgs?: Array<{ id: string; name: string }>;
   /** The event's current flyer, shown until a new file is picked - undefined/null on the create form (no event yet). */
   currentFlyerImageId?: string | null;
+  /** Shows "Save as draft" / "Publish" buttons instead of the single submitLabel button - only meaningful while an event is still a draft, since it can never go back once published. */
+  allowDraft?: boolean;
   onSubmit: (
     values: EventFormValues,
     flyerFile: File | null,
+    status: "draft" | "visible" | null,
   ) => Promise<{ ok: true } | { ok: false; message: string }>;
 }) {
   const t = (nl: string, en: string) => (props.lang === "nl" ? nl : en);
@@ -207,6 +210,7 @@ export function EventForm(props: {
   const [values, setValues] = createSignal(props.initial);
   const [flyerFile, setFlyerFile] = createSignal<File | null>(null);
   const [submitting, setSubmitting] = createSignal(false);
+  const [submittingStatus, setSubmittingStatus] = createSignal<"draft" | "visible" | null>(null);
   const [error, setError] = createSignal<string | null>(null);
   const [validationMessages, setValidationMessages] = createSignal<string[]>([]);
 
@@ -242,8 +246,7 @@ export function EventForm(props: {
     );
   }, 250);
 
-  async function onSubmit(submitEvent: SubmitEvent) {
-    submitEvent.preventDefault();
+  async function onSubmit(status: "draft" | "visible" | null) {
     setError(null);
     setValidationMessages([]);
 
@@ -257,18 +260,20 @@ export function EventForm(props: {
     }
 
     setSubmitting(true);
+    setSubmittingStatus(status);
     try {
-      const outcome = await props.onSubmit(values(), flyerFile());
+      const outcome = await props.onSubmit(values(), flyerFile(), status);
       if (!outcome.ok) {
         setError(outcome.message);
       }
     } finally {
       setSubmitting(false);
+      setSubmittingStatus(null);
     }
   }
 
   return (
-    <form class="space-y-4" onSubmit={onSubmit}>
+    <form class="space-y-4" onSubmit={(e) => e.preventDefault()}>
       <Show when={(props.orgs?.length ?? 0) > 0}>
         <label class="block">
           <span class="block text-sm font-medium">{t("Publiceren als", "Publish as")}</span>
@@ -580,18 +585,47 @@ export function EventForm(props: {
 
       <Show when={error()}>{(message) => <p class="text-red-700">{message()}</p>}</Show>
 
-      <button
-        type="submit"
-        disabled={submitting()}
-        class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+      <Show
+        when={props.allowDraft}
+        fallback={
+          <button
+            type="button"
+            disabled={submitting()}
+            onClick={() => onSubmit(null)}
+            class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {submitting() ? props.submittingLabel : props.submitLabel}
+          </button>
+        }
       >
-        {submitting() ? props.submittingLabel : props.submitLabel}
-      </button>
+        <div class="flex flex-wrap gap-3">
+          <button
+            type="button"
+            disabled={submitting()}
+            onClick={() => onSubmit("draft")}
+            class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50 disabled:opacity-50"
+          >
+            {submittingStatus() === "draft"
+              ? t("Concept opslaan…", "Saving draft…")
+              : t("Opslaan als concept", "Save as draft")}
+          </button>
+          <button
+            type="button"
+            disabled={submitting()}
+            onClick={() => onSubmit("visible")}
+            class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {submittingStatus() === "visible"
+              ? t("Publiceren…", "Publishing…")
+              : t("Publiceren", "Publish")}
+          </button>
+        </div>
+      </Show>
     </form>
   );
 }
 
-export function toEventRequestBody(values: EventFormValues) {
+export function toEventRequestBody(values: EventFormValues, status?: "draft" | "visible") {
   return {
     titleNl: values.titleNl.trim() || null,
     titleEn: values.titleEn.trim() || null,
@@ -609,5 +643,6 @@ export function toEventRequestBody(values: EventFormValues) {
     externalEventUrl: values.externalEventUrl.trim() || null,
     registrationUrl: values.registrationUrl.trim() || null,
     orgId: values.orgId,
+    status,
   };
 }

@@ -43,8 +43,9 @@ export default function OrganizationDetailPage() {
   const canManage = () => org()?.isMember ?? false;
 
   // Only shown for site admins - listEventsForViewer only returns
-  // hidden/cancelled events to them, everyone else only ever sees "visible".
+  // draft/hidden/cancelled events to them, everyone else only ever sees "visible".
   const statusLabels: Record<string, string> = {
+    draft: t("Concept", "Draft"),
     hidden: t("Verborgen", "Hidden"),
     cancelled: t("Geannuleerd", "Cancelled"),
   };

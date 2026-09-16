@@ -86,6 +86,13 @@ export type EventInput = {
   registrationUrl: string | null;
   /** Publish on behalf of this org instead of as the caller themselves - the caller must belong to it (any role). Null publishes as the caller. */
   orgId: string | null;
+  /**
+   * Chosen by which button the publisher clicked (Save as draft / Publish).
+   * Optional on update - omitted means "leave status as-is"; when present,
+   * updateEvent only ever honors it while the event is still a draft (see
+   * there) since a published event can never return to draft.
+   */
+  status?: "draft" | "visible";
 };
 
 /** Trims, nulls out empty strings, and rejects (post-trim) values over maxLength - the hard backstop matching the equivalent DB CHECK constraint (migrations/0006_field_length_limits.sql). */
@@ -119,6 +126,7 @@ const EventInputSchema = z.object({
   externalEventUrl: z.string().trim().url().max(2000).nullable(),
   registrationUrl: z.string().trim().url().max(2000).nullable(),
   orgId: z.string().uuid().nullable(),
+  status: z.enum(["draft", "visible"]).optional(),
 });
 
 export type CreateEventError = "validation" | "forbidden" | "internal_error";
@@ -201,6 +209,7 @@ export class EventService {
           source: "manual",
           externalSourceId: null,
           externalSourceName: null,
+          status: parsed.data.status ?? "visible",
         })
         .mapErr((dbError): CreateEventError => {
           logger.error({ err: dbError }, "failed to create event");
@@ -271,7 +280,7 @@ export class EventService {
     eventId: EventId,
     input: EventInput,
   ): ResultAsync<Event, UpdateEventError> {
-    return this.loadForModification(actingUser, eventId).andThen(() => {
+    return this.loadForModification(actingUser, eventId).andThen((existing) => {
       const parsed = EventInputSchema.safeParse(input);
       if (!parsed.success) {
         logger.warn({ err: parsed.error }, "event update rejected: invalid input");
@@ -282,6 +291,11 @@ export class EventService {
         logger.warn({ messages: validation.error }, "event update rejected: invalid input");
         return errAsync<Event, UpdateEventError>("validation");
       }
+      // A draft may move to visible (publish) or stay a draft; anything
+      // already out of draft keeps its current status regardless of what's
+      // requested - once published, an event can never go back to draft.
+      const nextStatus: Event["status"] =
+        existing.status === "draft" ? (parsed.data.status ?? "draft") : existing.status;
       return this.resolveLocationFields(parsed.data).andThen((locationFields) => {
         const fields: EditableEventFields = {
           titleNl: parsed.data.titleNl,
@@ -296,6 +310,7 @@ export class EventService {
           mapUrl: parsed.data.mapUrl,
           externalEventUrl: parsed.data.externalEventUrl,
           registrationUrl: parsed.data.registrationUrl,
+          status: nextStatus,
         };
         return this.repository.updateEvent(eventId, fields, actingUser.id).mapErr((dbError) => {
           logger.error({ err: dbError }, "failed to update event");
@@ -305,10 +320,11 @@ export class EventService {
     });
   }
 
+  /** Moderation-only status transitions - deliberately excludes "draft" as a target, since an event may never go back to draft once published. */
   setEventStatus(
     actingUser: ActingUser,
     eventId: EventId,
-    status: Event["status"],
+    status: "hidden" | "visible" | "cancelled",
     statusReason: string | null,
   ): ResultAsync<Event, SetEventStatusError> {
     return this.loadForModification(actingUser, eventId).andThen(() =>

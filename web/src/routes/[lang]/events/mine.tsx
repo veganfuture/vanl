@@ -16,6 +16,7 @@ export default function MyEventsPage() {
     meeting_point_city_only: t("Verzamelpunt", "Meeting point"),
   };
   const statusLabels: Record<string, string> = {
+    draft: t("Concept", "Draft"),
     hidden: t("Verborgen", "Hidden"),
     cancelled: t("Geannuleerd", "Cancelled"),
   };

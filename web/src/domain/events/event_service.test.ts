@@ -67,6 +67,7 @@ function baseInput(overrides: Partial<EventInput> = {}): EventInput {
     externalEventUrl: null,
     registrationUrl: null,
     orgId: null,
+    status: "visible",
     ...overrides,
   };
 }
@@ -412,6 +413,46 @@ describe("edit/delete/cancel own event (Editor row of the permission matrix)", (
     const result = await service.updateEvent(actingAs(someone), missingId, baseInput());
 
     expect(result._unsafeUnwrapErr()).toBe("not_found");
+  });
+});
+
+describe("draft status", () => {
+  it("creates an event as a draft when requested", async () => {
+    const publisher = await makeUser("owner-creates-draft");
+    const created = (
+      await service.createEvent(actingAs(publisher), baseInput({ status: "draft" }))
+    )._unsafeUnwrap();
+
+    expect(created.status).toBe("draft");
+  });
+
+  it("publishes a draft via update when the publisher requests it", async () => {
+    const publisher = await makeUser("owner-publishes-draft");
+    const created = (
+      await service.createEvent(actingAs(publisher), baseInput({ status: "draft" }))
+    )._unsafeUnwrap();
+
+    const updated = (
+      await service.updateEvent(
+        actingAs(publisher),
+        created.id,
+        baseInput({ status: "visible" }),
+      )
+    )._unsafeUnwrap();
+
+    expect(updated.status).toBe("visible");
+  });
+
+  it("a published event can never go back to draft via update", async () => {
+    const publisher = await makeUser("owner-cannot-redraft");
+    const created = (await service.createEvent(actingAs(publisher), baseInput()))._unsafeUnwrap();
+    expect(created.status).toBe("visible");
+
+    const updated = (
+      await service.updateEvent(actingAs(publisher), created.id, baseInput({ status: "draft" }))
+    )._unsafeUnwrap();
+
+    expect(updated.status).toBe("visible");
   });
 });
 

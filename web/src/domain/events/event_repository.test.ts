@@ -59,6 +59,7 @@ function baseEventInput(overrides: Partial<NewEventInput> = {}): NewEventInput {
     source: "manual",
     externalSourceId: null,
     externalSourceName: null,
+    status: "visible",
     ...overrides,
   };
 }

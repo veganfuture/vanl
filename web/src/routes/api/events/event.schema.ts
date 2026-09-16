@@ -34,7 +34,7 @@ export const EventJsonSchema = z.object({
   flyerThumbnailImageId: z.string().nullable(),
   publisherUserId: z.string().nullable(),
   publisherOrgId: z.string().nullable(),
-  status: z.enum(["hidden", "visible", "cancelled"]),
+  status: z.enum(["draft", "hidden", "visible", "cancelled"]),
   statusReason: z.string().nullable(),
   isFeatured: z.boolean(),
   /** Server-computed via canModifyEvent (event_service.ts) - the single source of truth for who may edit/moderate this event, so pages render controls from this instead of re-deriving the permission-matrix rule client-side. */
@@ -104,5 +104,12 @@ export const EventRequestSchema = z.object({
   registrationUrl: z.string().nullable(),
   /** Publish as this org instead of as the caller - the caller must belong to it. Ignored on update (who publishes an event never changes after creation). */
   orgId: z.string().uuid().nullable(),
+  /**
+   * Which button the publisher clicked (Save as draft / Publish). Required
+   * on create; optional on update, where omitting it leaves the event's
+   * current status untouched - see event_service.ts's updateEvent for why
+   * it's otherwise only honored while the event is still a draft.
+   */
+  status: z.enum(["draft", "visible"]).optional(),
 });
 export type EventRequest = z.infer<typeof EventRequestSchema>;

@@ -41,7 +41,7 @@ const EventRowSchema = z.object({
   publisher_user_id: z.string().nullable(),
   publisher_org_id: z.string().nullable(),
   publisher_user_visible: z.boolean(),
-  status: z.enum(["hidden", "visible", "cancelled"]),
+  status: z.enum(["draft", "hidden", "visible", "cancelled"]),
   status_reason: z.string().nullable(),
   is_featured: z.boolean(),
   source: z.enum(["manual", "signal_import", "external_import"]),
@@ -201,8 +201,15 @@ export type NewEventInput = {
   source: EventSource;
   externalSourceId: string | null;
   externalSourceName: string | null;
+  status: EventStatus;
 };
 
+/**
+ * status is included so a publish-while-editing-a-draft can be persisted
+ * atomically with the rest of the edit - event_service.ts's updateEvent is
+ * the sole place that decides what value it may take (draft can move to
+ * visible; nothing may move back to draft), never the caller.
+ */
 export type EditableEventFields = Omit<
   NewEventInput,
   | "slug"
@@ -227,7 +234,7 @@ export class EventRepository {
           location_house_number, location_postcode, location_lat, location_lng,
           location_pdok_id, map_url, external_event_url, registration_url, organizer_name,
           publisher_user_id, publisher_org_id, created_by, updated_by, source, external_source_id,
-          external_source_name
+          external_source_name, status
         )
         values (
           ${input.slug}, ${input.titleNl}, ${input.titleEn}, ${input.descriptionNl},
@@ -238,7 +245,7 @@ export class EventRepository {
           ${input.externalEventUrl}, ${input.registrationUrl}, ${input.organizerName},
           ${input.publisherUserId?.value ?? null}, ${input.publisherOrgId?.value ?? null},
           ${input.createdBy.value}, ${input.createdBy.value}, ${input.source},
-          ${input.externalSourceId}, ${input.externalSourceName}
+          ${input.externalSourceId}, ${input.externalSourceName}, ${input.status}
         )
         returning *
       `,
@@ -422,6 +429,7 @@ export class EventRepository {
           map_url = ${fields.mapUrl},
           external_event_url = ${fields.externalEventUrl},
           registration_url = ${fields.registrationUrl},
+          status = ${fields.status},
           updated_by = ${updatedBy.value},
           updated_at = now()
         where id = ${id.value}

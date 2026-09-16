@@ -4,7 +4,7 @@ import type { EventId } from "./event_id";
 
 export type EventLocationKind = "precise_address" | "meeting_point_city_only";
 
-export type EventStatus = "hidden" | "visible" | "cancelled";
+export type EventStatus = "draft" | "hidden" | "visible" | "cancelled";
 
 export type EventSource = "manual" | "signal_import" | "external_import";
 

@@ -26,6 +26,7 @@ export default function EventsListPage() {
   // Only shown for site admins - listVisibleEvents-only for everyone else,
   // so a real visitor never sees a status other than "visible" here anyway.
   const statusLabels: Record<string, string> = {
+    draft: t("Concept", "Draft"),
     hidden: t("Verborgen", "Hidden"),
     cancelled: t("Geannuleerd", "Cancelled"),
   };

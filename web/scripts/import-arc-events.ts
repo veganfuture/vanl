@@ -546,7 +546,9 @@ async function main(): Promise<void> {
         } else {
           const result = await eventRepository.updateEvent(
             existing.value.id,
-            fields,
+            // Re-imports never touch status - preserve whatever moderation
+            // already set (visible/hidden/cancelled/draft).
+            { ...fields, status: existing.value.status },
             mode.botUserId,
           );
           if (result.isErr()) {
@@ -599,6 +601,7 @@ async function main(): Promise<void> {
             source: "external_import",
             externalSourceId: event.externalSourceId,
             externalSourceName: EXTERNAL_SOURCE_NAME,
+            status: "visible",
           };
           const result = await eventRepository.createEvent(input);
           if (result.isErr()) {

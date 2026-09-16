@@ -37,10 +37,14 @@ export default function NewEventPage() {
     );
   });
 
-  async function onSubmit(values: EventFormValues, flyerFile: File | null) {
+  async function onSubmit(
+    values: EventFormValues,
+    flyerFile: File | null,
+    status: "draft" | "visible" | null,
+  ) {
     const result = await apiFetch("/api/events", {
       request: EventRequestSchema,
-      body: toEventRequestBody(values),
+      body: toEventRequestBody(values, status ?? "visible"),
       response: CreateEventResponseSchema,
     });
     return result.match(
@@ -90,6 +94,7 @@ export default function NewEventPage() {
             submitLabel={t("Evenement aanmaken", "Create event")}
             submittingLabel={t("Bezig met aanmaken…", "Creating…")}
             requireFutureStart
+            allowDraft
             orgs={myOrgs()?.map((org) => ({ id: org.id, name: org.name }))}
             onSubmit={onSubmit}
           />

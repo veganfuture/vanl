@@ -215,7 +215,9 @@ export default function EventDetailPage() {
                 <p class="mb-4 inline-block rounded bg-amber-100 px-2 py-1 text-sm text-amber-800">
                   {currentEvent().status === "cancelled"
                     ? t("Geannuleerd", "Cancelled")
-                    : t("Verborgen", "Hidden")}
+                    : currentEvent().status === "draft"
+                      ? t("Concept", "Draft")
+                      : t("Verborgen", "Hidden")}
                   {currentEvent().statusReason ? ` — ${currentEvent().statusReason}` : ""}
                 </p>
               </Show>
@@ -302,7 +304,9 @@ export default function EventDetailPage() {
                         class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
                         onClick={() => onSetStatus("visible")}
                       >
-                        {t("Tonen", "Show")}
+                        {currentEvent().status === "draft"
+                          ? t("Publiceren", "Publish")
+                          : t("Tonen", "Show")}
                       </button>
                     }
                   >
