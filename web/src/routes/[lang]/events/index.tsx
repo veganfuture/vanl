@@ -214,7 +214,8 @@ export default function EventsListPage() {
                             href={`/${lang()}/events/${event.slug}`}
                             orgLogoThumbnailImageId={
                               event.publisherOrgId
-                                ? (orgById()?.get(event.publisherOrgId)?.logoThumbnailImageId ?? null)
+                                ? (orgById()?.get(event.publisherOrgId)?.logoThumbnailImageId ??
+                                  null)
                                 : null
                             }
                             org={

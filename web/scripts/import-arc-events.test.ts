@@ -56,6 +56,14 @@ describe("detectOrganizer", () => {
     expect(detectOrganizer(event)).toBe("XR Landbouw");
   });
 
+  it("recognizes a stopdeuitbuiting.nl link in the description as XR Landbouw", () => {
+    const event = baseEvent({
+      titleEn: "Actiedag tegen de bio-industrie",
+      descriptionNl: "Meer info op www.stopdeuitbuiting.nl.",
+    });
+    expect(detectOrganizer(event)).toBe("XR Landbouw");
+  });
+
   it("recognizes Active for Justice in the title", () => {
     const event = baseEvent({ titleEn: "Active for Justice demonstration - Maastricht" });
     expect(detectOrganizer(event)).toBe("Active for Justice");

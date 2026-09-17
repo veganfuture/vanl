@@ -127,7 +127,11 @@ export default function OrganizationDetailPage() {
                               shown at the top of this page, so falling back to it here
                               would just repeat it - only show a thumbnail when the event
                               has its own flyer. */}
-                          <EventCard event={event} lang={lang()} href={`/${lang()}/events/${event.slug}`} />
+                          <EventCard
+                            event={event}
+                            lang={lang()}
+                            href={`/${lang()}/events/${event.slug}`}
+                          />
                         </li>
                       )}
                     </For>

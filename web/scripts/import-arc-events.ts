@@ -169,7 +169,11 @@ const ORGANIZER_RULES: ReadonlyArray<{
     organizer: "Vegan Future",
     test: (_title, description) => /veganfuture\.org/i.test(description),
   },
-  { organizer: "XR Landbouw", test: (title) => /xr landbouw/i.test(title) },
+  {
+    organizer: "XR Landbouw",
+    test: (title, description) =>
+      /xr landbouw/i.test(title) || /stopdeuitbuiting\.nl/i.test(description),
+  },
   {
     organizer: "Active for Justice",
     test: (title, description) =>
