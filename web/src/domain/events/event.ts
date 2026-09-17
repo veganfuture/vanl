@@ -1,4 +1,5 @@
 import type { Uuid } from "~/lib/uuid";
+import type { Sha256 } from "~/lib/sha256";
 import type { UserId } from "../auth/user_id";
 import type { OrganizationId } from "../organizations/organization_id";
 import type { EventId } from "./event_id";
@@ -36,9 +37,9 @@ export type Event = {
   /** Which real-world organization runs this event - only ever set by an import script, never by a human publisher. */
   organizerName: string | null;
   /** sha256 of each resized variant - see src/domain/images/image_processing.ts. */
-  flyerFullImageId: string | null;
-  flyerPreviewImageId: string | null;
-  flyerThumbnailImageId: string | null;
+  flyerFullImageId: Sha256 | null;
+  flyerPreviewImageId: Sha256 | null;
+  flyerThumbnailImageId: Sha256 | null;
   /** Exactly one of publisherUserId/publisherOrgId is set - enforced by a DB CHECK. */
   publisherUserId: UserId | null;
   publisherOrgId: OrganizationId | null;

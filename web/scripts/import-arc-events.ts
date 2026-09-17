@@ -14,6 +14,7 @@ import { FLYER_VARIANTS, processUpload } from "../src/domain/images/image_proces
 import type { Organization } from "../src/domain/organizations/organization";
 import { OrganizationRepository } from "../src/domain/organizations/organization_repository";
 import { PlaceRepository } from "../src/domain/places/place_repository";
+import type { Sha256 } from "../src/lib/sha256";
 import { reverseGeocode } from "../src/domain/events/pdok-client";
 import { generateSlug } from "../src/lib/slug";
 import { validateEvent, type ValidatableEvent } from "../src/lib/event_validation";
@@ -361,7 +362,7 @@ async function ensureImportBotUser(authRepository: AuthRepository): Promise<User
   return created.value.id;
 }
 
-type FlyerImageIds = { full: string; preview: string; thumbnail: string };
+type FlyerImageIds = { full: Sha256; preview: Sha256; thumbnail: Sha256 };
 
 /**
  * Downloads, processes, and stores (content-addressed, via ImageRepository)

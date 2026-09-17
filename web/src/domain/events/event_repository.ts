@@ -2,6 +2,7 @@ import { err, ok, okAsync, ResultAsync, type Result } from "neverthrow";
 import type postgres from "postgres";
 import { z } from "zod";
 import type { Uuid } from "~/lib/uuid";
+import type { Sha256 } from "~/lib/sha256";
 import { UserId } from "../auth/user_id";
 import { OrganizationId } from "../organizations/organization_id";
 import type { Event, EventLocationKind, EventSource, EventStatus } from "./event";
@@ -545,9 +546,9 @@ export class EventRepository {
   /** Repoints all three flyer variants at once - a dedicated narrow update, not part of the general edit form. */
   setEventFlyer(
     id: EventId,
-    fullImageId: string,
-    previewImageId: string,
-    thumbnailImageId: string,
+    fullImageId: Sha256,
+    previewImageId: Sha256,
+    thumbnailImageId: Sha256,
     updatedBy: UserId,
   ): ResultAsync<Event, DbError> {
     return ResultAsync.fromPromise(
@@ -573,7 +574,7 @@ export class EventRepository {
    * organizer who (for now) only has one upcoming event using it.
    */
   isFlyerImageUsedByAnotherEvent(
-    imageId: string,
+    imageId: Sha256,
     excludingEventId: EventId,
   ): ResultAsync<boolean, DbError> {
     return ResultAsync.fromPromise(

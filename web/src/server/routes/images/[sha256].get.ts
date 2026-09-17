@@ -1,7 +1,6 @@
 import { defineHandler, getRouterParam } from "h3";
 import { imageRepository } from "~/domain/images/image_repository";
-
-const SHA256_RE = /^[0-9a-f]{64}$/;
+import { parseSha256 } from "~/lib/sha256";
 
 /**
  * Deliberately a nitro-native serverDir route (not a SolidStart
@@ -17,12 +16,12 @@ const SHA256_RE = /^[0-9a-f]{64}$/;
  * shape (deliberately extension-less, for an unrelated reason).
  */
 export default defineHandler(async (event) => {
-  const sha256 = getRouterParam(event, "sha256") ?? "";
-  if (!SHA256_RE.test(sha256)) {
+  const sha256Result = parseSha256(getRouterParam(event, "sha256") ?? "");
+  if (sha256Result.isErr()) {
     return new Response(null, { status: 404 });
   }
 
-  const result = await imageRepository.findImageBySha256(sha256);
+  const result = await imageRepository.findImageBySha256(sha256Result.value);
   const image = result.match(
     (found) => found,
     () => null,

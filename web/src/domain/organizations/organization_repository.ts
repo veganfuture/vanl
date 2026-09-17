@@ -2,6 +2,7 @@ import { err, ok, ResultAsync, type Result } from "neverthrow";
 import type postgres from "postgres";
 import { z } from "zod";
 import { sql } from "~/lib/db";
+import type { Sha256 } from "~/lib/sha256";
 import { UserId } from "../auth/user_id";
 import { ORG_ROLES } from "../auth/roles";
 import type {
@@ -330,8 +331,8 @@ export class OrganizationRepository {
   /** Repoints both logo variants at once - a dedicated narrow update, not part of the general edit form. */
   setOrganizationLogo(
     id: OrganizationId,
-    fullImageId: string,
-    thumbnailImageId: string,
+    fullImageId: Sha256,
+    thumbnailImageId: Sha256,
   ): ResultAsync<Organization, DbError> {
     return ResultAsync.fromPromise(
       this.sql`

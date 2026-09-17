@@ -2,6 +2,7 @@ import { err, ok, ResultAsync, type Result } from "neverthrow";
 import type postgres from "postgres";
 import { z } from "zod";
 import { sql } from "~/lib/db";
+import type { Sha256 } from "~/lib/sha256";
 import type { Image, ImageMeta } from "./image";
 
 /**
@@ -52,7 +53,7 @@ function mapImageMetaRow(row: unknown): Result<ImageMeta, DbError> {
 }
 
 export type NewImageInput = {
-  sha256: string;
+  sha256: Sha256;
   bytes: Buffer;
   mime: string;
   width: number;
@@ -82,7 +83,7 @@ export class ImageRepository {
   }
 
   /** Full row including bytes - for serving the actual image. */
-  findImageBySha256(sha256: string): ResultAsync<Image | null, DbError> {
+  findImageBySha256(sha256: Sha256): ResultAsync<Image | null, DbError> {
     return ResultAsync.fromPromise(
       this.sql`select * from images where sha256 = ${sha256}`,
       (cause): DbError => ({ message: "Failed to find image", cause }),
@@ -90,7 +91,7 @@ export class ImageRepository {
   }
 
   /** Metadata only (no bytes) - for callers that just need width/height/mime. */
-  findImageMetaBySha256(sha256: string): ResultAsync<ImageMeta | null, DbError> {
+  findImageMetaBySha256(sha256: Sha256): ResultAsync<ImageMeta | null, DbError> {
     return ResultAsync.fromPromise(
       this.sql`select sha256, mime, width, height, created_at from images where sha256 = ${sha256}`,
       (cause): DbError => ({ message: "Failed to find image metadata", cause }),
