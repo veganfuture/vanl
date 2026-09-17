@@ -38,6 +38,13 @@ const WEBP_QUALITY = 82;
  */
 export const THUMBNAIL_MAX_WIDTH = 160;
 
+/** Shared by both the manual-upload flyer path (EventService.replaceFlyer) and the ARC import script, so flyers look identical regardless of source. */
+export const FLYER_VARIANTS = [
+  { maxWidth: 1600 },
+  { maxWidth: 600 },
+  { maxWidth: THUMBNAIL_MAX_WIDTH },
+] as const;
+
 type ImageMetadata = Awaited<ReturnType<ReturnType<typeof sharp>["metadata"]>>;
 
 function processingError(message: string, cause?: unknown): ImageProcessingError {

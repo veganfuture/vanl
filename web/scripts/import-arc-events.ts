@@ -1,13 +1,16 @@
 import postgres from "postgres";
 import nodeIcal, { type ParameterValue, type VEvent } from "node-ical";
 import { Command } from "commander";
-import { okAsync, type Result } from "neverthrow";
+import { okAsync, ResultAsync, type Result } from "neverthrow";
 import { loadConfig } from "../src/lib/config";
 import { AccountName } from "../src/domain/auth/account_name";
 import { AuthRepository } from "../src/domain/auth/auth_repository";
 import { SignalAci } from "../src/domain/auth/signal_aci";
 import type { UserId } from "../src/domain/auth/user_id";
 import { EventRepository, type NewEventInput } from "../src/domain/events/event_repository";
+import type { EventId } from "../src/domain/events/event_id";
+import { ImageRepository } from "../src/domain/images/image_repository";
+import { FLYER_VARIANTS, processUpload } from "../src/domain/images/image_processing";
 import type { Organization } from "../src/domain/organizations/organization";
 import { OrganizationRepository } from "../src/domain/organizations/organization_repository";
 import { PlaceRepository } from "../src/domain/places/place_repository";
@@ -144,7 +147,21 @@ export type RealEvent = {
   location: string;
   geo: Geo;
   externalEventUrl: string | null;
+  flyerUrl: string | null;
 };
+
+/**
+ * ARC embeds each event's flyer as a standard iCal ATTACH property
+ * (node-ical surfaces it in the same {val, params} shape textOf() already
+ * unwraps for summary/description/location) - no page-scraping needed. Not
+ * every ATTACH is a bespoke flyer though; some are a generic/default image
+ * an organizer reuses across many events - see reusedFlyerUrls and
+ * EventRepository.isFlyerImageUsedByAnotherEvent for the two-layer filter
+ * that catches those before they're ever imported as a flyer.
+ */
+export function flyerUrlOf(event: VEvent): string | null {
+  return textOf(event.attach as ParameterValue<string> | undefined);
+}
 
 /**
  * ARC doesn't have a structured organizer/host field at all (checked the
@@ -244,6 +261,7 @@ function toRealEvent(group: VEvent[]): RealEvent {
     location: textOf(canonical.location)!,
     geo: geoOf(canonical)!,
     externalEventUrl: canonical.url ?? null,
+    flyerUrl: flyerUrlOf(canonical),
   };
 
   if (sorted.length === 1) {
@@ -274,6 +292,24 @@ function toRealEvent(group: VEvent[]): RealEvent {
     descriptionNl: nl ? textOf(nl.description) : null,
     descriptionEn: en ? textOf(en.description) : null,
   };
+}
+
+/**
+ * An image URL used by more than one real event this pull is an organizer's
+ * shared/default graphic, not a flyer made for any one of them - verified
+ * against a live pull: the same image reused across 25 different "Cube of
+ * Truth: Nijmegen" recurring actions on different dates. Catches bulk reuse
+ * before ever downloading anything; EventRepository.isFlyerImageUsedByAnotherEvent
+ * is the backstop for an organizer who (for now) only has one upcoming event
+ * sharing such an image, which this same-pull count alone can't see.
+ */
+export function reusedFlyerUrls(events: RealEvent[]): Set<string> {
+  const counts = new Map<string, number>();
+  for (const e of events) {
+    if (!e.flyerUrl) continue;
+    counts.set(e.flyerUrl, (counts.get(e.flyerUrl) ?? 0) + 1);
+  }
+  return new Set([...counts].filter(([, count]) => count > 1).map(([url]) => url));
 }
 
 async function fetchArcEvents(): Promise<VEvent[]> {
@@ -323,6 +359,132 @@ async function ensureImportBotUser(authRepository: AuthRepository): Promise<User
     throw new Error(`Failed to create import bot user: ${created.error.message}`);
   }
   return created.value.id;
+}
+
+type FlyerImageIds = { full: string; preview: string; thumbnail: string };
+
+/**
+ * Downloads, processes, and stores (content-addressed, via ImageRepository)
+ * ARC's flyer image at most once per distinct URL per run - cached the same
+ * way as geoResolutionCache/organizerOrgCache above, but only the resulting
+ * sha256 ids, not the image bytes: once they're durably stored there's no
+ * reason to keep holding several events' worth of decoded webp buffers in
+ * memory for the rest of the run. Without this cache, an image several
+ * events share (e.g. "Boxtel Pig Save" posted repeatedly) would otherwise
+ * be re-downloaded, re-encoded, and re-uploaded once per event instead of
+ * once. `null` is cached too, so a failing URL is only ever retried once
+ * per run, not once per event that references it.
+ */
+const flyerDownloadCache = new Map<string, FlyerImageIds | null>();
+
+async function downloadAndStoreFlyer(
+  flyerUrl: string,
+  imageRepository: ImageRepository,
+): Promise<FlyerImageIds | null> {
+  const cached = flyerDownloadCache.get(flyerUrl);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  let bytes: Buffer;
+  try {
+    const response = await fetch(flyerUrl, { signal: AbortSignal.timeout(30_000) });
+    if (!response.ok) {
+      console.warn(`Flyer download failed (${response.status}): ${flyerUrl}`);
+      flyerDownloadCache.set(flyerUrl, null);
+      return null;
+    }
+    bytes = Buffer.from(await response.arrayBuffer());
+  } catch (error) {
+    console.warn(`Flyer download failed: ${flyerUrl}`, error);
+    flyerDownloadCache.set(flyerUrl, null);
+    return null;
+  }
+
+  const processed = await processUpload(bytes, FLYER_VARIANTS);
+  if (processed.isErr()) {
+    console.warn(`Flyer processing failed for ${flyerUrl}: ${processed.error.message}`);
+    flyerDownloadCache.set(flyerUrl, null);
+    return null;
+  }
+  const [full, preview, thumbnail] = processed.value;
+
+  const uploaded = await ResultAsync.combine([
+    imageRepository.upsertImage(full),
+    imageRepository.upsertImage(preview),
+    imageRepository.upsertImage(thumbnail),
+  ]);
+  if (uploaded.isErr()) {
+    console.warn(`Flyer storage failed for ${flyerUrl}: ${uploaded.error.message}`);
+    flyerDownloadCache.set(flyerUrl, null);
+    return null;
+  }
+
+  const ids: FlyerImageIds = {
+    full: full.sha256,
+    preview: preview.sha256,
+    thumbnail: thumbnail.sha256,
+  };
+  flyerDownloadCache.set(flyerUrl, ids);
+  return ids;
+}
+
+/**
+ * Points an event at an already-downloaded-and-stored flyer image, mirroring
+ * EventService.replaceFlyer's pipeline. Never throws - a download/decode/
+ * storage failure (see downloadAndStoreFlyer) just means no flyer, logged
+ * as a warning there; it must never fail the event's own create/update.
+ *
+ * checkForDuplicates gates the cross-run content-hash check
+ * (EventRepository.isFlyerImageUsedByAnotherEvent - the backstop for a
+ * generic/default image that reusedFlyerUrls' same-pull count alone
+ * couldn't catch): only worth doing for an event linked to a known org,
+ * where a duplicate would otherwise sit on top of a logo we already show as
+ * that org's fallback. An unlinked event has no such fallback to protect,
+ * so its caller skips this check entirely - see the main loop.
+ */
+type ImportFlyerResult = "imported" | "duplicate" | "failed";
+
+async function importFlyer(
+  flyerUrl: string,
+  eventId: EventId,
+  botUserId: UserId,
+  eventRepository: EventRepository,
+  imageRepository: ImageRepository,
+  checkForDuplicates: boolean,
+): Promise<ImportFlyerResult> {
+  const ids = await downloadAndStoreFlyer(flyerUrl, imageRepository);
+  if (!ids) {
+    return "failed";
+  }
+
+  if (checkForDuplicates) {
+    const alreadyUsed = await eventRepository.isFlyerImageUsedByAnotherEvent(ids.full, eventId);
+    if (alreadyUsed.isErr()) {
+      console.warn(`Flyer reuse check failed for ${eventId.value}: ${alreadyUsed.error.message}`);
+      return "failed";
+    }
+    if (alreadyUsed.value) {
+      console.warn(
+        `Flyer for ${eventId.value} (${flyerUrl}) matches an image another event already uses - ` +
+          `treating as a shared/default image, not importing.`,
+      );
+      return "duplicate";
+    }
+  }
+
+  const result = await eventRepository.setEventFlyer(
+    eventId,
+    ids.full,
+    ids.preview,
+    ids.thumbnail,
+    botUserId,
+  );
+  if (result.isErr()) {
+    console.warn(`Failed to set flyer for ${eventId.value}: ${result.error.message}`);
+    return "failed";
+  }
+  return "imported";
 }
 
 /**
@@ -436,6 +598,9 @@ async function main(): Promise<void> {
   const placeRepository = new PlaceRepository(sql);
   const authRepository = new AuthRepository(sql);
   const organizationRepository = new OrganizationRepository(sql);
+  const imageRepository = new ImageRepository(sql);
+
+  const reusedFlyers = reusedFlyerUrls(groups);
 
   let filteredNonNl = 0;
   let skippedNoPlace = 0;
@@ -445,6 +610,9 @@ async function main(): Promise<void> {
   let updated = 0;
   let linkedToOrg = 0;
   let crossCheckMismatches = 0;
+  let flyersImported = 0;
+  let flyersSkippedReused = 0;
+  let flyersSkippedDuplicate = 0;
 
   try {
     const mode: WriteMode = dryRun
@@ -554,6 +722,21 @@ async function main(): Promise<void> {
         ? await resolveOrganizerOrganization(organizerName, organizationRepository)
         : null;
 
+      // See reusedFlyerUrls' comment - a same-pull-reused image is usually a
+      // shared/default graphic, not a flyer made for this event specifically.
+      // That only matters when it'd duplicate a logo we already show as the
+      // fallback for a known org, though (organizerOrg) - an unlinked event
+      // has no such fallback, so ARC's image (bespoke or not) beats showing
+      // nothing, and reuse is never checked for it.
+      let flyerUrl: string | null = null;
+      if (event.flyerUrl) {
+        if (organizerOrg && reusedFlyers.has(event.flyerUrl)) {
+          flyersSkippedReused++;
+        } else {
+          flyerUrl = event.flyerUrl;
+        }
+      }
+
       if (existing.value) {
         if (mode.dryRun) {
           console.log(`[dry-run] would update "${title}" (${event.externalSourceId})`);
@@ -563,6 +746,9 @@ async function main(): Promise<void> {
                 `"${organizerOrg.name}"`,
             );
             linkedToOrg++;
+          }
+          if (!existing.value.flyerFullImageId && flyerUrl) {
+            console.log(`[dry-run] would import flyer for "${title}" (${event.externalSourceId})`);
           }
         } else {
           const result = await eventRepository.updateEvent(
@@ -599,6 +785,22 @@ async function main(): Promise<void> {
             }
             linkedToOrg++;
           }
+          // flyer_full_image_id is likewise bot-owned but backfill-only, for
+          // two reasons: never re-download/re-process the same image every
+          // hourly run for an event's whole lifetime, and never clobber a
+          // flyer a human organizer may have manually uploaded since.
+          if (!existing.value.flyerFullImageId && flyerUrl) {
+            const imported = await importFlyer(
+              flyerUrl,
+              existing.value.id,
+              mode.botUserId,
+              eventRepository,
+              imageRepository,
+              organizerOrg !== null,
+            );
+            if (imported === "imported") flyersImported++;
+            if (imported === "duplicate") flyersSkippedDuplicate++;
+          }
         }
         updated++;
       } else {
@@ -610,6 +812,9 @@ async function main(): Promise<void> {
                 `"${organizerOrg.name}"`,
             );
             linkedToOrg++;
+          }
+          if (flyerUrl) {
+            console.log(`[dry-run] would import flyer for "${title}" (${event.externalSourceId})`);
           }
         } else {
           const input: NewEventInput = {
@@ -635,6 +840,18 @@ async function main(): Promise<void> {
           if (organizerOrg) {
             linkedToOrg++;
           }
+          if (flyerUrl) {
+            const imported = await importFlyer(
+              flyerUrl,
+              result.value.id,
+              mode.botUserId,
+              eventRepository,
+              imageRepository,
+              organizerOrg !== null,
+            );
+            if (imported === "imported") flyersImported++;
+            if (imported === "duplicate") flyersSkippedDuplicate++;
+          }
         }
         created++;
       }
@@ -643,9 +860,12 @@ async function main(): Promise<void> {
     console.log(
       `Done${dryRun ? " (dry-run)" : ""}. ${dryRun ? "Would create" : "Created"} ${created}, ` +
         `${dryRun ? "would update" : "updated"} ${updated}, ${dryRun ? "would link" : "linked"} ` +
-        `${linkedToOrg} to an organization, filtered out ${filteredNonNl} non-NL events, skipped ` +
-        `${skippedNoPlace} for no matching place, ${skippedValidation} failing validation, ` +
-        `${crossCheckMismatches} on a second-opinion mismatch, ${failed} failed outright.`,
+        `${linkedToOrg} to an organization, ${dryRun ? "would import" : "imported"} ${flyersImported} ` +
+        `flyers (${flyersSkippedReused} skipped as a same-pull-reused image, ${flyersSkippedDuplicate} ` +
+        `skipped as a cross-run content duplicate), filtered out ` +
+        `${filteredNonNl} non-NL events, skipped ${skippedNoPlace} for no matching place, ` +
+        `${skippedValidation} failing validation, ${crossCheckMismatches} on a second-opinion ` +
+        `mismatch, ${failed} failed outright.`,
     );
   } finally {
     await sql.end();

@@ -8,7 +8,7 @@ import { placeRepository, type PlaceRepository } from "~/domain/places/place_rep
 import { OrganizationId } from "~/domain/organizations/organization_id";
 import { OrganizationRepository } from "~/domain/organizations/organization_repository";
 import { ImageRepository } from "~/domain/images/image_repository";
-import { processUpload, THUMBNAIL_MAX_WIDTH } from "~/domain/images/image_processing";
+import { FLYER_VARIANTS, processUpload } from "~/domain/images/image_processing";
 import type { UserId } from "../auth/user_id";
 import type { Event, EventLocationKind } from "./event";
 import {
@@ -88,12 +88,6 @@ function canLinkEventToOrg(event: Event, orgId: string, actingUser: ActingUser):
   }
   return actingUser.id.equals(event.createdBy) && actingUser.orgRoles.has(orgId);
 }
-
-const FLYER_VARIANTS = [
-  { maxWidth: 1600 },
-  { maxWidth: 600 },
-  { maxWidth: THUMBNAIL_MAX_WIDTH },
-] as const;
 
 /**
  * Same shape whether creating or updating - the caller (route layer) is

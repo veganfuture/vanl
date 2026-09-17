@@ -1,5 +1,6 @@
+import type { VEvent } from "node-ical";
 import { describe, expect, it } from "vitest";
-import { detectOrganizer, type RealEvent } from "./import-arc-events";
+import { detectOrganizer, flyerUrlOf, reusedFlyerUrls, type RealEvent } from "./import-arc-events";
 
 function baseEvent(overrides: Partial<RealEvent> = {}): RealEvent {
   return {
@@ -13,6 +14,7 @@ function baseEvent(overrides: Partial<RealEvent> = {}): RealEvent {
     location: "Somewhere",
     geo: { lat: 52, lon: 5 },
     externalEventUrl: null,
+    flyerUrl: null,
     ...overrides,
   };
 }
@@ -125,5 +127,44 @@ describe("detectOrganizer", () => {
   it("does not false-positive on unrelated text containing similar substrings", () => {
     const event = baseEvent({ titleEn: "A totally unrelated event about something else" });
     expect(detectOrganizer(event)).toBeNull();
+  });
+});
+
+describe("flyerUrlOf", () => {
+  it("extracts the URL from an ATTACH property with FMTTYPE params", () => {
+    // node-ical's real shape for a parameterized property, e.g.
+    // ATTACH;FMTTYPE=image/jpeg:https://... - verified against a live feed pull.
+    const event = {
+      attach: {
+        val: "https://assets.animalrightscalendar.com/event_images/abc/flyer.jpg",
+        params: { FMTTYPE: "image/jpeg" },
+      },
+    } as unknown as VEvent;
+    expect(flyerUrlOf(event)).toBe(
+      "https://assets.animalrightscalendar.com/event_images/abc/flyer.jpg",
+    );
+  });
+
+  it("returns null when there is no ATTACH property", () => {
+    const event = {} as VEvent;
+    expect(flyerUrlOf(event)).toBeNull();
+  });
+});
+
+describe("reusedFlyerUrls", () => {
+  it("flags an image url referenced by more than one event", () => {
+    const events = [
+      baseEvent({ externalSourceId: "a", flyerUrl: "https://example.com/shared.jpg" }),
+      baseEvent({ externalSourceId: "b", flyerUrl: "https://example.com/shared.jpg" }),
+      baseEvent({ externalSourceId: "c", flyerUrl: "https://example.com/unique.jpg" }),
+    ];
+    const reused = reusedFlyerUrls(events);
+    expect(reused.has("https://example.com/shared.jpg")).toBe(true);
+    expect(reused.has("https://example.com/unique.jpg")).toBe(false);
+  });
+
+  it("ignores events without a flyer url", () => {
+    const events = [baseEvent({ flyerUrl: null })];
+    expect(reusedFlyerUrls(events).size).toBe(0);
   });
 });

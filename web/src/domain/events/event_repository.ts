@@ -566,6 +566,28 @@ export class EventRepository {
   }
 
   /**
+   * True when some event OTHER than excludingEventId already has this exact
+   * processed image (by content hash) as its flyer. Used by the ARC importer
+   * to catch a generic/default image ARC serves for multiple different
+   * events, for the case a same-pull frequency count alone can't: an
+   * organizer who (for now) only has one upcoming event using it.
+   */
+  isFlyerImageUsedByAnotherEvent(
+    imageId: string,
+    excludingEventId: EventId,
+  ): ResultAsync<boolean, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        select exists(
+          select 1 from events
+          where flyer_full_image_id = ${imageId} and id != ${excludingEventId.value}
+        ) as exists
+      `,
+      (cause): DbError => ({ message: "Failed to check flyer image reuse", cause }),
+    ).map((rows) => rows[0].exists as boolean);
+  }
+
+  /**
    * Backfills organizer_name/publisher_org_id together on an already-imported event -
    * import-arc-events.ts's own re-derivation of these bot-owned fields (see
    * 0002_events.sql's organizer_name comment for why they're excluded from the general
