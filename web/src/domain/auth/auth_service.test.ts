@@ -37,6 +37,7 @@ vi.mock("./bot-client", () => ({
 const { sendOtpViaBot } = await import("./bot-client");
 const { AuthService } = await import("./auth_service");
 import { SESSION_COOKIE_NAME } from "./cookies";
+import { REMEMBER_ME_TTL_SECONDS, SESSION_TTL_SECONDS } from "./session";
 
 const repository = new AuthRepository(sql);
 const service = new AuthService(repository, loadConfig().auth);
@@ -207,9 +208,51 @@ describe("login", () => {
     (await service.startLogin("heidi", null))._unsafeUnwrap();
     const sentCode = vi.mocked(sendOtpViaBot).mock.calls[0][1];
 
-    const result = await service.verifyLogin("heidi", sentCode);
+    const result = await service.verifyLogin("heidi", sentCode, false);
 
     expect(result._unsafeUnwrap().user.accountName.value).toBe("heidi");
+  });
+
+  it("uses the normal session TTL when rememberMe is false", async () => {
+    const token = signWithDevKey("77777777-7777-7777-7777-777777777777");
+    (
+      await service.completeSignup({
+        token,
+        accountName: "hank",
+        email: "hank@example.com",
+        displayName: "Hank",
+        affiliationsNote: null,
+      })
+    )._unsafeUnwrap();
+    (await service.startLogin("hank", null))._unsafeUnwrap();
+    const sentCode = vi.mocked(sendOtpViaBot).mock.calls[0][1];
+
+    const { setCookieHeaders } = (
+      await service.verifyLogin("hank", sentCode, false)
+    )._unsafeUnwrap();
+
+    expect(setCookieHeaders[0]).toContain(`Max-Age=${SESSION_TTL_SECONDS}`);
+  });
+
+  it("uses the 30-day remember-me TTL when rememberMe is true", async () => {
+    const token = signWithDevKey("66666666-6666-6666-6666-666666666666");
+    (
+      await service.completeSignup({
+        token,
+        accountName: "irene",
+        email: "irene@example.com",
+        displayName: "Irene",
+        affiliationsNote: null,
+      })
+    )._unsafeUnwrap();
+    (await service.startLogin("irene", null))._unsafeUnwrap();
+    const sentCode = vi.mocked(sendOtpViaBot).mock.calls[0][1];
+
+    const { setCookieHeaders } = (
+      await service.verifyLogin("irene", sentCode, true)
+    )._unsafeUnwrap();
+
+    expect(setCookieHeaders[0]).toContain(`Max-Age=${REMEMBER_ME_TTL_SECONDS}`);
   });
 
   it("rejects an unknown account", async () => {
@@ -250,7 +293,7 @@ describe("login", () => {
 
     (await repository.setUserDisabled(user.id, true))._unsafeUnwrap();
 
-    const result = await service.verifyLogin("erin", sentCode);
+    const result = await service.verifyLogin("erin", sentCode, false);
     expect(result._unsafeUnwrapErr()).toBe("account_disabled");
   });
 
@@ -267,9 +310,13 @@ describe("login", () => {
     )._unsafeUnwrap();
     (await service.startLogin("ivan", null))._unsafeUnwrap();
 
-    expect((await service.verifyLogin("ivan", "0000"))._unsafeUnwrapErr()).toBe("wrong_code");
-    expect((await service.verifyLogin("ivan", "0000"))._unsafeUnwrapErr()).toBe("wrong_code");
-    expect((await service.verifyLogin("ivan", "0000"))._unsafeUnwrapErr()).toBe(
+    expect((await service.verifyLogin("ivan", "0000", false))._unsafeUnwrapErr()).toBe(
+      "wrong_code",
+    );
+    expect((await service.verifyLogin("ivan", "0000", false))._unsafeUnwrapErr()).toBe(
+      "wrong_code",
+    );
+    expect((await service.verifyLogin("ivan", "0000", false))._unsafeUnwrapErr()).toBe(
       "attempts_exhausted",
     );
   });
@@ -346,7 +393,7 @@ describe("login", () => {
     for (let i = 0; i < 5; i++) {
       (await service.startLogin("ursula", null))._unsafeUnwrap();
       const sentCode = vi.mocked(sendOtpViaBot).mock.calls.at(-1)![1];
-      (await service.verifyLogin("ursula", sentCode))._unsafeUnwrap();
+      (await service.verifyLogin("ursula", sentCode, false))._unsafeUnwrap();
     }
 
     const result = await service.startLogin("ursula", null);
@@ -367,9 +414,9 @@ describe("login", () => {
     )._unsafeUnwrap();
     (await service.startLogin("victor", null))._unsafeUnwrap();
     const sentCode = vi.mocked(sendOtpViaBot).mock.calls.at(-1)![1];
-    (await service.verifyLogin("victor", sentCode))._unsafeUnwrap();
+    (await service.verifyLogin("victor", sentCode, false))._unsafeUnwrap();
 
-    const replay = await service.verifyLogin("victor", sentCode);
+    const replay = await service.verifyLogin("victor", sentCode, false);
 
     expect(replay._unsafeUnwrapErr()).toBe("no_active_challenge");
   });

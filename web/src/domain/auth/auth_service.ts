@@ -20,7 +20,12 @@ import {
   OTP_SEND_RATE_LIMIT_MAX,
   OTP_SEND_RATE_LIMIT_WINDOW_SECONDS,
 } from "./otp";
-import { generateSessionToken, hashSessionToken, SESSION_TTL_SECONDS } from "./session";
+import {
+  generateSessionToken,
+  hashSessionToken,
+  REMEMBER_ME_TTL_SECONDS,
+  SESSION_TTL_SECONDS,
+} from "./session";
 import { SignalAci } from "./signal_aci";
 import { verifySignupToken } from "./signup-token";
 import type { User } from "./user";
@@ -167,7 +172,7 @@ export class AuthService {
             created === "nonce_already_used" ? errAsync("already_used") : okAsync(created),
           )
           .andThen((user) =>
-            this.startSession(user.id, user.accountName)
+            this.startSession(user.id, user.accountName, SESSION_TTL_SECONDS)
               .mapErr((dbError): CompleteSignupError => {
                 logger.error({ err: dbError }, "failed to finish signup after creating user");
                 return "internal_error";
@@ -267,6 +272,7 @@ export class AuthService {
   verifyLogin(
     accountNameRaw: string,
     code: string,
+    rememberMe: boolean,
   ): ResultAsync<VerifyLoginSuccess, VerifyLoginError> {
     return this.repository
       .findUserByAccountName(accountNameRaw.trim())
@@ -307,7 +313,11 @@ export class AuthService {
               return "internal_error";
             })
             .andThen(() =>
-              this.startSession(user.id, user.accountName)
+              this.startSession(
+                user.id,
+                user.accountName,
+                rememberMe ? REMEMBER_ME_TTL_SECONDS : SESSION_TTL_SECONDS,
+              )
                 .mapErr((dbError): VerifyLoginError => {
                   logger.error({ err: dbError }, "failed to finish login after verifying code");
                   return "internal_error";
@@ -440,16 +450,20 @@ export class AuthService {
       });
   }
 
-  private startSession(userId: UserId, accountName: AccountName): ResultAsync<string[], DbError> {
+  private startSession(
+    userId: UserId,
+    accountName: AccountName,
+    ttlSeconds: number,
+  ): ResultAsync<string[], DbError> {
     const token = generateSessionToken();
     return this.repository
       .insertSession({
         userId,
         tokenHash: hashSessionToken(token),
-        expiresAt: new Date(Date.now() + SESSION_TTL_SECONDS * 1000),
+        expiresAt: new Date(Date.now() + ttlSeconds * 1000),
       })
       .map(() => [
-        buildSetCookie(SESSION_COOKIE_NAME, token, { maxAgeSeconds: SESSION_TTL_SECONDS }),
+        buildSetCookie(SESSION_COOKIE_NAME, token, { maxAgeSeconds: ttlSeconds }),
         buildSetCookie(REMEMBERED_ACCOUNT_COOKIE_NAME, accountName.value, {
           maxAgeSeconds: REMEMBERED_ACCOUNT_TTL_SECONDS,
           httpOnly: false,

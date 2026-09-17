@@ -76,6 +76,7 @@ export default function LoginPage() {
   const [step, setStep] = createSignal<Step>("account");
   const [accountName, setAccountName] = createSignal("");
   const [code, setCode] = createSignal("");
+  const [rememberMe, setRememberMe] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [submitting, setSubmitting] = createSignal(false);
   const [resending, setResending] = createSignal(false);
@@ -150,7 +151,7 @@ export default function LoginPage() {
     try {
       const result = await apiFetch("/api/auth/login/verify", {
         request: LoginVerifyRequestSchema,
-        body: { accountName: accountName(), code: code() },
+        body: { accountName: accountName(), code: code(), rememberMe: rememberMe() },
         response: LoginVerifyResponseSchema,
       });
       result.match(
@@ -180,6 +181,15 @@ export default function LoginPage() {
               value={accountName()}
               onInput={(event) => setAccountName(event.currentTarget.value)}
             />
+          </label>
+          <label class="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              class="h-4 w-4 rounded border-zinc-300"
+              checked={rememberMe()}
+              onChange={(event) => setRememberMe(event.currentTarget.checked)}
+            />
+            {t("Onthoud mij", "Remember me")}
           </label>
           <Show when={error()}>{(message) => <p class="text-red-700">{message()}</p>}</Show>
           <button

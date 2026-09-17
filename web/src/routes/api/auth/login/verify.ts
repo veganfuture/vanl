@@ -18,7 +18,11 @@ export async function POST(event: APIEvent): Promise<Response> {
     return Response.json({ error: "validation" } satisfies LoginVerifyResponse, { status: 400 });
   }
 
-  const result = await authService.verifyLogin(parsed.data.accountName, parsed.data.code);
+  const result = await authService.verifyLogin(
+    parsed.data.accountName,
+    parsed.data.code,
+    parsed.data.rememberMe,
+  );
   return result.match(
     ({ user, setCookieHeaders }) => {
       const headers = new Headers({ "content-type": "application/json" });
