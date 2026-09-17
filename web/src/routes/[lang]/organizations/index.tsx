@@ -1,5 +1,6 @@
 import { Title } from "@solidjs/meta";
 import { createResource, For, Show } from "solid-js";
+import { EventCard } from "~/components/EventCard";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch } from "~/lib/api-fetch";
 import { imageUrl } from "~/lib/image-url";
@@ -11,13 +12,6 @@ import type { EventJson } from "~/routes/api/events/event.schema";
 
 export default function OrganizationsListPage() {
   const { lang, t } = useLang();
-
-  function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString(lang() === "nl" ? "nl-NL" : "en-GB", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  }
 
   const [me] = createResource(async () => {
     const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
@@ -110,17 +104,19 @@ export default function OrganizationsListPage() {
                     </Show>
                     <Show when={nextEventByOrgId().get(org.id)}>
                       {(event) => (
-                        <p class="mt-1 text-sm text-zinc-600">
-                          {t("Volgende evenement: ", "Next event: ")}
-                          <a
+                        <div class="mt-2">
+                          <p class="mb-1 text-xs font-semibold tracking-widest text-zinc-500 uppercase">
+                            {t("Volgende evenement", "Next event")}
+                          </p>
+                          {/* No orgLogoThumbnailImageId: the org's own logo is already shown
+                              to the left of this whole card, so falling back to it here would
+                              just repeat it - only show a thumbnail when the event has its own flyer. */}
+                          <EventCard
+                            event={event()}
+                            lang={lang()}
                             href={`/${lang()}/events/${event().slug}`}
-                            class="font-medium hover:underline"
-                          >
-                            {pickLocalized(event().titleNl, event().titleEn, lang())}
-                          </a>
-                          {" — "}
-                          {formatDate(event().startAt)}
-                        </p>
+                          />
+                        </div>
                       )}
                     </Show>
                   </div>

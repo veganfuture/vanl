@@ -67,15 +67,24 @@ export async function GET(event: APIEvent): Promise<Response> {
           orgIds: parseFilterParam(searchParams.get("org"), (v) => UUID_RE.test(v)),
         });
 
-  return events.match(
-    (list) =>
-      Response.json({
-        events: list.map((e) =>
-          toEventJson(e, canModifyEvent(e, actingUser), canLinkEventOrg(e, actingUser)),
-        ),
-      } satisfies ListEventsResponse),
-    () => Response.json({ events: [] } satisfies ListEventsResponse),
+  if (events.isErr()) {
+    return Response.json({ events: [] } satisfies ListEventsResponse);
+  }
+  const list = events.value;
+  const municipalityByPlaceId = (await eventService.resolveMunicipalityNames(list)).unwrapOr(
+    new Map<string, string>(),
   );
+
+  return Response.json({
+    events: list.map((e) =>
+      toEventJson(
+        e,
+        canModifyEvent(e, actingUser),
+        canLinkEventOrg(e, actingUser),
+        municipalityByPlaceId.get(e.placeId) ?? null,
+      ),
+    ),
+  } satisfies ListEventsResponse);
 }
 
 export async function POST(event: APIEvent): Promise<Response> {

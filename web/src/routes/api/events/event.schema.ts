@@ -18,6 +18,8 @@ export const EventJsonSchema = z.object({
   endAt: z.string().nullable(),
   locationKind: z.enum(["precise_address", "meeting_point_city_only"]),
   placeId: z.string(),
+  /** Resolved server-side only by the events list endpoint (GET /api/events) - null everywhere else (single-event fetches, mutation responses), since nothing there renders it. */
+  municipalityName: z.string().nullable(),
   locationDescription: z.string(),
   locationStreet: z.string().nullable(),
   locationHouseNumber: z.string().nullable(),
@@ -52,7 +54,12 @@ export type EventJson = z.infer<typeof EventJsonSchema>;
  * compute it server-side via canModifyEvent(event, actingUser) and pass the
  * plain boolean through.
  */
-export function toEventJson(event: Event, canEdit: boolean, canManageOrgLink: boolean): EventJson {
+export function toEventJson(
+  event: Event,
+  canEdit: boolean,
+  canManageOrgLink: boolean,
+  municipalityName: string | null = null,
+): EventJson {
   return {
     id: event.id.value,
     slug: event.slug,
@@ -64,6 +71,7 @@ export function toEventJson(event: Event, canEdit: boolean, canManageOrgLink: bo
     endAt: event.endAt?.toISOString() ?? null,
     locationKind: event.locationKind,
     placeId: event.placeId,
+    municipalityName,
     locationDescription: event.locationDescription,
     locationStreet: event.locationStreet,
     locationHouseNumber: event.locationHouseNumber,

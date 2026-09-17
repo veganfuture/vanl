@@ -1,3 +1,4 @@
+import type { Uuid } from "~/lib/uuid";
 import type { UserId } from "../auth/user_id";
 import type { OrganizationId } from "../organizations/organization_id";
 import type { EventId } from "./event_id";
@@ -20,7 +21,7 @@ export type Event = {
   endAt: Date | null;
   locationKind: EventLocationKind;
   /** Canonical woonplaats. A foreign key, not wrapped in a value class - see Place. */
-  placeId: string;
+  placeId: Uuid;
   locationDescription: string;
   /** PDOK Locatieserver result; always set for locationKind = precise_address, always null otherwise. */
   locationStreet: string | null;

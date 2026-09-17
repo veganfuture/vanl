@@ -1,5 +1,6 @@
 import { err, ok, type Result } from "neverthrow";
 import type { Locale } from "./i18n";
+import type { Uuid } from "./uuid";
 
 /**
  * The business rules for a savable event, shared verbatim between the
@@ -30,7 +31,7 @@ export type ValidatableEvent = {
   startAt: Date | null;
   endAt: Date | null;
   locationKind: EventLocationKind;
-  placeId: string | null;
+  placeId: Uuid | null;
   locationDescription: string | null;
   pdokAddressId: string | null;
   mapUrl: string | null;

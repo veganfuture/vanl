@@ -1,7 +1,8 @@
-import { err, ok, ResultAsync, type Result } from "neverthrow";
+import { err, ok, okAsync, ResultAsync, type Result } from "neverthrow";
 import type postgres from "postgres";
 import { z } from "zod";
 import { sql } from "~/lib/db";
+import type { Uuid } from "~/lib/uuid";
 import type { Place } from "./place";
 
 /**
@@ -36,7 +37,7 @@ const SEARCH_LIMIT = 20;
 export class PlaceRepository {
   constructor(private readonly sql: postgres.Sql) {}
 
-  findPlaceById(id: string): ResultAsync<Place | null, DbError> {
+  findPlaceById(id: Uuid): ResultAsync<Place | null, DbError> {
     return ResultAsync.fromPromise(
       this.sql`select * from places where id = ${id}`,
       (cause): DbError => ({ message: "Failed to find place by id", cause }),
@@ -49,6 +50,27 @@ export class PlaceRepository {
       this.sql`select * from places where name = ${name}`,
       (cause): DbError => ({ message: "Failed to find place by name", cause }),
     ).andThen((rows): Result<Place | null, DbError> => (rows[0] ? mapPlaceRow(rows[0]) : ok(null)));
+  }
+
+  /** Every place among the given ids, in one query - backs bulk municipality-name lookups (e.g. event listings) instead of one query per event. */
+  findPlacesByIds(ids: Uuid[]): ResultAsync<Place[], DbError> {
+    if (ids.length === 0) {
+      return okAsync([]);
+    }
+    return ResultAsync.fromPromise(
+      this.sql`select * from places where id = any(${ids})`,
+      (cause): DbError => ({ message: "Failed to find places by ids", cause }),
+    ).andThen((rows) => {
+      const mapped: Place[] = [];
+      for (const row of rows) {
+        const result = mapPlaceRow(row);
+        if (result.isErr()) {
+          return err<Place[], DbError>(result.error);
+        }
+        mapped.push(result.value);
+      }
+      return ok(mapped);
+    });
   }
 
   /** Places, not user-editable (seeded once from pdok.nl) - a simple prefix/substring search is enough. */

@@ -1,6 +1,7 @@
 import { err, ok, okAsync, ResultAsync, type Result } from "neverthrow";
 import type postgres from "postgres";
 import { z } from "zod";
+import type { Uuid } from "~/lib/uuid";
 import { UserId } from "../auth/user_id";
 import { OrganizationId } from "../organizations/organization_id";
 import type { Event, EventLocationKind, EventSource, EventStatus } from "./event";
@@ -190,7 +191,7 @@ export type NewEventInput = {
   startAt: Date;
   endAt: Date | null;
   locationKind: EventLocationKind;
-  placeId: string;
+  placeId: Uuid;
   locationDescription: string;
   locationStreet: string | null;
   locationHouseNumber: string | null;

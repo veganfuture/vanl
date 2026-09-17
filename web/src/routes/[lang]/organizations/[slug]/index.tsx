@@ -1,7 +1,7 @@
 import { useParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
 import { createResource, For, Show } from "solid-js";
-import { EventThumbnail } from "~/components/EventThumbnail";
+import { EventCard } from "~/components/EventCard";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch } from "~/lib/api-fetch";
 import { imageUrl } from "~/lib/image-url";
@@ -40,13 +40,6 @@ export default function OrganizationDetailPage() {
   );
 
   const canManage = () => org()?.isMember ?? false;
-
-  function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString(lang() === "nl" ? "nl-NL" : "en-GB", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  }
 
   return (
     <main class="mx-auto max-w-3xl px-6 py-12">
@@ -129,20 +122,12 @@ export default function OrganizationDetailPage() {
                   <ul class="space-y-4">
                     <For each={events()}>
                       {(event) => (
-                        <li class="flex items-center gap-4 rounded-lg border border-zinc-200 p-4">
-                          <EventThumbnail
-                            flyerThumbnailImageId={event.flyerThumbnailImageId}
-                            orgLogoThumbnailImageId={currentOrg().logoThumbnailImageId}
-                          />
-                          <div>
-                            <a
-                              href={`/${lang()}/events/${event.slug}`}
-                              class="text-lg font-semibold hover:underline"
-                            >
-                              {pickLocalized(event.titleNl, event.titleEn, lang())}
-                            </a>
-                            <p class="text-sm text-zinc-600">{formatDate(event.startAt)}</p>
-                          </div>
+                        <li class="rounded-lg border border-zinc-200 p-4">
+                          {/* No orgLogoThumbnailImageId: the org's own logo is already
+                              shown at the top of this page, so falling back to it here
+                              would just repeat it - only show a thumbnail when the event
+                              has its own flyer. */}
+                          <EventCard event={event} lang={lang()} href={`/${lang()}/events/${event.slug}`} />
                         </li>
                       )}
                     </For>

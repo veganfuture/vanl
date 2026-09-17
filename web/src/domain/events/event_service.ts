@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { ActingUser } from "~/domain/auth/acting_user";
 import { sql } from "~/lib/db";
 import { logger } from "~/lib/logger";
+import type { Uuid } from "~/lib/uuid";
 import { placeRepository, type PlaceRepository } from "~/domain/places/place_repository";
 import { OrganizationId } from "~/domain/organizations/organization_id";
 import { OrganizationRepository } from "~/domain/organizations/organization_repository";
@@ -112,7 +113,7 @@ export type EventInput = {
   endAt: Date | null;
   locationKind: EventLocationKind;
   /** Required unless locationKind = precise_address, where it's resolved from the PDOK lookup instead. */
-  placeId: string | null;
+  placeId: Uuid | null;
   locationDescription: string;
   /** Required when locationKind = precise_address - the selected PDOK suggestion's id. Ignored otherwise. */
   pdokAddressId: string | null;
@@ -323,6 +324,23 @@ export class EventService {
       logger.error({ err: dbError }, "failed to list next upcoming events by org");
       return okAsync([]);
     });
+  }
+
+  /**
+   * Batch placeId -> municipality name lookup for the events list endpoint
+   * (backs EventJson.municipalityName) - one query for every unique place
+   * among the given events instead of one per event, mirroring
+   * listNextUpcomingVisibleEventPerOrg's same "single query" reasoning.
+   */
+  resolveMunicipalityNames(events: Event[]): ResultAsync<Map<Uuid, string>, never> {
+    const uniqueIds = [...new Set(events.map((e) => e.placeId))];
+    return this.placeRepository
+      .findPlacesByIds(uniqueIds)
+      .map((places) => new Map(places.map((place) => [place.id, place.municipalityName])))
+      .orElse((dbError) => {
+        logger.error({ err: dbError }, "failed to resolve municipality names for events");
+        return okAsync(new Map<Uuid, string>());
+      });
   }
 
   /**
@@ -611,9 +629,9 @@ export class EventService {
    */
   private resolveLocationFields(
     input: z.infer<typeof EventInputSchema>,
-  ): ResultAsync<PdokFields & { placeId: string }, "validation"> {
+  ): ResultAsync<PdokFields & { placeId: Uuid }, "validation"> {
     if (input.locationKind !== "precise_address") {
-      return okAsync({ placeId: input.placeId as string, ...NULL_PDOK_FIELDS });
+      return okAsync({ placeId: input.placeId as Uuid, ...NULL_PDOK_FIELDS });
     }
 
     return lookupAddress(input.pdokAddressId as string)
@@ -631,7 +649,7 @@ export class EventService {
             logger.error({ err: dbError }, "failed to resolve place for precise_address event");
             return "validation";
           })
-          .andThen((place): ResultAsync<PdokFields & { placeId: string }, "validation"> => {
+          .andThen((place): ResultAsync<PdokFields & { placeId: Uuid }, "validation"> => {
             if (!place) {
               logger.warn(
                 { woonplaatsNaam: address.woonplaatsNaam },

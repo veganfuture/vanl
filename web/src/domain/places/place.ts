@@ -1,5 +1,7 @@
+import type { Uuid } from "~/lib/uuid";
+
 export type Place = {
-  id: string;
+  id: Uuid;
   name: string;
   municipalityName: string;
   province: string;
