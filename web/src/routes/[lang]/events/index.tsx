@@ -1,14 +1,29 @@
+import { useSearchParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
-import { createResource, For, Show } from "solid-js";
+import { createMemo, createResource, For, Show } from "solid-js";
 import { EventThumbnail } from "~/components/EventThumbnail";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
+import { MultiSelectAutocomplete } from "~/components/MultiSelectAutocomplete";
 import { apiFetch } from "~/lib/api-fetch";
 import { pickLocalized, useLang } from "~/lib/i18n";
+import { PROVINCES } from "~/lib/provinces";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import type { EventJson } from "~/routes/api/events/event.schema";
 import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
 import { ListOrganizationsResponseSchema } from "~/routes/api/organizations/index.schema";
 import { GetPlaceResponseSchema } from "~/routes/api/places/[id].schema";
+
+/** A search-param value can arrive as a single string or (in principle) an array - always take the first. */
+function firstParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+}
+
+function parseCommaList(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
 
 /** A single month's worth of events, in display order, for the month-divider grouping below. */
 type EventGroup = {
@@ -36,26 +51,58 @@ export default function EventsListPage() {
     cancelled: t("Geannuleerd", "Cancelled"),
   };
 
-  const [events] = createResource(async () => {
-    const result = await apiFetch("/api/events", { response: ListEventsResponseSchema });
-    return result.match(
-      (data) => data.events,
-      () => [],
-    );
-  });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedProvinces = () => parseCommaList(firstParam(searchParams.province));
+  const selectedOrgIds = () => parseCommaList(firstParam(searchParams.org));
 
-  // EventJson only carries publisherOrgId, not the org's own logo - fetch
-  // orgs separately to build a lookup for the flyer-less-event thumbnail
-  // fallback (see EventThumbnail).
-  const [orgLogoById] = createResource(async () => {
+  function setProvinceFilter(values: string[]) {
+    setSearchParams({ province: values.length > 0 ? values.join(",") : undefined });
+  }
+  function setOrgFilter(values: string[]) {
+    setSearchParams({ org: values.length > 0 ? values.join(",") : undefined });
+  }
+
+  const [events] = createResource(
+    () => [selectedProvinces().join(","), selectedOrgIds().join(",")] as const,
+    async ([provinces, orgIds]) => {
+      const query = new URLSearchParams();
+      if (provinces) query.set("province", provinces);
+      if (orgIds) query.set("org", orgIds);
+      const qs = query.toString();
+      const result = await apiFetch(`/api/events${qs ? `?${qs}` : ""}`, {
+        response: ListEventsResponseSchema,
+      });
+      return result.match(
+        (data) => data.events,
+        () => [],
+      );
+    },
+  );
+
+  // Also powers the organization filter's options - only ~12 orgs exist, so
+  // the already-fetched list is filtered client-side rather than searched
+  // server-side (unlike the much larger account-name search elsewhere).
+  const [organizations] = createResource(async () => {
     const result = await apiFetch("/api/organizations", {
       response: ListOrganizationsResponseSchema,
     });
     return result.match(
-      (data) => new Map(data.organizations.map((org) => [org.id, org.logoThumbnailImageId])),
-      () => new Map<string, string | null>(),
+      (data) => data.organizations,
+      () => [],
     );
   });
+
+  // EventJson only carries publisherOrgId, not the org's own logo - build a
+  // lookup for the flyer-less-event thumbnail fallback (see EventThumbnail).
+  const orgLogoById = createMemo(
+    () => new Map(organizations()?.map((org) => [org.id, org.logoThumbnailImageId]) ?? []),
+  );
+
+  const provinceOptions = PROVINCES.map((province) => ({ value: province, label: province }));
+  const organizationOptions = createMemo(
+    () => organizations()?.map((org) => ({ value: org.id, label: org.name })) ?? [],
+  );
+  const hasActiveFilters = () => selectedProvinces().length > 0 || selectedOrgIds().length > 0;
 
   // EventJson only carries a raw placeId - fetch each referenced place so
   // the card can show its municipality (the "woonplaats") without exposing
@@ -120,13 +167,57 @@ export default function EventsListPage() {
         </Show>
       </div>
 
+      <div class="mb-6 flex flex-wrap items-end gap-3">
+        <div class="w-56">
+          <MultiSelectAutocomplete
+            label={t("Provincie", "Province")}
+            placeholder={t("Alle provincies", "All provinces")}
+            options={provinceOptions}
+            selected={selectedProvinces()}
+            onChange={setProvinceFilter}
+            noResultsLabel={t("Geen provincies gevonden", "No provinces found")}
+          />
+        </div>
+        <div class="w-56">
+          <MultiSelectAutocomplete
+            label={t("Organisatie", "Organization")}
+            placeholder={t("Alle organisaties", "All organizations")}
+            options={organizationOptions()}
+            selected={selectedOrgIds()}
+            onChange={setOrgFilter}
+            noResultsLabel={t("Geen organisaties gevonden", "No organizations found")}
+          />
+        </div>
+        <Show when={hasActiveFilters()}>
+          <button
+            type="button"
+            class="rounded border border-zinc-300 px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-50"
+            onClick={() => {
+              setProvinceFilter([]);
+              setOrgFilter([]);
+            }}
+          >
+            {t("Filters wissen", "Clear filters")}
+          </button>
+        </Show>
+      </div>
+
       <Show
         when={!events.loading}
         fallback={<p class="text-zinc-600">{t("Evenementen laden…", "Loading events…")}</p>}
       >
         <Show
           when={events() && events()!.length > 0}
-          fallback={<p class="text-zinc-600">{t("Nog geen evenementen.", "No events yet.")}</p>}
+          fallback={
+            <p class="text-zinc-600">
+              {hasActiveFilters()
+                ? t(
+                    "Geen evenementen gevonden voor deze filters.",
+                    "No events match these filters.",
+                  )
+                : t("Nog geen evenementen.", "No events yet.")}
+            </p>
+          }
         >
           <div class="space-y-8">
             <For each={eventGroups()}>
