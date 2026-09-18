@@ -47,7 +47,7 @@ export function EventCard(props: {
             )}
           </Show>
         </div>
-        <div class="mt-1.5 flex flex-col gap-1.5">
+        <div class="mt-1 flex flex-col gap-1">
           <p class="flex items-center gap-1.5 text-sm text-zinc-600">
             <svg
               viewBox="0 0 24 24"
@@ -65,32 +65,6 @@ export function EventCard(props: {
             </svg>
             <span>{formatEventDate(props.event.startAt, props.lang)}</span>
           </p>
-          <Show when={props.org}>
-            {(org) => (
-              <p class="flex items-center gap-1.5 text-sm text-zinc-600">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  class="h-4 w-4 shrink-0 text-zinc-400"
-                  aria-hidden="true"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"
-                  />
-                </svg>
-                <a
-                  href={`/${props.lang}/organizations/${org().slug}`}
-                  class="text-zinc-600 hover:text-emerald-700 hover:underline"
-                >
-                  {org().name}
-                </a>
-              </p>
-            )}
-          </Show>
           <Show when={props.event.municipalityName}>
             {(name) => (
               <p class="flex items-center gap-1.5 text-sm text-zinc-600">
@@ -114,6 +88,32 @@ export function EventCard(props: {
                   />
                 </svg>
                 <span>{name()}</span>
+              </p>
+            )}
+          </Show>
+          <Show when={props.org}>
+            {(org) => (
+              <p class="flex items-center gap-1.5 text-sm text-zinc-600">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  class="h-4 w-4 shrink-0 text-zinc-400"
+                  aria-hidden="true"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"
+                  />
+                </svg>
+                <a
+                  href={`/${props.lang}/organizations/${org().slug}`}
+                  class="text-zinc-600 hover:text-emerald-700 hover:underline"
+                >
+                  {org().name}
+                </a>
               </p>
             )}
           </Show>
