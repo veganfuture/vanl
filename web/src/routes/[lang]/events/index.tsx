@@ -92,12 +92,17 @@ export default function EventsListPage() {
   // that exact point it switches to a flush, full-bleed, no-radius style so
   // it reads as one continuous bar with the navbar above it, and any open
   // filter form auto-collapses so it doesn't eat scroll space while stuck.
+  // 41 = Navbar's own shrunk-on-scroll height (40px, see Navbar.tsx - tuned
+  // to match this bar's own collapsed height) plus a touch of buffer - the
+  // navbar has always already shrunk by the time this bar (further down the
+  // page) gets anywhere near the top, since Navbar shrinks at the very
+  // first pixel of scroll.
   let filterBarRef: HTMLDivElement | undefined;
   const [docked, setDocked] = createSignal(false);
 
   onMount(() => {
     const onScroll = () => {
-      setDocked((filterBarRef?.getBoundingClientRect().top ?? Infinity) <= 86);
+      setDocked((filterBarRef?.getBoundingClientRect().top ?? Infinity) <= 41);
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -190,7 +195,7 @@ export default function EventsListPage() {
 
       <div
         ref={filterBarRef}
-        class={`sticky top-[85px] z-30 mb-8 md:static md:mx-0 ${docked() ? "-mx-6" : ""}`}
+        class={`sticky top-[40px] z-30 mb-8 md:static md:mx-0 ${docked() ? "-mx-6" : ""}`}
       >
         <div
           class={`transition-[border-radius] md:rounded-2xl md:border md:border-zinc-200 md:bg-white/90 md:shadow-sm md:backdrop-blur-sm ${
@@ -202,7 +207,7 @@ export default function EventsListPage() {
           <button
             type="button"
             class={`flex w-full items-center justify-between gap-3 text-left transition hover:bg-zinc-50 md:rounded-2xl md:px-4 md:py-3 ${
-              docked() ? "px-6 py-2" : "rounded-2xl px-4 py-3"
+              docked() ? "px-6 py-2.5" : "rounded-2xl px-4 py-3"
             }`}
             aria-expanded={filtersOpen()}
             onClick={() => setFiltersOpen((open) => !open)}
