@@ -4,6 +4,16 @@
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
+/* Self-hosted (not Google's CDN) - see public/fonts/plus-jakarta-sans-OFL.txt for the license.
+   One variable-weight file covers the whole 400-800 range used across the site. */
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/plus-jakarta-sans-latin-var.woff2") format("woff2");
+}
+
 html,
 body {
   min-height: 100%;
