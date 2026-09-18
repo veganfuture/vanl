@@ -70,7 +70,7 @@ export default function EditOrganizationPage() {
             ),
           };
         }
-        window.location.href = `/${lang()}/organizations/${updated.slug}`;
+        window.location.href = `/${lang()}/organizations/${updated.slug}?toast=organization_published`;
         return { ok: true as const };
       },
       (error) =>

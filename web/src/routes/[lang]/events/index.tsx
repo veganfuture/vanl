@@ -31,6 +31,9 @@ type EventGroup = {
   items: EventJson[];
 };
 
+/** Read by src/middleware.ts to decide this page is safe to cache publicly for anonymous visitors. */
+export const route = { info: { cachePolicy: "public" } };
+
 export default function EventsListPage() {
   const { lang, t } = useLang();
 

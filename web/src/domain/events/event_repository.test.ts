@@ -82,7 +82,7 @@ function baseEventInput(overrides: Partial<NewEventInput> = {}): NewEventInput {
 beforeAll(async () => {
   const rows = await sql`
     insert into places (name, municipality_name, province, source_id)
-    values ('Test Fixture City', 'Test Fixture City', 'Utrecht', 'test-fixture-place')
+    values ('Repository Fixture City', 'Repository Fixture City', 'Utrecht', 'test-fixture-place')
     on conflict (source_id) do update set name = excluded.name
     returning id
   `;

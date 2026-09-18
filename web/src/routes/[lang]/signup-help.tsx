@@ -5,6 +5,9 @@ import { useLang } from "~/lib/i18n";
 
 type Step = { title: string; body: string };
 
+/** Read by src/middleware.ts to decide this page is safe to cache publicly for anonymous visitors. */
+export const route = { info: { cachePolicy: "public" } };
+
 export default function SignupHelpPage() {
   const { lang, t } = useLang();
 
