@@ -11,6 +11,9 @@ import { ListOrganizationsResponseSchema } from "~/routes/api/organizations/inde
 import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
 import type { EventJson } from "~/routes/api/events/event.schema";
 
+/** Read by src/middleware.ts to decide this page is safe to cache publicly for anonymous visitors. */
+export const route = { info: { cachePolicy: "public" } };
+
 export default function OrganizationsListPage() {
   const { lang, t } = useLang();
 

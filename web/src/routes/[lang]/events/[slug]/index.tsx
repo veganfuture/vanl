@@ -3,10 +3,12 @@ import { Title } from "@solidjs/meta";
 import { createResource, createSignal, Show } from "solid-js";
 import { LinkifiedText } from "~/components/LinkifiedText";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
+import { Toast } from "~/components/Toast";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { pickLocalized, useLang } from "~/lib/i18n";
 import { imageUrl } from "~/lib/image-url";
 import type { Sha256 } from "~/lib/sha256";
+import { useQueryToast } from "~/lib/toast";
 import { GetEventBySlugResponseSchema } from "~/routes/api/events/by-slug/[slug].schema";
 import {
   DeleteEventResponseSchema,
@@ -18,9 +20,13 @@ import {
   type SetEventStatusResponse,
 } from "~/routes/api/events/[id]/status.schema";
 
+/** Read by src/middleware.ts to decide this page is safe to cache publicly for anonymous visitors. */
+export const route = { info: { cachePolicy: "public" } };
+
 export default function EventDetailPage() {
   const params = useParams<{ slug: string }>();
   const { lang, t } = useLang();
+  const [toastMessage, dismissToast] = useQueryToast(lang);
 
   const locationKindLabels: Record<string, string> = {
     precise_address: t("Exact adres", "Precise address"),
@@ -187,6 +193,9 @@ export default function EventDetailPage() {
   return (
     <main class="mx-auto max-w-2xl px-6 py-12">
       <LocaleCookieSync lang={lang()} />
+      <Show when={toastMessage()}>
+        {(message) => <Toast message={message()} onDismiss={dismissToast} />}
+      </Show>
       <Show when={!event.loading} fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
         <Show
           when={event()}

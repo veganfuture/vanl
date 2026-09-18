@@ -57,7 +57,7 @@ export default function NewEventPage() {
           ? await uploadImage(`/api/events/${created.id}/flyer`, flyerFile)
           : true;
         window.location.href = uploaded
-          ? `/${lang()}/events/${created.slug}`
+          ? `/${lang()}/events/${created.slug}?toast=event_published`
           : `/${lang()}/events/${created.slug}/edit`;
         return { ok: true as const };
       },

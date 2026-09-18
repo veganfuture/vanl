@@ -8,6 +8,9 @@ import { GROUPS } from "~/lib/groups";
 import { useLang } from "~/lib/i18n";
 import { BASE_URL } from "~/lib/metadata";
 
+/** Read by src/middleware.ts to decide this page is safe to cache publicly for anonymous visitors. */
+export const route = { info: { cachePolicy: "public" } };
+
 export default function LandingPage() {
   const params = useParams<{ lang: string }>();
   const isValidLang = () => params.lang === "nl" || params.lang === "en";

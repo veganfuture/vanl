@@ -3,16 +3,22 @@ import { Title } from "@solidjs/meta";
 import { createResource, For, Show } from "solid-js";
 import { EventCard } from "~/components/EventCard";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
+import { Toast } from "~/components/Toast";
 import { apiFetch } from "~/lib/api-fetch";
 import { imageUrl } from "~/lib/image-url";
 import type { Sha256 } from "~/lib/sha256";
 import { pickLocalized, useLang } from "~/lib/i18n";
+import { useQueryToast } from "~/lib/toast";
 import { GetOrganizationBySlugResponseSchema } from "~/routes/api/organizations/by-slug/[slug].schema";
 import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
+
+/** Read by src/middleware.ts to decide this page is safe to cache publicly for anonymous visitors. */
+export const route = { info: { cachePolicy: "public" } };
 
 export default function OrganizationDetailPage() {
   const params = useParams<{ slug: string }>();
   const { lang, t } = useLang();
+  const [toastMessage, dismissToast] = useQueryToast(lang);
 
   const [org] = createResource(
     () => params.slug ?? "",
@@ -45,6 +51,9 @@ export default function OrganizationDetailPage() {
   return (
     <main class="mx-auto max-w-3xl px-6 py-12">
       <LocaleCookieSync lang={lang()} />
+      <Show when={toastMessage()}>
+        {(message) => <Toast message={message()} onDismiss={dismissToast} />}
+      </Show>
       <Show when={!org.loading} fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
         <Show
           when={org()}

@@ -230,7 +230,7 @@ export default function EditEventPage() {
             ),
           };
         }
-        window.location.href = `/${lang()}/events/${updated.slug}`;
+        window.location.href = `/${lang()}/events/${updated.slug}?toast=event_published`;
         return { ok: true as const };
       },
       (error) =>

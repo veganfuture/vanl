@@ -42,7 +42,7 @@ export default function NewOrganizationPage() {
           ? await uploadImage(`/api/organizations/${created.id}/logo`, logoFile)
           : true;
         window.location.href = uploaded
-          ? `/${lang()}/organizations/${created.slug}`
+          ? `/${lang()}/organizations/${created.slug}?toast=organization_published`
           : `/${lang()}/organizations/${created.slug}/edit`;
         return { ok: true as const };
       },
