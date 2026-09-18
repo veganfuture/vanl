@@ -1,6 +1,15 @@
 import { useSearchParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
-import { createMemo, createResource, For, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+} from "solid-js";
 import { EventCard } from "~/components/EventCard";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { MultiSelectAutocomplete } from "~/components/MultiSelectAutocomplete";
@@ -63,6 +72,46 @@ export default function EventsListPage() {
   function setOrgFilter(values: string[]) {
     setSearchParams({ org: values.length > 0 ? values.join(",") : undefined });
   }
+  function removeProvince(value: string) {
+    setProvinceFilter(selectedProvinces().filter((v) => v !== value));
+  }
+  function removeOrg(value: string) {
+    setOrgFilter(selectedOrgIds().filter((v) => v !== value));
+  }
+
+  // Collapsed by default to keep the page uncluttered when no filter is
+  // active - but starts open if the page was loaded with filters already in
+  // the URL (e.g. a shared link), so the user immediately sees what's applied.
+  const [filtersOpen, setFiltersOpen] = createSignal(
+    selectedProvinces().length > 0 || selectedOrgIds().length > 0,
+  );
+
+  // On mobile the filter bar is sticky (see the JSX below) and tracks the
+  // navbar down the page. "docked" is true once it has actually reached the
+  // navbar's bottom edge (not just "the user scrolled some amount") - at
+  // that exact point it switches to a flush, full-bleed, no-radius style so
+  // it reads as one continuous bar with the navbar above it, and any open
+  // filter form auto-collapses so it doesn't eat scroll space while stuck.
+  // 41 = Navbar's own shrunk-on-scroll height (40px, see Navbar.tsx - tuned
+  // to match this bar's own collapsed height) plus a touch of buffer - the
+  // navbar has always already shrunk by the time this bar (further down the
+  // page) gets anywhere near the top, since Navbar shrinks at the very
+  // first pixel of scroll.
+  let filterBarRef: HTMLDivElement | undefined;
+  const [docked, setDocked] = createSignal(false);
+
+  onMount(() => {
+    const onScroll = () => {
+      setDocked((filterBarRef?.getBoundingClientRect().top ?? Infinity) <= 41);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onCleanup(() => window.removeEventListener("scroll", onScroll));
+  });
+
+  createEffect(() => {
+    if (docked()) setFiltersOpen(false);
+  });
 
   const [events] = createResource(
     () => [selectedProvinces().join(","), selectedOrgIds().join(",")] as const,
@@ -144,39 +193,145 @@ export default function EventsListPage() {
         </Show>
       </div>
 
-      <div class="mb-6 flex flex-wrap items-end gap-3">
-        <div class="w-56">
-          <MultiSelectAutocomplete
-            label={t("Provincie", "Province")}
-            placeholder={t("Alle provincies", "All provinces")}
-            options={provinceOptions}
-            selected={selectedProvinces()}
-            onChange={setProvinceFilter}
-            noResultsLabel={t("Geen provincies gevonden", "No provinces found")}
-          />
-        </div>
-        <div class="w-56">
-          <MultiSelectAutocomplete
-            label={t("Organisatie", "Organization")}
-            placeholder={t("Alle organisaties", "All organizations")}
-            options={organizationOptions()}
-            selected={selectedOrgIds()}
-            onChange={setOrgFilter}
-            noResultsLabel={t("Geen organisaties gevonden", "No organizations found")}
-          />
-        </div>
-        <Show when={hasActiveFilters()}>
+      <div
+        ref={filterBarRef}
+        class={`sticky top-[40px] z-30 mb-8 md:static md:mx-0 ${docked() ? "-mx-6" : ""}`}
+      >
+        <div
+          class={`transition-[border-radius] md:rounded-2xl md:border md:border-zinc-200 md:bg-white/90 md:shadow-sm md:backdrop-blur-sm ${
+            docked()
+              ? "border-b border-zinc-200 bg-white shadow-sm"
+              : "rounded-2xl border border-zinc-200 bg-white/90 shadow-sm backdrop-blur-sm"
+          }`}
+        >
           <button
             type="button"
-            class="rounded border border-zinc-300 px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-50"
-            onClick={() => {
-              setProvinceFilter([]);
-              setOrgFilter([]);
-            }}
+            class={`flex w-full items-center justify-between gap-3 text-left transition hover:bg-zinc-50 md:rounded-2xl md:px-4 md:py-3 ${
+              docked() ? "px-6 py-2.5" : "rounded-2xl px-4 py-3"
+            }`}
+            aria-expanded={filtersOpen()}
+            onClick={() => setFiltersOpen((open) => !open)}
           >
-            {t("Filters wissen", "Clear filters")}
+            <span class="flex items-center gap-2 text-sm font-medium text-zinc-700">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                class="h-4 w-4 text-emerald-600"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M3 4.5h18M6.75 12h10.5M10.5 19.5h3"
+                />
+              </svg>
+              {t("Filters", "Filters")}
+              <Show when={hasActiveFilters()}>
+                <span class="rounded-full bg-emerald-600 px-1.5 py-0.5 text-xs font-semibold text-white">
+                  {selectedProvinces().length + selectedOrgIds().length}
+                </span>
+              </Show>
+            </span>
+            <svg
+              class={`h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-200 ${filtersOpen() ? "rotate-180" : "rotate-0"}`}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
           </button>
-        </Show>
+
+          <Show when={!filtersOpen() && hasActiveFilters()}>
+            <div
+              class={`flex flex-wrap items-center gap-1.5 pb-3 md:px-4 ${docked() ? "px-6" : "px-4"}`}
+            >
+              <For each={selectedProvinces()}>
+                {(province) => (
+                  <span class="flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
+                    {province}
+                    <button
+                      type="button"
+                      class="text-emerald-600 hover:text-emerald-900"
+                      aria-label={`Remove ${province}`}
+                      onClick={() => removeProvince(province)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                )}
+              </For>
+              <For each={selectedOrgIds()}>
+                {(orgId) => (
+                  <span class="flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
+                    {orgById().get(orgId)?.name ?? orgId}
+                    <button
+                      type="button"
+                      class="text-emerald-600 hover:text-emerald-900"
+                      aria-label="Remove organization filter"
+                      onClick={() => removeOrg(orgId)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                )}
+              </For>
+              <button
+                type="button"
+                class="ml-1 text-xs text-zinc-500 underline hover:text-zinc-700"
+                onClick={() => {
+                  setProvinceFilter([]);
+                  setOrgFilter([]);
+                }}
+              >
+                {t("Alles wissen", "Clear all")}
+              </button>
+            </div>
+          </Show>
+
+          <Show when={filtersOpen()}>
+            <div
+              class={`flex flex-col gap-3 border-t border-zinc-100 py-4 sm:flex-row sm:flex-wrap sm:items-end md:px-4 ${docked() ? "px-6" : "px-4"}`}
+            >
+              <div class="w-full sm:w-56">
+                <MultiSelectAutocomplete
+                  label={t("Provincie", "Province")}
+                  placeholder={t("Alle provincies", "All provinces")}
+                  options={provinceOptions}
+                  selected={selectedProvinces()}
+                  onChange={setProvinceFilter}
+                  noResultsLabel={t("Geen provincies gevonden", "No provinces found")}
+                />
+              </div>
+              <div class="w-full sm:w-56">
+                <MultiSelectAutocomplete
+                  label={t("Organisatie", "Organization")}
+                  placeholder={t("Alle organisaties", "All organizations")}
+                  options={organizationOptions()}
+                  selected={selectedOrgIds()}
+                  onChange={setOrgFilter}
+                  noResultsLabel={t("Geen organisaties gevonden", "No organizations found")}
+                />
+              </div>
+              <Show when={hasActiveFilters()}>
+                <button
+                  type="button"
+                  class="w-full shrink-0 rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-600 transition hover:border-zinc-400 hover:bg-zinc-50 sm:w-auto"
+                  onClick={() => {
+                    setProvinceFilter([]);
+                    setOrgFilter([]);
+                  }}
+                >
+                  {t("Filters wissen", "Clear filters")}
+                </button>
+              </Show>
+            </div>
+          </Show>
+        </div>
       </div>
 
       <Show

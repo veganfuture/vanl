@@ -1,5 +1,5 @@
 import { useLocation } from "@solidjs/router";
-import { createResource, createSignal, For, Show } from "solid-js";
+import { createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { apiFetch } from "~/lib/api-fetch";
 import { useLang, type Locale } from "~/lib/i18n";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
@@ -186,6 +186,21 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = createSignal(false);
   const [loggingOut, setLoggingOut] = createSignal(false);
 
+  // On mobile the navbar is sticky (see the JSX below), so it's on screen
+  // for as long as the user is browsing a page - shrinking it once they
+  // start scrolling keeps it from permanently eating a large chunk of a
+  // small screen. Desktop's `md:static` nav isn't sticky, so this has no
+  // visible effect there. events/index.tsx's filter bar mirrors this same
+  // 56px shrunk height to stay flush against it once scrolled.
+  const [scrolled, setScrolled] = createSignal(false);
+
+  onMount(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onCleanup(() => window.removeEventListener("scroll", onScroll));
+  });
+
   const [me, { mutate: setMe }] = createResource(async () => {
     const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
     return result.match(
@@ -224,10 +239,22 @@ export function Navbar() {
 
   return (
     <nav class="sticky top-0 z-50 border-b border-zinc-200 bg-white md:static">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
+      <div
+        class={`mx-auto flex max-w-6xl items-center justify-between px-6 transition-[padding] duration-200 md:py-3 ${
+          scrolled() ? "py-1" : "py-3"
+        }`}
+      >
         <a href={`/${lang()}`} class="flex items-center gap-3 no-underline">
           <span class="inline-flex">
-            <img src="/apple-touch-icon.png" width={60} height={60} alt="Vegan Activists NL logo" />
+            <img
+              src="/apple-touch-icon.png"
+              width={60}
+              height={60}
+              alt="Vegan Activists NL logo"
+              class={`shrink-0 transition-all duration-200 md:h-[60px] md:w-[60px] ${
+                scrolled() ? "h-8 w-8" : "h-[60px] w-[60px]"
+              }`}
+            />
           </span>
           <div>
             <p class="my-1 py-0 text-sm font-semibold leading-tight text-zinc-900">
@@ -277,7 +304,9 @@ export function Navbar() {
 
         <button
           type="button"
-          class="inline-flex items-center justify-center rounded-md p-2 text-zinc-700 hover:bg-zinc-100 md:hidden"
+          class={`inline-flex items-center justify-center rounded-md text-zinc-700 transition-[padding] duration-200 hover:bg-zinc-100 md:hidden md:p-2 ${
+            scrolled() ? "p-1" : "p-2"
+          }`}
           aria-label={t("Menu omschakelen", "Toggle menu")}
           aria-expanded={mobileOpen()}
           onClick={() => setMobileOpen((open) => !open)}

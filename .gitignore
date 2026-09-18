@@ -38,3 +38,5 @@ web/out
 !*.manifest
 !*.ics
 !*.sql
+!*.woff2
+!*.txt

@@ -1,9 +1,17 @@
 @import "tailwindcss";
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 220, 221, 216;
-  --background-end-rgb: 255, 255, 255;
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+/* Self-hosted (not Google's CDN) - see public/fonts/plus-jakarta-sans-OFL.txt for the license.
+   One variable-weight file covers the whole 400-800 range used across the site. */
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/plus-jakarta-sans-latin-var.woff2") format("woff2");
 }
 
 html,
@@ -13,11 +21,13 @@ body {
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(to bottom, transparent, rgb(var(--background-end-rgb)))
-    rgb(var(--background-start-rgb));
-  padding-left: 2px;
-  padding-right: 2px;
+  font-family: var(--font-sans);
+  color: #18181b;
+  background-color: #fafaf9;
+  background-image:
+    radial-gradient(ellipse 70% 50% at 15% -10%, rgba(16, 185, 129, 0.1), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(16, 185, 129, 0.06), transparent 60%);
+  background-repeat: no-repeat;
 }
 
 .text-balance {
