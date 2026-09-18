@@ -6,15 +6,19 @@ import type { EventJson } from "~/routes/api/events/event.schema";
 
 /**
  * The event row shown on the events overview, an organization's "next
- * event" teaser, and an organization's upcoming-events list. The place row
- * always shows when `event.municipalityName` is set (resolved server-side
- * by GET /api/events - see event.schema.ts's toEventJson) - callers never
- * pass it in separately. Thumbnail fallback, the status badge, and the
- * publishing org link are still opt-in via props: e.g. the org "next event"
- * teaser omits `orgLogoThumbnailImageId` on purpose (the org's own logo is
- * already shown right next to it, so falling back to it here would just
- * repeat it), and only the events overview page passes `org` - on the other
- * two surfaces the publishing org is already obvious from the page itself.
+ * event" teaser, and an organization's upcoming-events list. Every card is
+ * exactly two lines tall - a truncated title and a truncated "date · place
+ * · org" meta line - so cards line up at a uniform, compact height
+ * regardless of how long the title is or how many of the optional bits
+ * (place, org, status badge) are present. The place segment always shows
+ * when `event.municipalityName` is set (resolved server-side by GET
+ * /api/events - see event.schema.ts's toEventJson) - callers never pass it
+ * in separately. Thumbnail fallback, the status badge, and the publishing
+ * org link are still opt-in via props: e.g. the org "next event" teaser
+ * omits `orgLogoThumbnailImageId` on purpose (the org's own logo is already
+ * shown right next to it, so falling back to it here would just repeat
+ * it), and only the events overview page passes `org` - on the other two
+ * surfaces the publishing org is already obvious from the page itself.
  */
 export function EventCard(props: {
   event: EventJson;
@@ -25,30 +29,35 @@ export function EventCard(props: {
   statusLabel?: string;
 }) {
   return (
-    <div class="flex items-center gap-4">
+    <div class="group flex items-center gap-4">
       <EventThumbnail
         flyerThumbnailImageId={props.event.flyerThumbnailImageId}
         orgLogoThumbnailImageId={props.orgLogoThumbnailImageId}
       />
-      <div>
-        <a href={props.href} class="text-lg font-semibold hover:underline">
-          {pickLocalized(props.event.titleNl, props.event.titleEn, props.lang)}
-        </a>
-        <Show when={props.statusLabel}>
-          {(label) => (
-            <span class="ml-2 inline-block rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-              {label()}
-              {props.event.statusReason ? ` — ${props.event.statusReason}` : ""}
-            </span>
-          )}
-        </Show>
-        <p class="flex items-center gap-1.5 text-sm text-zinc-600">
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-2">
+          <a
+            href={props.href}
+            class="min-w-0 flex-1 truncate text-lg leading-snug font-semibold text-zinc-900 no-underline transition-colors group-hover:text-emerald-700"
+          >
+            {pickLocalized(props.event.titleNl, props.event.titleEn, props.lang)}
+          </a>
+          <Show when={props.statusLabel}>
+            {(label) => (
+              <span class="shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                {label()}
+                {props.event.statusReason ? ` — ${props.event.statusReason}` : ""}
+              </span>
+            )}
+          </Show>
+        </div>
+        <p class="mt-1 truncate text-sm text-zinc-600">
           <svg
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             stroke-width="1.5"
-            class="h-4 w-4 shrink-0 text-zinc-400"
+            class="mr-1 inline-block h-4 w-4 shrink-0 align-text-bottom text-emerald-500"
             aria-hidden="true"
           >
             <path
@@ -58,56 +67,28 @@ export function EventCard(props: {
             />
           </svg>
           <span>{formatEventDate(props.event.startAt, props.lang)}</span>
+          <Show when={props.event.municipalityName}>
+            {(name) => (
+              <>
+                <span class="mx-1.5 text-zinc-300">·</span>
+                <span>{name()}</span>
+              </>
+            )}
+          </Show>
+          <Show when={props.org}>
+            {(org) => (
+              <>
+                <span class="mx-1.5 text-zinc-300">·</span>
+                <a
+                  href={`/${props.lang}/organizations/${org().slug}`}
+                  class="text-zinc-600 hover:text-emerald-700 hover:underline"
+                >
+                  {org().name}
+                </a>
+              </>
+            )}
+          </Show>
         </p>
-        <Show when={props.org}>
-          {(org) => (
-            <p class="flex items-center gap-1.5 text-sm text-zinc-600">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                class="h-4 w-4 shrink-0 text-zinc-400"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"
-                />
-              </svg>
-              <a href={`/${props.lang}/organizations/${org().slug}`} class="hover:underline">
-                {org().name}
-              </a>
-            </p>
-          )}
-        </Show>
-        <Show when={props.event.municipalityName}>
-          {(name) => (
-            <p class="flex items-center gap-1.5 text-sm text-zinc-600">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                class="h-4 w-4 shrink-0 text-zinc-400"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-                />
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
-                />
-              </svg>
-              <span>{name()}</span>
-            </p>
-          )}
-        </Show>
       </div>
     </div>
   );

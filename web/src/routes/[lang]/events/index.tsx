@@ -210,7 +210,7 @@ export default function EventsListPage() {
                   <ul class="space-y-4">
                     <For each={group.items}>
                       {(event) => (
-                        <li class="rounded-lg border border-zinc-200 p-4">
+                        <li class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
                           <EventCard
                             event={event}
                             lang={lang()}
