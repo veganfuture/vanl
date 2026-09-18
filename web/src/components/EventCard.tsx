@@ -47,7 +47,7 @@ export function EventCard(props: {
             )}
           </Show>
         </div>
-        <div class="mt-1.5 flex flex-col gap-1">
+        <div class="mt-1.5 flex flex-col gap-1.5">
           <p class="flex items-center gap-1.5 text-sm text-zinc-600">
             <svg
               viewBox="0 0 24 24"
