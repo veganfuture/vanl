@@ -1,6 +1,15 @@
 import { useSearchParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
-import { createMemo, createResource, createSignal, For, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+} from "solid-js";
 import { EventCard } from "~/components/EventCard";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { MultiSelectAutocomplete } from "~/components/MultiSelectAutocomplete";
@@ -76,6 +85,28 @@ export default function EventsListPage() {
   const [filtersOpen, setFiltersOpen] = createSignal(
     selectedProvinces().length > 0 || selectedOrgIds().length > 0,
   );
+
+  // On mobile the filter bar is sticky (see the JSX below) and tracks the
+  // navbar down the page. "docked" is true once it has actually reached the
+  // navbar's bottom edge (not just "the user scrolled some amount") - at
+  // that exact point it switches to a flush, full-bleed, no-radius style so
+  // it reads as one continuous bar with the navbar above it, and any open
+  // filter form auto-collapses so it doesn't eat scroll space while stuck.
+  let filterBarRef: HTMLDivElement | undefined;
+  const [docked, setDocked] = createSignal(false);
+
+  onMount(() => {
+    const onScroll = () => {
+      setDocked((filterBarRef?.getBoundingClientRect().top ?? Infinity) <= 86);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onCleanup(() => window.removeEventListener("scroll", onScroll));
+  });
+
+  createEffect(() => {
+    if (docked()) setFiltersOpen(false);
+  });
 
   const [events] = createResource(
     () => [selectedProvinces().join(","), selectedOrgIds().join(",")] as const,
@@ -157,11 +188,22 @@ export default function EventsListPage() {
         </Show>
       </div>
 
-      <div class="sticky top-[85px] z-30 mb-8 md:static">
-        <div class="rounded-2xl border border-zinc-200 bg-white/90 shadow-sm backdrop-blur-sm">
+      <div
+        ref={filterBarRef}
+        class={`sticky top-[85px] z-30 mb-8 md:static md:mx-0 ${docked() ? "-mx-6" : ""}`}
+      >
+        <div
+          class={`transition-[border-radius] md:rounded-2xl md:border md:border-zinc-200 md:bg-white/90 md:shadow-sm md:backdrop-blur-sm ${
+            docked()
+              ? "border-b border-zinc-200 bg-white shadow-sm"
+              : "rounded-2xl border border-zinc-200 bg-white/90 shadow-sm backdrop-blur-sm"
+          }`}
+        >
           <button
             type="button"
-            class="flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left transition hover:bg-zinc-50"
+            class={`flex w-full items-center justify-between gap-3 text-left transition hover:bg-zinc-50 md:rounded-2xl md:px-4 md:py-3 ${
+              docked() ? "px-6 py-2" : "rounded-2xl px-4 py-3"
+            }`}
             aria-expanded={filtersOpen()}
             onClick={() => setFiltersOpen((open) => !open)}
           >
@@ -200,7 +242,9 @@ export default function EventsListPage() {
           </button>
 
           <Show when={!filtersOpen() && hasActiveFilters()}>
-            <div class="flex flex-wrap items-center gap-1.5 px-4 pb-3">
+            <div
+              class={`flex flex-wrap items-center gap-1.5 pb-3 md:px-4 ${docked() ? "px-6" : "px-4"}`}
+            >
               <For each={selectedProvinces()}>
                 {(province) => (
                   <span class="flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
@@ -245,7 +289,9 @@ export default function EventsListPage() {
           </Show>
 
           <Show when={filtersOpen()}>
-            <div class="flex flex-col gap-3 border-t border-zinc-100 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-end">
+            <div
+              class={`flex flex-col gap-3 border-t border-zinc-100 py-4 sm:flex-row sm:flex-wrap sm:items-end md:px-4 ${docked() ? "px-6" : "px-4"}`}
+            >
               <div class="w-full sm:w-56">
                 <MultiSelectAutocomplete
                   label={t("Provincie", "Province")}
