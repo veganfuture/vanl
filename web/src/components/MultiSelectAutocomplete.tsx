@@ -52,11 +52,11 @@ export function MultiSelectAutocomplete(props: {
   return (
     <div class="relative block">
       <label class="block">
-        <span class="block text-sm font-medium">{props.label}</span>
-        <div class="mt-1 flex flex-wrap items-center gap-1.5 rounded border border-zinc-300 px-2 py-1.5">
+        <span class="block text-sm font-medium text-zinc-700">{props.label}</span>
+        <div class="mt-1 flex flex-wrap items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 transition focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100">
           <For each={selectedOptions()}>
             {(option) => (
-              <span class="flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-sm text-emerald-800">
+              <span class="flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-sm text-emerald-800">
                 {option.label}
                 <button
                   type="button"
@@ -84,7 +84,7 @@ export function MultiSelectAutocomplete(props: {
         </div>
       </label>
       <Show when={open()}>
-        <ul class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded border border-zinc-300 bg-white shadow-lg">
+        <ul class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-lg">
           <Show
             when={filteredOptions().length > 0}
             fallback={<li class="px-3 py-2 text-sm text-zinc-500">{props.noResultsLabel}</li>}
@@ -94,7 +94,7 @@ export function MultiSelectAutocomplete(props: {
                 <li>
                   <button
                     type="button"
-                    class="block w-full px-3 py-2 text-left hover:bg-zinc-100"
+                    class="block w-full px-3 py-2 text-left text-sm hover:bg-emerald-50"
                     onClick={() => addOption(option.value)}
                   >
                     {option.label}
