@@ -21,13 +21,13 @@ export function EventThumbnail(props: {
     <Show
       when={imageId()}
       fallback={
-        <div class="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-emerald-50 ring-1 ring-black/5">
+        <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-emerald-50 ring-1 ring-black/5">
           <svg
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             stroke-width="1.5"
-            class="h-8 w-8 text-emerald-300"
+            class="h-6 w-6 text-emerald-300"
             aria-hidden="true"
           >
             <path
@@ -43,9 +43,9 @@ export function EventThumbnail(props: {
         <img
           src={imageUrl(id())}
           alt=""
-          class="h-20 w-20 shrink-0 rounded-xl object-cover shadow-sm ring-1 ring-black/5"
-          width={80}
-          height={80}
+          class="h-16 w-16 shrink-0 rounded-xl object-cover shadow-sm ring-1 ring-black/5"
+          width={64}
+          height={64}
         />
       )}
     </Show>
