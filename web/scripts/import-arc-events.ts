@@ -15,6 +15,7 @@ import type { Organization } from "../src/domain/organizations/organization";
 import { OrganizationRepository } from "../src/domain/organizations/organization_repository";
 import { PlaceRepository } from "../src/domain/places/place_repository";
 import type { Sha256 } from "../src/lib/sha256";
+import type { Uuid } from "../src/lib/uuid";
 import { reverseGeocode } from "../src/domain/events/pdok-client";
 import { generateSlug } from "../src/lib/slug";
 import { validateEvent, type ValidatableEvent } from "../src/lib/event_validation";
@@ -497,7 +498,7 @@ async function importFlyer(
  * confirmed "this is in Germany" are never confused with each other.
  */
 type PlaceResolution =
-  | { kind: "resolved"; placeId: string; distanceMeters: number; pdokLabel: string }
+  | { kind: "resolved"; placeId: Uuid; distanceMeters: number; pdokLabel: string }
   | { kind: "outside_nl"; distanceMeters: number }
   | { kind: "no_pdok_match" }
   | { kind: "no_matching_place"; woonplaatsNaam: string; distanceMeters: number };

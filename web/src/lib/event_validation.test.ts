@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Uuid } from "./uuid";
 import { validateEvent, type ValidatableEvent } from "./event_validation";
 
 function baseEvent(overrides: Partial<ValidatableEvent> = {}): ValidatableEvent {
@@ -10,7 +11,7 @@ function baseEvent(overrides: Partial<ValidatableEvent> = {}): ValidatableEvent 
     startAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     endAt: null,
     locationKind: "meeting_point_city_only",
-    placeId: "11111111-1111-1111-1111-111111111111",
+    placeId: "11111111-1111-1111-1111-111111111111" as Uuid,
     locationDescription: "Somewhere in town",
     pdokAddressId: null,
     mapUrl: null,

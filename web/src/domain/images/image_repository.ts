@@ -27,7 +27,8 @@ function mapImageRow(row: unknown): Result<Image, DbError> {
     return err({ message: `Corrupt images row: ${parsed.error.message}`, cause: parsed.error });
   }
   return ok({
-    sha256: parsed.data.sha256,
+    // images.sha256 is the table's primary key - trusted to already be a valid digest.
+    sha256: parsed.data.sha256 as Sha256,
     bytes: parsed.data.bytes,
     mime: parsed.data.mime,
     width: parsed.data.width,
@@ -44,7 +45,8 @@ function mapImageMetaRow(row: unknown): Result<ImageMeta, DbError> {
     return err({ message: `Corrupt images row: ${parsed.error.message}`, cause: parsed.error });
   }
   return ok({
-    sha256: parsed.data.sha256,
+    // images.sha256 is the table's primary key - trusted to already be a valid digest.
+    sha256: parsed.data.sha256 as Sha256,
     mime: parsed.data.mime,
     width: parsed.data.width,
     height: parsed.data.height,

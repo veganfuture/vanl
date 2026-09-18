@@ -205,7 +205,11 @@ export class EventService {
       logger.warn({ err: parsed.error }, "event creation rejected: invalid input");
       return errAsync("validation");
     }
-    const validation = validateEvent(parsed.data, { lang: "en", requireFutureStart: true });
+    // EventInputSchema's placeId is z.string().uuid() - already format-validated, trusted here.
+    const validation = validateEvent(
+      { ...parsed.data, placeId: parsed.data.placeId as Uuid | null },
+      { lang: "en", requireFutureStart: true },
+    );
     if (validation.isErr()) {
       logger.warn({ messages: validation.error }, "event creation rejected: invalid input");
       return errAsync("validation");
@@ -368,7 +372,11 @@ export class EventService {
         logger.warn({ err: parsed.error }, "event update rejected: invalid input");
         return errAsync<Event, UpdateEventError>("validation");
       }
-      const validation = validateEvent(parsed.data, { lang: "en", requireFutureStart: false });
+      // EventInputSchema's placeId is z.string().uuid() - already format-validated, trusted here.
+      const validation = validateEvent(
+        { ...parsed.data, placeId: parsed.data.placeId as Uuid | null },
+        { lang: "en", requireFutureStart: false },
+      );
       if (validation.isErr()) {
         logger.warn({ messages: validation.error }, "event update rejected: invalid input");
         return errAsync<Event, UpdateEventError>("validation");

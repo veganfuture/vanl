@@ -6,6 +6,7 @@ import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { pickLocalized, useLang } from "~/lib/i18n";
 import { imageUrl } from "~/lib/image-url";
+import type { Sha256 } from "~/lib/sha256";
 import { GetEventBySlugResponseSchema } from "~/routes/api/events/by-slug/[slug].schema";
 import {
   DeleteEventResponseSchema,
@@ -205,7 +206,8 @@ export default function EventDetailPage() {
               <Show when={currentEvent().flyerPreviewImageId}>
                 {(id) => (
                   <img
-                    src={imageUrl(id())}
+                    // A JSON-API string here, not a domain Sha256 - the server already vetted it.
+                    src={imageUrl(id() as Sha256)}
                     alt=""
                     class="mb-4 w-full max-w-md rounded-lg border border-zinc-200"
                   />

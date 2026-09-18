@@ -70,7 +70,8 @@ function resizeVariant(
       .toBuffer({ resolveWithObject: true }),
     (cause): ImageProcessingError => processingError("Failed to resize/encode image", cause),
   ).map(({ data, info }): ProcessedVariant => ({
-    sha256: createHash("sha256").update(data).digest("hex"),
+    // The direct output of our own sha256 digest - trusted by construction, not caller input.
+    sha256: createHash("sha256").update(data).digest("hex") as Sha256,
     bytes: data,
     mime: "image/webp",
     width: info.width,

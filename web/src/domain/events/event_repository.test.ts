@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { sql } from "~/lib/db";
+import type { Uuid } from "~/lib/uuid";
 import { AccountName } from "../auth/account_name";
 import { AuthRepository } from "../auth/auth_repository";
 import { SignalAci } from "../auth/signal_aci";
@@ -12,8 +13,8 @@ const authRepository = new AuthRepository(sql);
 const organizationRepository = new OrganizationRepository(sql);
 const repository = new EventRepository(sql);
 
-let testPlaceId: string;
-let zeelandPlaceId: string;
+let testPlaceId: Uuid;
+let zeelandPlaceId: Uuid;
 
 function baseOrgInput(overrides: Partial<NewOrganizationInput> = {}): NewOrganizationInput {
   return {
@@ -86,7 +87,7 @@ beforeAll(async () => {
     on conflict (source_id) do update set name = excluded.name
     returning id
   `;
-  testPlaceId = rows[0].id as string;
+  testPlaceId = rows[0].id as Uuid;
 
   const zeelandRows = await sql`
     insert into places (name, municipality_name, province, source_id)
@@ -94,7 +95,7 @@ beforeAll(async () => {
     on conflict (source_id) do update set name = excluded.name
     returning id
   `;
-  zeelandPlaceId = zeelandRows[0].id as string;
+  zeelandPlaceId = zeelandRows[0].id as Uuid;
 });
 
 beforeEach(async () => {

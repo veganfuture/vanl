@@ -3,6 +3,7 @@ import { canLinkEventOrg, canModifyEvent, eventService } from "~/domain/events/e
 import { resolveActingUser } from "~/domain/auth/acting_user";
 import { parseJsonBody } from "~/lib/http";
 import { PROVINCES } from "~/lib/provinces";
+import type { Uuid } from "~/lib/uuid";
 import { EventRequestSchema, toEventJson } from "./event.schema";
 import type { CreateEventResponse, ListEventsResponse } from "./index.schema";
 
@@ -104,6 +105,8 @@ export async function POST(event: APIEvent): Promise<Response> {
 
   const result = await eventService.createEvent(actingUser, {
     ...parsed.data,
+    // EventRequestSchema's placeId is z.string().uuid() - already format-validated, trusted here.
+    placeId: parsed.data.placeId as Uuid | null,
     startAt: new Date(parsed.data.startAt),
     endAt: parsed.data.endAt ? new Date(parsed.data.endAt) : null,
   });

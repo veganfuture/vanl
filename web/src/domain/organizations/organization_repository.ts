@@ -60,8 +60,9 @@ function mapOrganizationRow(row: unknown): Result<Organization, DbError> {
     descriptionNl: parsed.description_nl,
     descriptionEn: parsed.description_en,
     websiteUrl: parsed.website_url,
-    logoFullImageId: parsed.logo_full_image_id,
-    logoThumbnailImageId: parsed.logo_thumbnail_image_id,
+    // Foreign keys into images.sha256, already constrained there - trusted, not re-parsed.
+    logoFullImageId: parsed.logo_full_image_id as Sha256 | null,
+    logoThumbnailImageId: parsed.logo_thumbnail_image_id as Sha256 | null,
     status: parsed.status,
     createdAt: parsed.created_at,
     updatedAt: parsed.updated_at,

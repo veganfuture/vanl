@@ -16,6 +16,7 @@ import type { PdokSuggestResponse } from "~/routes/api/events/pdok-suggest.schem
 import { PdokSuggestResponseSchema } from "~/routes/api/events/pdok-suggest.schema";
 import type { SearchPlacesResponse } from "~/routes/api/places/search.schema";
 import { SearchPlacesResponseSchema } from "~/routes/api/places/search.schema";
+import type { Uuid } from "~/lib/uuid";
 
 export type EventFormError =
   "unauthorized" | "not_found" | "forbidden" | "validation" | "internal_error";
@@ -162,7 +163,8 @@ function toValidatableEvent(values: EventFormValues): ValidatableEvent {
     startAt: toDate(localDateTimeToIso(values.startAt)),
     endAt: toDate(localDateTimeToIso(values.endAt)),
     locationKind: values.locationKind,
-    placeId: values.locationKind === "precise_address" ? null : values.placeId || null,
+    // Client-side hint only, re-validated server-side (EventRequestSchema) - see toEventRequestBody.
+    placeId: values.locationKind === "precise_address" ? null : (values.placeId as Uuid) || null,
     locationDescription: values.locationDescription.trim(),
     pdokAddressId: values.pdokAddressId,
     mapUrl: values.mapUrl.trim() || null,

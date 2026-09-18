@@ -5,6 +5,7 @@ import { EventCard } from "~/components/EventCard";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch } from "~/lib/api-fetch";
 import { imageUrl } from "~/lib/image-url";
+import type { Sha256 } from "~/lib/sha256";
 import { pickLocalized, useLang } from "~/lib/i18n";
 import { GetOrganizationBySlugResponseSchema } from "~/routes/api/organizations/by-slug/[slug].schema";
 import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
@@ -59,7 +60,8 @@ export default function OrganizationDetailPage() {
               <Show when={currentOrg().logoFullImageId}>
                 {(id) => (
                   <img
-                    src={imageUrl(id())}
+                    // A JSON-API string here, not a domain Sha256 - the server already vetted it.
+                    src={imageUrl(id() as Sha256)}
                     alt=""
                     class="mb-4 h-24 w-24 rounded-lg border border-zinc-200 object-cover"
                   />

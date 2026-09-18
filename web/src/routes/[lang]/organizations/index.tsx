@@ -4,6 +4,7 @@ import { EventCard } from "~/components/EventCard";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch } from "~/lib/api-fetch";
 import { imageUrl } from "~/lib/image-url";
+import type { Sha256 } from "~/lib/sha256";
 import { pickLocalized, useLang } from "~/lib/i18n";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { ListOrganizationsResponseSchema } from "~/routes/api/organizations/index.schema";
@@ -84,7 +85,8 @@ export default function OrganizationsListPage() {
                   <Show when={org.logoThumbnailImageId}>
                     {(id) => (
                       <img
-                        src={imageUrl(id())}
+                        // A JSON-API string here, not a domain Sha256 - the server already vetted it.
+                        src={imageUrl(id() as Sha256)}
                         alt=""
                         class="h-16 w-16 shrink-0 rounded object-cover"
                         width={64}
