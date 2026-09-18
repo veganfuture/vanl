@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { errAsync, ResultAsync } from "neverthrow";
 import sharp from "sharp";
+import type { Sha256 } from "~/lib/sha256";
 
 /**
  * Decodes, validates, and resizes an uploaded image into each requested
@@ -15,7 +16,7 @@ import sharp from "sharp";
 export type ImageVariantSpec = { readonly maxWidth: number };
 
 export type ProcessedVariant = {
-  readonly sha256: string;
+  readonly sha256: Sha256;
   readonly bytes: Buffer;
   readonly mime: string;
   readonly width: number;
@@ -69,7 +70,8 @@ function resizeVariant(
       .toBuffer({ resolveWithObject: true }),
     (cause): ImageProcessingError => processingError("Failed to resize/encode image", cause),
   ).map(({ data, info }): ProcessedVariant => ({
-    sha256: createHash("sha256").update(data).digest("hex"),
+    // The direct output of our own sha256 digest - trusted by construction, not caller input.
+    sha256: createHash("sha256").update(data).digest("hex") as Sha256,
     bytes: data,
     mime: "image/webp",
     width: info.width,

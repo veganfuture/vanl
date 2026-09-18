@@ -1,5 +1,6 @@
 import type { UserId } from "../auth/user_id";
 import type { OrgRole } from "../auth/roles";
+import type { Sha256 } from "~/lib/sha256";
 import type { OrganizationId } from "./organization_id";
 
 export type OrganizationStatus = "active" | "deleted";
@@ -14,8 +15,8 @@ export type Organization = {
   descriptionEn: string | null;
   websiteUrl: string | null;
   /** sha256 of each resized variant - see src/domain/images/image_processing.ts. */
-  logoFullImageId: string | null;
-  logoThumbnailImageId: string | null;
+  logoFullImageId: Sha256 | null;
+  logoThumbnailImageId: Sha256 | null;
   status: OrganizationStatus;
   createdAt: Date;
   updatedAt: Date;

@@ -25,7 +25,8 @@ function mapPlaceRow(row: unknown): Result<Place, DbError> {
     return err({ message: `Corrupt places row: ${parsed.error.message}`, cause: parsed.error });
   }
   return ok({
-    id: parsed.data.id,
+    // places.id is a uuid-typed column - trusted, not re-parsed.
+    id: parsed.data.id as Uuid,
     name: parsed.data.name,
     municipalityName: parsed.data.municipality_name,
     province: parsed.data.province,

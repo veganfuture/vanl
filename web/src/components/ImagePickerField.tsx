@@ -1,5 +1,6 @@
 import { createMemo, createSignal, createUniqueId, onCleanup, Show } from "solid-js";
 import { imageUrl } from "~/lib/image-url";
+import type { Sha256 } from "~/lib/sha256";
 import type { Locale } from "~/lib/i18n";
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
@@ -55,7 +56,9 @@ export function ImagePickerField(props: {
   }
 
   const previewUrl = createMemo(
-    () => objectUrl() ?? (props.currentImageId ? imageUrl(props.currentImageId) : null),
+    // A JSON-API string here, not a domain Sha256 - the server already
+    // vetted it, the client just echoes it back into a URL.
+    () => objectUrl() ?? (props.currentImageId ? imageUrl(props.currentImageId as Sha256) : null),
   );
 
   return (

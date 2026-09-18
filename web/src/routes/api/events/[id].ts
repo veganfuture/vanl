@@ -3,6 +3,7 @@ import { canLinkEventOrg, canModifyEvent, eventService } from "~/domain/events/e
 import { EventId } from "~/domain/events/event_id";
 import { resolveActingUser } from "~/domain/auth/acting_user";
 import { parseJsonBody } from "~/lib/http";
+import type { Uuid } from "~/lib/uuid";
 import { EventRequestSchema, toEventJson } from "./event.schema";
 import type { DeleteEventResponse, UpdateEventResponse } from "./[id].schema";
 
@@ -38,6 +39,8 @@ export async function PATCH(event: APIEvent): Promise<Response> {
 
   const result = await eventService.updateEvent(actingUser, eventIdResult.value, {
     ...parsed.data,
+    // EventRequestSchema's placeId is z.string().uuid() - already format-validated, trusted here.
+    placeId: parsed.data.placeId as Uuid | null,
     startAt: new Date(parsed.data.startAt),
     endAt: parsed.data.endAt ? new Date(parsed.data.endAt) : null,
   });

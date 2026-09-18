@@ -2,6 +2,7 @@ import { err, ok, okAsync, ResultAsync, type Result } from "neverthrow";
 import type postgres from "postgres";
 import { z } from "zod";
 import type { Uuid } from "~/lib/uuid";
+import type { Sha256 } from "~/lib/sha256";
 import { UserId } from "../auth/user_id";
 import { OrganizationId } from "../organizations/organization_id";
 import type { Event, EventLocationKind, EventSource, EventStatus } from "./event";
@@ -130,7 +131,8 @@ function mapEventRow(row: unknown): Result<Event, DbError> {
     startAt: parsed.start_at,
     endAt: parsed.end_at,
     locationKind: parsed.location_kind,
-    placeId: parsed.place_id,
+    // events.place_id is a uuid-typed foreign key - trusted, not re-parsed.
+    placeId: parsed.place_id as Uuid,
     locationDescription: parsed.location_description,
     locationStreet: parsed.location_street,
     locationHouseNumber: parsed.location_house_number,
@@ -142,9 +144,10 @@ function mapEventRow(row: unknown): Result<Event, DbError> {
     externalEventUrl: parsed.external_event_url,
     registrationUrl: parsed.registration_url,
     organizerName: parsed.organizer_name,
-    flyerFullImageId: parsed.flyer_full_image_id,
-    flyerPreviewImageId: parsed.flyer_preview_image_id,
-    flyerThumbnailImageId: parsed.flyer_thumbnail_image_id,
+    // Foreign keys into images.sha256, already constrained there - trusted, not re-parsed.
+    flyerFullImageId: parsed.flyer_full_image_id as Sha256 | null,
+    flyerPreviewImageId: parsed.flyer_preview_image_id as Sha256 | null,
+    flyerThumbnailImageId: parsed.flyer_thumbnail_image_id as Sha256 | null,
     publisherUserId,
     publisherOrgId,
     publisherUserVisible: parsed.publisher_user_visible,
@@ -545,9 +548,9 @@ export class EventRepository {
   /** Repoints all three flyer variants at once - a dedicated narrow update, not part of the general edit form. */
   setEventFlyer(
     id: EventId,
-    fullImageId: string,
-    previewImageId: string,
-    thumbnailImageId: string,
+    fullImageId: Sha256,
+    previewImageId: Sha256,
+    thumbnailImageId: Sha256,
     updatedBy: UserId,
   ): ResultAsync<Event, DbError> {
     return ResultAsync.fromPromise(
@@ -573,7 +576,7 @@ export class EventRepository {
    * organizer who (for now) only has one upcoming event using it.
    */
   isFlyerImageUsedByAnotherEvent(
-    imageId: string,
+    imageId: Sha256,
     excludingEventId: EventId,
   ): ResultAsync<boolean, DbError> {
     return ResultAsync.fromPromise(

@@ -2,6 +2,7 @@ import { err, ok, ResultAsync, type Result } from "neverthrow";
 import type postgres from "postgres";
 import { z } from "zod";
 import { sql } from "~/lib/db";
+import type { Sha256 } from "~/lib/sha256";
 import { UserId } from "../auth/user_id";
 import { ORG_ROLES } from "../auth/roles";
 import type {
@@ -59,8 +60,9 @@ function mapOrganizationRow(row: unknown): Result<Organization, DbError> {
     descriptionNl: parsed.description_nl,
     descriptionEn: parsed.description_en,
     websiteUrl: parsed.website_url,
-    logoFullImageId: parsed.logo_full_image_id,
-    logoThumbnailImageId: parsed.logo_thumbnail_image_id,
+    // Foreign keys into images.sha256, already constrained there - trusted, not re-parsed.
+    logoFullImageId: parsed.logo_full_image_id as Sha256 | null,
+    logoThumbnailImageId: parsed.logo_thumbnail_image_id as Sha256 | null,
     status: parsed.status,
     createdAt: parsed.created_at,
     updatedAt: parsed.updated_at,
@@ -330,8 +332,8 @@ export class OrganizationRepository {
   /** Repoints both logo variants at once - a dedicated narrow update, not part of the general edit form. */
   setOrganizationLogo(
     id: OrganizationId,
-    fullImageId: string,
-    thumbnailImageId: string,
+    fullImageId: Sha256,
+    thumbnailImageId: Sha256,
   ): ResultAsync<Organization, DbError> {
     return ResultAsync.fromPromise(
       this.sql`

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { sql } from "~/lib/db";
+import type { Sha256 } from "~/lib/sha256";
 import { ImageRepository, type NewImageInput } from "./image_repository";
 
 const repository = new ImageRepository(sql);
@@ -13,7 +14,7 @@ function makeImage(overrides: Partial<Omit<NewImageInput, "sha256">> = {}): NewI
     height: 96,
     ...overrides,
     bytes,
-    sha256: createHash("sha256").update(bytes).digest("hex"),
+    sha256: createHash("sha256").update(bytes).digest("hex") as Sha256,
   };
 }
 
@@ -62,7 +63,7 @@ describe("findImageBySha256", () => {
   });
 
   it("returns null for a sha256 that doesn't exist", async () => {
-    const found = (await repository.findImageBySha256("a".repeat(64)))._unsafeUnwrap();
+    const found = (await repository.findImageBySha256("a".repeat(64) as Sha256))._unsafeUnwrap();
 
     expect(found).toBeNull();
   });
@@ -85,7 +86,7 @@ describe("findImageMetaBySha256", () => {
   });
 
   it("returns null for a sha256 that doesn't exist", async () => {
-    const meta = (await repository.findImageMetaBySha256("b".repeat(64)))._unsafeUnwrap();
+    const meta = (await repository.findImageMetaBySha256("b".repeat(64) as Sha256))._unsafeUnwrap();
 
     expect(meta).toBeNull();
   });

@@ -1,7 +1,15 @@
 import { err, ok, type Result } from "neverthrow";
 
-/** Documents that a string is a UUID (a places/organizations/events primary key, etc.) - a plain alias, not a branded type, so no runtime cast is needed anywhere it's used. */
-export type Uuid = string;
+/**
+ * A UUID (a places/organizations/events primary key, etc.) - branded so a
+ * plain string (or a Sha256, or any other branded id) can't be passed where
+ * a Uuid is expected without going through parseUuid or an explicit,
+ * reviewable `as Uuid` cast. Every producer of a Uuid that doesn't call
+ * parseUuid directly (a DB row already constrained `uuid` at the column
+ * level, an id class's own from_string, ...) casts at that one construction
+ * site instead.
+ */
+export type Uuid = string & { readonly __brand: "Uuid" };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -20,5 +28,5 @@ export function parseUuid(value: string): Result<Uuid, UuidParseError> {
   if (!UUID_RE.test(value)) {
     return err({ message: `Not a valid UUID: ${value}` });
   }
-  return ok(value.toLowerCase());
+  return ok(value.toLowerCase() as Uuid);
 }

@@ -1,5 +1,7 @@
+import type { Sha256 } from "~/lib/sha256";
+
 export type Image = {
-  sha256: string;
+  sha256: Sha256;
   bytes: Buffer;
   mime: string;
   width: number;

@@ -2,6 +2,7 @@ import { errAsync, okAsync } from "neverthrow";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 import { sql } from "~/lib/db";
+import type { Uuid } from "~/lib/uuid";
 import { ImageRepository } from "~/domain/images/image_repository";
 import { AccountName } from "../auth/account_name";
 import { actingAs } from "../auth/acting_user.test-helpers";
@@ -35,7 +36,7 @@ const service = new EventService(
   organizationRepository,
 );
 
-let testPlaceId: string;
+let testPlaceId: Uuid;
 
 async function makeUser(accountName: string): Promise<UserId> {
   const result = (
@@ -114,7 +115,7 @@ beforeAll(async () => {
     on conflict (source_id) do update set name = excluded.name
     returning id
   `;
-  testPlaceId = rows[0].id as string;
+  testPlaceId = rows[0].id as Uuid;
 });
 
 beforeEach(async () => {
