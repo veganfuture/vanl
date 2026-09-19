@@ -1,5 +1,5 @@
 import { Title } from "@solidjs/meta";
-import { createResource, For, Show } from "solid-js";
+import { createResource, createSignal, For, Show } from "solid-js";
 import { EventCard } from "~/components/EventCard";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch } from "~/lib/api-fetch";
@@ -13,6 +13,35 @@ import type { EventJson } from "~/routes/api/events/event.schema";
 
 /** Read by src/middleware.ts to decide this page is safe to cache publicly for anonymous visitors. */
 export const route = { info: { cachePolicy: "public" } };
+
+/**
+ * An org description clamped to 3 lines with a "More…" toggle, so every
+ * card on the list starts out roughly the same height regardless of how
+ * much an org wrote about itself - only descriptions long enough to
+ * plausibly overflow 3 lines get the toggle at all.
+ */
+function OrgDescription(props: { text: string; t: (nl: string, en: string) => string }) {
+  const [expanded, setExpanded] = createSignal(false);
+  const isLong = () => props.text.length > 220;
+  return (
+    <div class="mt-1">
+      <p
+        class={`text-sm text-zinc-600 ${expanded() || !isLong() ? "whitespace-pre-wrap" : "line-clamp-3"}`}
+      >
+        {props.text}
+      </p>
+      <Show when={isLong()}>
+        <button
+          type="button"
+          class="mt-0.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded() ? props.t("Minder", "Less") : props.t("Meer…", "More…")}
+        </button>
+      </Show>
+    </div>
+  );
+}
 
 export default function OrganizationsListPage() {
   const { lang, t } = useLang();
@@ -84,46 +113,64 @@ export default function OrganizationsListPage() {
           <ul class="space-y-4">
             <For each={organizations()}>
               {(org) => (
-                <li class="flex items-center gap-4 rounded-lg border border-zinc-200 p-4">
-                  <Show when={org.logoThumbnailImageId}>
-                    {(id) => (
-                      <img
-                        // A JSON-API string here, not a domain Sha256 - the server already vetted it.
-                        src={imageUrl(id() as Sha256)}
-                        alt=""
-                        class="h-16 w-16 shrink-0 rounded object-cover"
-                        width={64}
-                        height={64}
-                      />
-                    )}
-                  </Show>
-                  <div>
-                    <a
-                      href={`/${lang()}/organizations/${org.slug}`}
-                      class="text-lg font-semibold hover:underline"
-                    >
-                      {org.name}
-                    </a>
-                    <Show when={pickLocalized(org.descriptionNl, org.descriptionEn, lang())}>
-                      {(description) => <p class="text-sm text-zinc-600">{description()}</p>}
-                    </Show>
-                    <Show when={nextEventByOrgId().get(org.id)}>
-                      {(event) => (
-                        <div class="mt-2">
-                          <p class="mb-1 text-xs font-semibold tracking-widest text-zinc-500 uppercase">
-                            {t("Volgende evenement", "Next event")}
-                          </p>
-                          {/* No orgLogoThumbnailImageId: the org's own logo is already shown
-                              to the left of this whole card, so falling back to it here would
-                              just repeat it - only show a thumbnail when the event has its own flyer. */}
-                          <EventCard
-                            event={event()}
-                            lang={lang()}
-                            href={`/${lang()}/events/${event().slug}`}
-                          />
-                        </div>
+                <li class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md sm:p-5">
+                  <div class="flex items-start gap-4">
+                    <Show when={org.logoThumbnailImageId}>
+                      {(id) => (
+                        <img
+                          // A JSON-API string here, not a domain Sha256 - the server already vetted it.
+                          src={imageUrl(id() as Sha256)}
+                          alt=""
+                          class="h-16 w-16 shrink-0 rounded-lg object-cover"
+                          width={64}
+                          height={64}
+                        />
                       )}
                     </Show>
+                    <div class="min-w-0 flex-1">
+                      <a
+                        href={`/${lang()}/organizations/${org.slug}`}
+                        class="text-lg font-semibold hover:underline"
+                      >
+                        {org.name}
+                      </a>
+                      <Show when={pickLocalized(org.descriptionNl, org.descriptionEn, lang())}>
+                        {(description) => <OrgDescription text={description()} t={t} />}
+                      </Show>
+                      <div class="mt-4">
+                        <p class="mb-1 text-xs font-semibold tracking-widest text-zinc-500 uppercase">
+                          {t("Volgende evenement", "Next event")}
+                        </p>
+                        <Show
+                          when={!nextEvents.loading}
+                          fallback={<p class="text-sm text-zinc-400">{t("Laden…", "Loading…")}</p>}
+                        >
+                          <Show
+                            when={nextEventByOrgId().get(org.id)}
+                            fallback={
+                              <p class="text-sm text-zinc-500 italic">
+                                {t(
+                                  "Geen bekend eerstvolgend evenement — dat betekent niet dat er geen gepland is, we weten er alleen niet van.",
+                                  "No known upcoming event — that doesn't mean there isn't one, we just don't know of it.",
+                                )}
+                              </p>
+                            }
+                          >
+                            {(event) => (
+                              // No orgLogoThumbnailImageId: the org's own logo is already
+                              // shown to the left of this whole card, so falling back to
+                              // it here would just repeat it - only show a thumbnail when
+                              // the event has its own flyer.
+                              <EventCard
+                                event={event()}
+                                lang={lang()}
+                                href={`/${lang()}/events/${event().slug}`}
+                              />
+                            )}
+                          </Show>
+                        </Show>
+                      </div>
+                    </div>
                   </div>
                 </li>
               )}

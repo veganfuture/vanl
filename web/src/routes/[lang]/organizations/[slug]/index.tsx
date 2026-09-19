@@ -125,8 +125,11 @@ export default function OrganizationDetailPage() {
                 <Show
                   when={events() && events()!.length > 0}
                   fallback={
-                    <p class="text-zinc-600">
-                      {t("Geen aankomende evenementen.", "No upcoming events.")}
+                    <p class="text-zinc-600 italic">
+                      {t(
+                        "Geen bekende aankomende evenementen — dat betekent niet dat er geen gepland zijn, we weten er alleen niet van.",
+                        "No known upcoming events — that doesn't mean there aren't any planned, we just don't know of them.",
+                      )}
                     </p>
                   }
                 >
