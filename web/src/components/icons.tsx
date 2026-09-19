@@ -67,3 +67,95 @@ export function BuildingIcon(props: IconProps): JSX.Element {
     </svg>
   );
 }
+
+/** Disclosure/dropdown toggle - callers add their own rotate-180 transition class based on open state. */
+export function ChevronDownIcon(props: IconProps): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      class={props.class}
+      aria-hidden="true"
+    >
+      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
+
+/** Filter/adjustments icon, used on the events list's filter bar toggle. */
+export function FilterIcon(props: IconProps): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      class={props.class}
+      aria-hidden="true"
+    >
+      <path stroke-linecap="round" stroke-linejoin="round" d="M3 4.5h18M6.75 12h10.5M10.5 19.5h3" />
+    </svg>
+  );
+}
+
+/** The navbar's mobile menu toggle - one icon, swapping its path by `open` rather than two separately-maintained icons. */
+export function HamburgerIcon(props: IconProps & { open: boolean }): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      class={props.class}
+      aria-hidden="true"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d={props.open ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"}
+      />
+    </svg>
+  );
+}
+
+/** Appended after linkified URLs (LinkifiedText) to mark them as leaving the site. */
+export function ExternalLinkIcon(props: IconProps): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      class={props.class}
+      aria-hidden="true"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M13.5 6H18m0 0v4.5M18 6l-8 8m-3-8H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1.5"
+      />
+    </svg>
+  );
+}
+
+/** Generic person/account icon - was a static public/account-icon.svg loaded via <img>, moved here so it can inherit color via currentColor like every other icon instead of hardcoding one. */
+export function AccountIcon(props: IconProps): JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      class={props.class}
+      aria-hidden="true"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+      />
+    </svg>
+  );
+}

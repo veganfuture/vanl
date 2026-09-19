@@ -1,4 +1,5 @@
 import { createSignal, createUniqueId, For } from "solid-js";
+import { ChevronDownIcon } from "~/components/icons";
 import { CopyButton } from "./CopyButton";
 import { SignalLink } from "./SignalLink";
 import type { GroupInfo } from "~/lib/groups";
@@ -33,21 +34,9 @@ export function GroupsAccordion(props: {
                   <div class="font-medium">{g.title}</div>
                   <div class="text-sm text-zinc-600">{g.description[props.lang]}</div>
                 </div>
-                <svg
+                <ChevronDownIcon
                   class={`h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-200 ${isOpen() ? "rotate-180" : "rotate-0"}`}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M6 9l6 6 6-6"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
+                />
               </button>
 
               {isOpen() && (
