@@ -279,12 +279,12 @@ export default function EventDetailPage() {
                       </Show>
                     </div>
 
-                    <div class="mb-6 space-y-2 text-zinc-700">
-                      <p class="flex items-center gap-2">
+                    <div class="mb-6 flex flex-col gap-2 text-zinc-700">
+                      <div class="flex items-center gap-2">
                         <CalendarIcon class="h-5 w-5 shrink-0 text-emerald-500" />
                         <span>{formatDate(currentEvent().startAt)}</span>
-                      </p>
-                      <p class="flex items-start gap-2">
+                      </div>
+                      <div class="flex items-start gap-2">
                         <MapPinIcon class="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
                         <span>
                           {locationKindLabels[currentEvent().locationKind]} —{" "}
@@ -308,14 +308,14 @@ export default function EventDetailPage() {
                             </a>
                           </Show>
                         </span>
-                      </p>
+                      </div>
                       <Show when={currentEvent().organizerName}>
-                        <p class="flex items-center gap-2">
+                        <div class="flex items-center gap-2">
                           <BuildingIcon class="h-5 w-5 shrink-0 text-emerald-500" />
                           <span>
                             {t("Georganiseerd door", "Organized by")} {currentEvent().organizerName}
                           </span>
-                        </p>
+                        </div>
                       </Show>
                     </div>
 

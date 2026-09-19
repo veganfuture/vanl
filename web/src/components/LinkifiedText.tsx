@@ -14,6 +14,16 @@ const URL_RE = /https?:\/\/[^\s]+/g;
 // punctuation into the link itself.
 const TRAILING_PUNCTUATION_RE = /[.,;:!?)\]}'"]+$/;
 
+// Imported sources (e.g. ARC) sometimes pad every line break with extra
+// blank lines (`\n\n\n` between list items is common in their feed) - since
+// the caller renders this with `white-space: pre-wrap`, that would otherwise
+// show up as visibly uneven, oversized gaps. Collapsing runs of 2+ blank
+// lines down to a single one keeps intentional paragraph breaks (a lone
+// blank line) while normalizing the excess.
+function collapseExcessBlankLines(text: string): string {
+  return text.replace(/\n{3,}/g, "\n\n");
+}
+
 type Segment = { type: "text"; value: string } | { type: "link"; value: string };
 
 function splitTextWithLinks(text: string): Segment[] {
@@ -76,7 +86,7 @@ function ExternalLinkIcon() {
 }
 
 export function LinkifiedText(props: { text: string }) {
-  const segments = () => splitTextWithLinks(props.text);
+  const segments = () => splitTextWithLinks(collapseExcessBlankLines(props.text));
 
   return (
     <For each={segments()}>
