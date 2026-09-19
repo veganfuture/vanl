@@ -181,11 +181,25 @@ const ORGANIZER_RULES: ReadonlyArray<{
   organizer: string;
   test: (title: string, description: string) => boolean;
 }> = [
-  { organizer: "Anonymous for the Voiceless", test: (title) => /cube of truth/i.test(title) },
-  { organizer: "We The Free", test: (title) => /\bwtf\b/i.test(title) },
+  {
+    organizer: "Anonymous for the Voiceless",
+    test: (title, description) =>
+      /cube of truth/i.test(title) ||
+      /anonymous for the voiceless/i.test(title) ||
+      /anonymousforthevoiceless\.org/i.test(description) ||
+      /cubeoftruth\.com/i.test(description),
+  },
+  {
+    organizer: "We The Free",
+    test: (title, description) =>
+      /we the free/i.test(title) ||
+      /activism\.wtf/i.test(description) ||
+      /mystats\.wtf/i.test(description),
+  },
   {
     organizer: "Animal Save",
-    test: (title) => /save square/i.test(title) || /pig save/i.test(title),
+    test: (title, description) =>
+      /save square/i.test(title) || /pig save/i.test(title) || /savemovement\.nl/i.test(description),
   },
   { organizer: "Partij voor de Dieren", test: (title) => /\bpvdd\b/i.test(title) },
   {

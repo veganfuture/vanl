@@ -97,8 +97,45 @@ describe("detectOrganizer", () => {
     expect(detectOrganizer(event)).toBe("Anonymous for the Voiceless");
   });
 
-  it("recognizes WTF as We The Free", () => {
-    const event = baseEvent({ titleEn: "WTF: Utrecht, Netherlands - WTF Movie Challenge" });
+  it("recognizes 'Anonymous for the Voiceless' spelled out as Anonymous for the Voiceless", () => {
+    const event = baseEvent({ titleEn: "Anonymous for the Voiceless: street outreach" });
+    expect(detectOrganizer(event)).toBe("Anonymous for the Voiceless");
+  });
+
+  it("recognizes an anonymousforthevoiceless.org link in the description as Anonymous for the Voiceless", () => {
+    const event = baseEvent({
+      titleEn: "Street outreach",
+      descriptionEn: "More info at anonymousforthevoiceless.org.",
+    });
+    expect(detectOrganizer(event)).toBe("Anonymous for the Voiceless");
+  });
+
+  it("recognizes a cubeoftruth.com link in the description as Anonymous for the Voiceless", () => {
+    const event = baseEvent({
+      titleEn: "Street outreach",
+      descriptionEn: "More info at cubeoftruth.com.",
+    });
+    expect(detectOrganizer(event)).toBe("Anonymous for the Voiceless");
+  });
+
+  it("recognizes 'We The Free' spelled out as We The Free", () => {
+    const event = baseEvent({ titleEn: "We The Free presents: Movie Challenge" });
+    expect(detectOrganizer(event)).toBe("We The Free");
+  });
+
+  it("recognizes an activism.wtf link in the description as We The Free", () => {
+    const event = baseEvent({
+      titleEn: "Movie Challenge",
+      descriptionEn: "Sign up at activism.wtf.",
+    });
+    expect(detectOrganizer(event)).toBe("We The Free");
+  });
+
+  it("recognizes a mystats.wtf link in the description as We The Free", () => {
+    const event = baseEvent({
+      titleEn: "Movie Challenge",
+      descriptionEn: "Track your progress at mystats.wtf.",
+    });
     expect(detectOrganizer(event)).toBe("We The Free");
   });
 
@@ -109,6 +146,14 @@ describe("detectOrganizer", () => {
 
   it("recognizes Pig Save as Animal Save", () => {
     const event = baseEvent({ titleNl: "Utrecht Pig Save" });
+    expect(detectOrganizer(event)).toBe("Animal Save");
+  });
+
+  it("recognizes savemovement.nl mention as Animal Save", () => {
+    const event = baseEvent({
+      titleEn: "Vigil for the animals",
+      descriptionEn: "Organized by our group, see savemovement.nl for details.",
+    });
     expect(detectOrganizer(event)).toBe("Animal Save");
   });
 
