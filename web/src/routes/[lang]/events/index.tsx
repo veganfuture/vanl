@@ -186,49 +186,53 @@ export default function EventsListPage() {
 
   // Weekday filtering only depends on startAt, already present on every
   // fetched event, so - unlike province/org - it's applied client-side
-  // rather than round-tripped through the API.
+  // rather than round-tripped through the API. Also drops events that have
+  // already ended (or, absent an end time, already started) - the same
+  // "not-yet-ended" rule the repository already applies for the org-detail
+  // and .ics listings (`coalesce(end_at, start_at) >= now()`), just not yet
+  // for this default listing, which still returns full history.
   const visibleEvents = createMemo(() => {
     const weekdays = selectedWeekdays();
-    const all = events() ?? [];
-    if (weekdays.length === 0) return all;
+    const now = Date.now();
+    const upcoming = (events() ?? []).filter(
+      (event) => new Date(event.endAt ?? event.startAt).getTime() >= now,
+    );
+    if (weekdays.length === 0) return upcoming;
     const allowed = new Set(weekdays);
-    return all.filter((event) =>
+    return upcoming.filter((event) =>
       allowed.has(WEEKDAY_CODE_BY_JS_DAY[new Date(event.startAt).getDay()]),
     );
   });
 
-  // Chronological, then bucketed: the current Monday-Sunday week gets its
-  // own "This week" divider, split into "This weekend" from Friday 17:00
-  // onward, and everything outside that week falls back to the plain
-  // month divider it always had (startAt is a fixed-format ISO string, so
-  // plain string comparison already sorts it chronologically).
+  // Chronological, then bucketed: everything left in the current
+  // Monday-Sunday week (visibleEvents already dropped anything that's
+  // over, so in practice this is just "from now until Sunday") collapses
+  // into a single divider - "This weekend" once it's Friday 17:00 or
+  // later, "This week" before that - and everything past that week keeps
+  // the plain month divider it always had (startAt is a fixed-format ISO
+  // string, so plain string comparison already sorts it chronologically).
   const eventGroups = (): EventGroup[] => {
     const sorted = [...visibleEvents()].sort((a, b) => a.startAt.localeCompare(b.startAt));
     const now = new Date();
     const mondayOffset = (now.getDay() + 6) % 7;
-    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 7);
-    const weekendStart = new Date(weekStart);
-    weekendStart.setDate(weekendStart.getDate() + 4);
+    const weekEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset + 7);
+    const weekendStart = new Date(weekEnd);
+    weekendStart.setDate(weekendStart.getDate() - 3);
     weekendStart.setHours(17, 0, 0, 0);
+    const currentBucketLabel =
+      now >= weekendStart ? t("Dit weekend", "This weekend") : t("Deze week", "This week");
 
     const groups: EventGroup[] = [];
     for (const event of sorted) {
       const date = new Date(event.startAt);
-      let key: string;
-      let label: string;
-      if (date >= weekStart && date < weekEnd) {
-        const isWeekend = date >= weekendStart;
-        key = `${isWeekend ? "weekend" : "week"}-${weekStart.toISOString()}`;
-        label = isWeekend ? t("Dit weekend", "This weekend") : t("Deze week", "This week");
-      } else {
-        key = `${date.getFullYear()}-${date.getMonth()}`;
-        label = date.toLocaleString(lang() === "nl" ? "nl-NL" : "en-GB", {
-          month: "long",
-          year: "numeric",
-        });
-      }
+      const key = date < weekEnd ? "current" : `${date.getFullYear()}-${date.getMonth()}`;
+      const label =
+        date < weekEnd
+          ? currentBucketLabel
+          : date.toLocaleString(lang() === "nl" ? "nl-NL" : "en-GB", {
+              month: "long",
+              year: "numeric",
+            });
       const current = groups.at(-1);
       if (current?.key === key) {
         current.items.push(event);
