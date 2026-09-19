@@ -33,7 +33,21 @@ function parseCommaList(raw: string): string[] {
     .filter(Boolean);
 }
 
-/** A single month's worth of events, in display order, for the month-divider grouping below. */
+/** Monday-first, matching the "This week"/"This weekend" bucketing in eventGroups below. */
+const WEEKDAYS = [
+  { value: "mon", labelNl: "ma", labelEn: "Mon" },
+  { value: "tue", labelNl: "di", labelEn: "Tue" },
+  { value: "wed", labelNl: "wo", labelEn: "Wed" },
+  { value: "thu", labelNl: "do", labelEn: "Thu" },
+  { value: "fri", labelNl: "vr", labelEn: "Fri" },
+  { value: "sat", labelNl: "za", labelEn: "Sat" },
+  { value: "sun", labelNl: "zo", labelEn: "Sun" },
+] as const;
+
+/** Date#getDay() (0 = Sunday) -> this page's weekday filter code. */
+const WEEKDAY_CODE_BY_JS_DAY = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+
+/** A single group of events in display order, headed by either a "This week"/"This weekend" or a month divider - see eventGroups below. */
 type EventGroup = {
   key: string;
   label: string;
@@ -65,6 +79,7 @@ export default function EventsListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedProvinces = () => parseCommaList(firstParam(searchParams.province));
   const selectedOrgIds = () => parseCommaList(firstParam(searchParams.org));
+  const selectedWeekdays = () => parseCommaList(firstParam(searchParams.weekday));
 
   function setProvinceFilter(values: string[]) {
     setSearchParams({ province: values.length > 0 ? values.join(",") : undefined });
@@ -72,18 +87,32 @@ export default function EventsListPage() {
   function setOrgFilter(values: string[]) {
     setSearchParams({ org: values.length > 0 ? values.join(",") : undefined });
   }
+  function setWeekdayFilter(values: string[]) {
+    setSearchParams({ weekday: values.length > 0 ? values.join(",") : undefined });
+  }
   function removeProvince(value: string) {
     setProvinceFilter(selectedProvinces().filter((v) => v !== value));
   }
   function removeOrg(value: string) {
     setOrgFilter(selectedOrgIds().filter((v) => v !== value));
   }
+  function toggleWeekday(value: string) {
+    const current = selectedWeekdays();
+    setWeekdayFilter(
+      current.includes(value) ? current.filter((v) => v !== value) : [...current, value],
+    );
+  }
+  function clearAllFilters() {
+    setProvinceFilter([]);
+    setOrgFilter([]);
+    setWeekdayFilter([]);
+  }
 
   // Collapsed by default to keep the page uncluttered when no filter is
   // active - but starts open if the page was loaded with filters already in
   // the URL (e.g. a shared link), so the user immediately sees what's applied.
   const [filtersOpen, setFiltersOpen] = createSignal(
-    selectedProvinces().length > 0 || selectedOrgIds().length > 0,
+    selectedProvinces().length > 0 || selectedOrgIds().length > 0 || selectedWeekdays().length > 0,
   );
 
   // On mobile the filter bar is sticky (see the JSX below) and tracks the
@@ -152,25 +181,62 @@ export default function EventsListPage() {
   const organizationOptions = createMemo(
     () => organizations()?.map((org) => ({ value: org.id, label: org.name })) ?? [],
   );
-  const hasActiveFilters = () => selectedProvinces().length > 0 || selectedOrgIds().length > 0;
+  const hasActiveFilters = () =>
+    selectedProvinces().length > 0 || selectedOrgIds().length > 0 || selectedWeekdays().length > 0;
 
-  // Chronological, then bucketed by calendar month so the list can be
-  // broken up with a month divider (startAt is a fixed-format ISO string,
-  // so plain string comparison already sorts it chronologically).
+  // Weekday filtering only depends on startAt, already present on every
+  // fetched event, so - unlike province/org - it's applied client-side
+  // rather than round-tripped through the API. Also drops events that have
+  // already ended (or, absent an end time, already started) - the same
+  // "not-yet-ended" rule the repository already applies for the org-detail
+  // and .ics listings (`coalesce(end_at, start_at) >= now()`), just not yet
+  // for this default listing, which still returns full history.
+  const visibleEvents = createMemo(() => {
+    const weekdays = selectedWeekdays();
+    const now = Date.now();
+    const upcoming = (events() ?? []).filter(
+      (event) => new Date(event.endAt ?? event.startAt).getTime() >= now,
+    );
+    if (weekdays.length === 0) return upcoming;
+    const allowed = new Set(weekdays);
+    return upcoming.filter((event) =>
+      allowed.has(WEEKDAY_CODE_BY_JS_DAY[new Date(event.startAt).getDay()]),
+    );
+  });
+
+  // Chronological, then bucketed: everything left in the current
+  // Monday-Sunday week (visibleEvents already dropped anything that's
+  // over, so in practice this is just "from now until Sunday") collapses
+  // into a single divider - "This weekend" once it's Friday 17:00 or
+  // later, "This week" before that - and everything past that week keeps
+  // the plain month divider it always had (startAt is a fixed-format ISO
+  // string, so plain string comparison already sorts it chronologically).
   const eventGroups = (): EventGroup[] => {
-    const sorted = [...(events() ?? [])].sort((a, b) => a.startAt.localeCompare(b.startAt));
+    const sorted = [...visibleEvents()].sort((a, b) => a.startAt.localeCompare(b.startAt));
+    const now = new Date();
+    const mondayOffset = (now.getDay() + 6) % 7;
+    const weekEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset + 7);
+    const weekendStart = new Date(weekEnd);
+    weekendStart.setDate(weekendStart.getDate() - 3);
+    weekendStart.setHours(17, 0, 0, 0);
+    const currentBucketLabel =
+      now >= weekendStart ? t("Dit weekend", "This weekend") : t("Deze week", "This week");
+
     const groups: EventGroup[] = [];
     for (const event of sorted) {
       const date = new Date(event.startAt);
-      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const key = date < weekEnd ? "current" : `${date.getFullYear()}-${date.getMonth()}`;
+      const label =
+        date < weekEnd
+          ? currentBucketLabel
+          : date.toLocaleString(lang() === "nl" ? "nl-NL" : "en-GB", {
+              month: "long",
+              year: "numeric",
+            });
       const current = groups.at(-1);
       if (current?.key === key) {
         current.items.push(event);
       } else {
-        const label = date.toLocaleString(lang() === "nl" ? "nl-NL" : "en-GB", {
-          month: "long",
-          year: "numeric",
-        });
         groups.push({ key, label, items: [event] });
       }
     }
@@ -230,7 +296,7 @@ export default function EventsListPage() {
               {t("Filters", "Filters")}
               <Show when={hasActiveFilters()}>
                 <span class="rounded-full bg-emerald-600 px-1.5 py-0.5 text-xs font-semibold text-white">
-                  {selectedProvinces().length + selectedOrgIds().length}
+                  {selectedProvinces().length + selectedOrgIds().length + selectedWeekdays().length}
                 </span>
               </Show>
             </span>
@@ -280,13 +346,28 @@ export default function EventsListPage() {
                   </span>
                 )}
               </For>
+              <For each={selectedWeekdays()}>
+                {(value) => (
+                  <span class="flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
+                    {t(
+                      WEEKDAYS.find((d) => d.value === value)?.labelNl ?? value,
+                      WEEKDAYS.find((d) => d.value === value)?.labelEn ?? value,
+                    )}
+                    <button
+                      type="button"
+                      class="text-emerald-600 hover:text-emerald-900"
+                      aria-label={`Remove ${value}`}
+                      onClick={() => toggleWeekday(value)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                )}
+              </For>
               <button
                 type="button"
                 class="ml-1 text-xs text-zinc-500 underline hover:text-zinc-700"
-                onClick={() => {
-                  setProvinceFilter([]);
-                  setOrgFilter([]);
-                }}
+                onClick={clearAllFilters}
               >
                 {t("Alles wissen", "Clear all")}
               </button>
@@ -317,14 +398,34 @@ export default function EventsListPage() {
                   noResultsLabel={t("Geen organisaties gevonden", "No organizations found")}
                 />
               </div>
+              <div class="w-full sm:w-auto">
+                <span class="block text-sm font-medium text-zinc-700">
+                  {t("Dag van de week", "Day of week")}
+                </span>
+                <div class="mt-1 flex flex-wrap gap-1.5">
+                  <For each={WEEKDAYS}>
+                    {(day) => (
+                      <button
+                        type="button"
+                        aria-pressed={selectedWeekdays().includes(day.value)}
+                        class={`rounded-lg border px-2.5 py-1.5 text-sm transition ${
+                          selectedWeekdays().includes(day.value)
+                            ? "border-emerald-600 bg-emerald-600 text-white"
+                            : "border-zinc-300 bg-white text-zinc-700 hover:border-emerald-300 hover:bg-emerald-50"
+                        }`}
+                        onClick={() => toggleWeekday(day.value)}
+                      >
+                        {t(day.labelNl, day.labelEn)}
+                      </button>
+                    )}
+                  </For>
+                </div>
+              </div>
               <Show when={hasActiveFilters()}>
                 <button
                   type="button"
                   class="w-full shrink-0 rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-600 transition hover:border-zinc-400 hover:bg-zinc-50 sm:w-auto"
-                  onClick={() => {
-                    setProvinceFilter([]);
-                    setOrgFilter([]);
-                  }}
+                  onClick={clearAllFilters}
                 >
                   {t("Filters wissen", "Clear filters")}
                 </button>
@@ -339,7 +440,7 @@ export default function EventsListPage() {
         fallback={<p class="text-zinc-600">{t("Evenementen laden…", "Loading events…")}</p>}
       >
         <Show
-          when={events() && events()!.length > 0}
+          when={visibleEvents().length > 0}
           fallback={
             <p class="text-zinc-600">
               {hasActiveFilters()
