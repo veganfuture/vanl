@@ -104,7 +104,9 @@ export type EventInput = {
   descriptionNl: string | null;
   descriptionEn: string | null;
   startAt: Date;
+  startTimeKnown: boolean;
   endAt: Date | null;
+  endTimeKnown: boolean;
   locationKind: EventLocationKind;
   /** Required unless locationKind = precise_address, where it's resolved from the PDOK lookup instead. */
   placeId: Uuid | null;
@@ -147,7 +149,9 @@ const EventInputSchema = z.object({
   descriptionNl: nullableTrimmedMax(10000),
   descriptionEn: nullableTrimmedMax(10000),
   startAt: z.date(),
+  startTimeKnown: z.boolean(),
   endAt: z.date().nullable(),
+  endTimeKnown: z.boolean(),
   locationKind: z.enum(["precise_address", "meeting_point_city_only"]),
   placeId: z.string().uuid().nullable(),
   locationDescription: z.string().trim().max(500),
@@ -233,7 +237,9 @@ export class EventService {
           descriptionNl: parsed.data.descriptionNl,
           descriptionEn: parsed.data.descriptionEn,
           startAt: parsed.data.startAt,
+          startTimeKnown: parsed.data.startTimeKnown,
           endAt: parsed.data.endAt,
+          endTimeKnown: parsed.data.endTimeKnown,
           locationKind: parsed.data.locationKind,
           locationDescription: parsed.data.locationDescription,
           ...locationFields,
@@ -393,7 +399,9 @@ export class EventService {
           descriptionNl: parsed.data.descriptionNl,
           descriptionEn: parsed.data.descriptionEn,
           startAt: parsed.data.startAt,
+          startTimeKnown: parsed.data.startTimeKnown,
           endAt: parsed.data.endAt,
+          endTimeKnown: parsed.data.endTimeKnown,
           locationKind: parsed.data.locationKind,
           locationDescription: parsed.data.locationDescription,
           ...locationFields,

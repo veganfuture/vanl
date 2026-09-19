@@ -145,7 +145,11 @@ export type RealEvent = {
   descriptionNl: string | null;
   descriptionEn: string | null;
   startAt: Date;
+  /** False when ARC's DTSTART only specified a date (node-ical's `.dateOnly`) - startAt's time is then a meaningless midnight placeholder. */
+  startTimeKnown: boolean;
   endAt: Date | null;
+  /** Same caveat as startTimeKnown - only meaningful when endAt is non-null. */
+  endTimeKnown: boolean;
   location: string;
   geo: Geo;
   externalEventUrl: string | null;
@@ -253,13 +257,15 @@ function groupEvents(events: VEvent[]): VEvent[][] {
  * choice between duplicate same-language postings) is deterministic across
  * re-runs.
  */
-function toRealEvent(group: VEvent[]): RealEvent {
+export function toRealEvent(group: VEvent[]): RealEvent {
   const sorted = [...group].sort((a, b) => a.uid.localeCompare(b.uid));
   const canonical = sorted[0];
   const shared = {
     externalSourceId: canonical.uid,
     startAt: canonical.start,
+    startTimeKnown: !canonical.start.dateOnly,
     endAt: canonical.end ?? null,
+    endTimeKnown: canonical.end ? !canonical.end.dateOnly : true,
     location: textOf(canonical.location)!,
     geo: geoOf(canonical)!,
     externalEventUrl: canonical.url ?? null,
@@ -667,7 +673,9 @@ async function main(): Promise<void> {
         descriptionNl: event.descriptionNl,
         descriptionEn: event.descriptionEn,
         startAt: event.startAt,
+        startTimeKnown: event.startTimeKnown,
         endAt: event.endAt,
+        endTimeKnown: event.endTimeKnown,
         locationKind: "meeting_point_city_only",
         placeId,
         locationDescription,
@@ -691,7 +699,9 @@ async function main(): Promise<void> {
         descriptionNl: event.descriptionNl,
         descriptionEn: event.descriptionEn,
         startAt: event.startAt,
+        startTimeKnown: event.startTimeKnown,
         endAt: event.endAt,
+        endTimeKnown: event.endTimeKnown,
         locationKind: "meeting_point_city_only" as const,
         placeId,
         locationDescription,

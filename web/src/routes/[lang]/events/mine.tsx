@@ -3,6 +3,7 @@ import { createResource, For, Show } from "solid-js";
 import { EventThumbnail } from "~/components/EventThumbnail";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch } from "~/lib/api-fetch";
+import { formatEventDate } from "~/lib/format-date";
 import { pickLocalized, useLang } from "~/lib/i18n";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
@@ -20,13 +21,6 @@ export default function MyEventsPage() {
     hidden: t("Verborgen", "Hidden"),
     cancelled: t("Geannuleerd", "Cancelled"),
   };
-
-  function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString(lang() === "nl" ? "nl-NL" : "en-GB", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  }
 
   const [me] = createResource(async () => {
     const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
@@ -127,7 +121,9 @@ export default function MyEventsPage() {
                             {statusLabels[event.status]}
                           </span>
                         </Show>
-                        <p class="text-sm text-zinc-600">{formatDate(event.startAt)}</p>
+                        <p class="text-sm text-zinc-600">
+                          {formatEventDate(event.startAt, lang(), event.startTimeKnown)}
+                        </p>
                         <p class="text-sm text-zinc-600">
                           {locationKindLabels[event.locationKind]} — {event.locationDescription}
                         </p>

@@ -63,8 +63,13 @@ export type EventFormValues = {
   titleEn: string;
   descriptionNl: string;
   descriptionEn: string;
+  /** A "yyyy-MM-dd'T'HH:mm" datetime-local value when startTimeKnown, otherwise a bare "yyyy-MM-dd" date. */
   startAt: string;
+  /** Unchecked "Time unknown" (the common case) - when false, startAt is date-only and its time is never sent as a real time. */
+  startTimeKnown: boolean;
+  /** Same shape/meaning as startAt, gated by endTimeKnown - see toEventRequestBody for the exclusive-end-date conversion applied when endTimeKnown is false. */
   endAt: string;
+  endTimeKnown: boolean;
   locationKind: LocationKind;
   placeId: string;
   placeLabel: string;
@@ -85,7 +90,9 @@ export function emptyEventFormValues(): EventFormValues {
     descriptionNl: "",
     descriptionEn: "",
     startAt: "",
+    startTimeKnown: true,
     endAt: "",
+    endTimeKnown: true,
     locationKind: "precise_address",
     placeId: "",
     placeLabel: "",
@@ -126,6 +133,41 @@ function isoToLocalDateTime(iso: string | null): string {
   return formatInTimeZone(new Date(iso), AMSTERDAM_TZ, "yyyy-MM-dd'T'HH:mm");
 }
 
+/** Converts a `<input type="date">` value, read as an Amsterdam calendar date, to a full UTC ISO instant at Amsterdam midnight. */
+function localDateToIso(value: string): string | null {
+  if (!value) {
+    return null;
+  }
+  const date = fromZonedTime(`${value}T00:00`, AMSTERDAM_TZ);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+/** Converts a stored UTC ISO instant back to the value a date input expects, in Amsterdam wall-clock time. */
+function isoToLocalDate(iso: string | null): string {
+  if (!iso) {
+    return "";
+  }
+  return formatInTimeZone(new Date(iso), AMSTERDAM_TZ, "yyyy-MM-dd");
+}
+
+/** Pure calendar-day arithmetic on a bare "yyyy-MM-dd" string - no timezone involved, so DST can't shift it by a day. */
+function shiftDateOnly(value: string, days: number): string {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+/**
+ * Switches a form field's raw string between the datetime-local and
+ * date-only shapes when its "time unknown" checkbox is toggled, preserving
+ * whatever date was already entered instead of clearing the field.
+ */
+function convertTimeKnownValue(current: string, timeKnown: boolean): string {
+  if (!timeKnown) {
+    return current.slice(0, 10);
+  }
+  return current.length > 10 ? current : current ? `${current}T00:00` : "";
+}
+
 function toDate(iso: string | null): Date | null {
   return iso ? new Date(iso) : null;
 }
@@ -139,8 +181,19 @@ export function eventFormValuesFromEvent(event: EventJson, placeLabel: string): 
     titleEn: event.titleEn ?? "",
     descriptionNl: event.descriptionNl ?? "",
     descriptionEn: event.descriptionEn ?? "",
-    startAt: isoToLocalDateTime(event.startAt),
-    endAt: isoToLocalDateTime(event.endAt),
+    startAt: event.startTimeKnown
+      ? isoToLocalDateTime(event.startAt)
+      : isoToLocalDate(event.startAt),
+    startTimeKnown: event.startTimeKnown,
+    // Storage keeps a date-only end exclusive (the day after the last day,
+    // per RFC 5545) - shown to the admin as the inclusive "last day" they'd
+    // expect, so subtract 1 day here (undone by +1 in toEventRequestBody).
+    endAt: event.endTimeKnown
+      ? isoToLocalDateTime(event.endAt)
+      : event.endAt
+        ? shiftDateOnly(isoToLocalDate(event.endAt), -1)
+        : "",
+    endTimeKnown: event.endTimeKnown,
     locationKind: event.locationKind,
     placeId: event.placeId,
     placeLabel,
@@ -160,8 +213,16 @@ function toValidatableEvent(values: EventFormValues): ValidatableEvent {
     titleEn: values.titleEn.trim() || null,
     descriptionNl: values.descriptionNl.trim() || null,
     descriptionEn: values.descriptionEn.trim() || null,
-    startAt: toDate(localDateTimeToIso(values.startAt)),
-    endAt: toDate(localDateTimeToIso(values.endAt)),
+    startAt: toDate(
+      values.startTimeKnown ? localDateTimeToIso(values.startAt) : localDateToIso(values.startAt),
+    ),
+    startTimeKnown: values.startTimeKnown,
+    endAt: toDate(
+      values.endTimeKnown
+        ? localDateTimeToIso(values.endAt)
+        : localDateToIso(values.endAt ? shiftDateOnly(values.endAt, 1) : ""),
+    ),
+    endTimeKnown: values.endTimeKnown,
     locationKind: values.locationKind,
     // Client-side hint only, re-validated server-side (EventRequestSchema) - see toEventRequestBody.
     placeId: values.locationKind === "precise_address" ? null : (values.placeId as Uuid) || null,
@@ -356,34 +417,72 @@ export function EventForm(props: {
       </p>
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label class="block">
-          <span class="block text-sm font-medium">
-            {t("Begint om", "Starts at")}{" "}
-            <span class="font-normal text-zinc-400">{t("(NL tijd)", "(NL time)")}</span>
-          </span>
-          <input
-            type="datetime-local"
-            class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
-            required
-            min={
-              props.requireFutureStart ? isoToLocalDateTime(new Date().toISOString()) : undefined
-            }
-            value={values().startAt}
-            onInput={(e) => setValues({ ...values(), startAt: e.currentTarget.value })}
-          />
-        </label>
-        <label class="block">
-          <span class="block text-sm font-medium">
-            {t("Eindigt om (optioneel)", "Ends at (optional)")}{" "}
-            <span class="font-normal text-zinc-400">{t("(NL tijd)", "(NL time)")}</span>
-          </span>
-          <input
-            type="datetime-local"
-            class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
-            value={values().endAt}
-            onInput={(e) => setValues({ ...values(), endAt: e.currentTarget.value })}
-          />
-        </label>
+        <div>
+          <label class="block">
+            <span class="block text-sm font-medium">
+              {t("Begint om", "Starts at")}{" "}
+              <span class="font-normal text-zinc-400">{t("(NL tijd)", "(NL time)")}</span>
+            </span>
+            <input
+              type={values().startTimeKnown ? "datetime-local" : "date"}
+              class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+              required
+              min={
+                props.requireFutureStart
+                  ? values().startTimeKnown
+                    ? isoToLocalDateTime(new Date().toISOString())
+                    : isoToLocalDate(new Date().toISOString())
+                  : undefined
+              }
+              value={values().startAt}
+              onInput={(e) => setValues({ ...values(), startAt: e.currentTarget.value })}
+            />
+          </label>
+          <label class="mt-1 flex items-center gap-1.5 text-sm text-zinc-600">
+            <input
+              type="checkbox"
+              checked={!values().startTimeKnown}
+              onChange={(e) => {
+                const startTimeKnown = !e.currentTarget.checked;
+                setValues({
+                  ...values(),
+                  startTimeKnown,
+                  startAt: convertTimeKnownValue(values().startAt, startTimeKnown),
+                });
+              }}
+            />
+            {t("Tijd onbekend", "Time unknown")}
+          </label>
+        </div>
+        <div>
+          <label class="block">
+            <span class="block text-sm font-medium">
+              {t("Eindigt om (optioneel)", "Ends at (optional)")}{" "}
+              <span class="font-normal text-zinc-400">{t("(NL tijd)", "(NL time)")}</span>
+            </span>
+            <input
+              type={values().endTimeKnown ? "datetime-local" : "date"}
+              class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+              value={values().endAt}
+              onInput={(e) => setValues({ ...values(), endAt: e.currentTarget.value })}
+            />
+          </label>
+          <label class="mt-1 flex items-center gap-1.5 text-sm text-zinc-600">
+            <input
+              type="checkbox"
+              checked={!values().endTimeKnown}
+              onChange={(e) => {
+                const endTimeKnown = !e.currentTarget.checked;
+                setValues({
+                  ...values(),
+                  endTimeKnown,
+                  endAt: convertTimeKnownValue(values().endAt, endTimeKnown),
+                });
+              }}
+            />
+            {t("Tijd onbekend", "Time unknown")}
+          </label>
+        </div>
       </div>
 
       <label class="block">
@@ -633,8 +732,17 @@ export function toEventRequestBody(values: EventFormValues, status?: "draft" | "
     titleEn: values.titleEn.trim() || null,
     descriptionNl: values.descriptionNl.trim() || null,
     descriptionEn: values.descriptionEn.trim() || null,
-    startAt: localDateTimeToIso(values.startAt) ?? "",
-    endAt: localDateTimeToIso(values.endAt),
+    startAt:
+      (values.startTimeKnown
+        ? localDateTimeToIso(values.startAt)
+        : localDateToIso(values.startAt)) ?? "",
+    startTimeKnown: values.startTimeKnown,
+    // See eventFormValuesFromEvent - storage keeps a date-only end exclusive
+    // (the day after the admin's chosen "last day"), so add 1 day back here.
+    endAt: values.endTimeKnown
+      ? localDateTimeToIso(values.endAt)
+      : localDateToIso(values.endAt ? shiftDateOnly(values.endAt, 1) : ""),
+    endTimeKnown: values.endTimeKnown,
     locationKind: values.locationKind,
     // The server resolves placeId from the PDOK lookup for precise_address -
     // it's never taken from client state for that kind.
