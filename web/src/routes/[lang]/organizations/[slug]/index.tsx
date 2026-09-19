@@ -137,14 +137,11 @@ export default function OrganizationDetailPage() {
                     <For each={events()}>
                       {(event) => (
                         <li class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
-                          {/* No orgLogoThumbnailImageId: the org's own logo is already
-                              shown at the top of this page, so falling back to it here
-                              would just repeat it - only show a thumbnail when the event
-                              has its own flyer. */}
                           <EventCard
                             event={event}
                             lang={lang()}
                             href={`/${lang()}/events/${event.slug}`}
+                            orgLogoThumbnailImageId={currentOrg().logoThumbnailImageId}
                           />
                         </li>
                       )}

@@ -1,6 +1,7 @@
 import { useParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
 import { createResource, createSignal, Show } from "solid-js";
+import { BuildingIcon, CalendarIcon, MapPinIcon } from "~/components/icons";
 import { LinkifiedText } from "~/components/LinkifiedText";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { Toast } from "~/components/Toast";
@@ -203,152 +204,247 @@ export default function EventDetailPage() {
             <p class="text-zinc-600">{t("Evenement niet gevonden.", "Event not found.")}</p>
           }
         >
-          {(currentEvent) => (
-            <>
-              <Title>
-                {pickLocalized(currentEvent().titleNl, currentEvent().titleEn, lang())} — Vegan
-                Activists NL
-              </Title>
-              <h1 class="mb-2 text-2xl font-semibold">
-                {pickLocalized(currentEvent().titleNl, currentEvent().titleEn, lang())}
-              </h1>
-              <Show when={currentEvent().flyerPreviewImageId}>
-                {(id) => (
-                  <img
-                    // A JSON-API string here, not a domain Sha256 - the server already vetted it.
-                    src={imageUrl(id() as Sha256)}
-                    alt=""
-                    class="mb-4 w-full max-w-md rounded-lg border border-zinc-200"
-                  />
-                )}
-              </Show>
-              <Show when={currentEvent().status !== "visible"}>
-                <p class="mb-4 inline-block rounded bg-amber-100 px-2 py-1 text-sm text-amber-800">
-                  {currentEvent().status === "cancelled"
-                    ? t("Geannuleerd", "Cancelled")
-                    : currentEvent().status === "draft"
-                      ? t("Concept", "Draft")
-                      : t("Verborgen", "Hidden")}
-                  {currentEvent().statusReason ? ` — ${currentEvent().statusReason}` : ""}
-                </p>
-              </Show>
-              <p class="mb-1 text-zinc-600">{formatDate(currentEvent().startAt)}</p>
-              <p class="mb-4 text-zinc-600">
-                {locationKindLabels[currentEvent().locationKind]} —{" "}
-                {currentEvent().locationDescription}
-                <Show when={currentEvent().locationStreet}>
-                  <>
-                    <br />
-                    {currentEvent().locationStreet} {currentEvent().locationHouseNumber},{" "}
-                    {currentEvent().locationPostcode}
-                  </>
-                </Show>
-              </p>
-              <Show when={currentEvent().organizerName}>
-                <p class="mb-4 text-zinc-600">
-                  {t("Georganiseerd door", "Organized by")} {currentEvent().organizerName}
-                </p>
-              </Show>
-              <p class="mb-6 whitespace-pre-wrap">
-                <LinkifiedText
-                  text={pickLocalized(
-                    currentEvent().descriptionNl,
-                    currentEvent().descriptionEn,
-                    lang(),
-                  )}
-                />
-              </p>
+          {(currentEvent) => {
+            // ARC ("animalrightscalendar.com") events mirror ARC's own listing
+            // exactly, so a "More info" link back to ARC would just be a
+            // duplicate of what this page already shows - it's suppressed for
+            // regular visitors. Site admins still see where the event came
+            // from (and can still reach the original), since that's useful
+            // for moderation even though it'd be redundant for everyone else.
+            const isArcImport = () =>
+              (currentEvent().externalSourceName ?? "")
+                .toLowerCase()
+                .includes("animalrightscalendar");
+            const sourceLabel = () => {
+              const ev = currentEvent();
+              if (ev.source === "external_import") {
+                return isArcImport()
+                  ? "Animal Rights Calendar (animalrightscalendar.com)"
+                  : (ev.externalSourceName ?? t("Externe kalender", "External calendar"));
+              }
+              if (ev.source === "signal_import") {
+                return t("Signal-import", "Signal import");
+              }
+              return null;
+            };
+            const mapEmbedSrc = () => {
+              const ev = currentEvent();
+              if (ev.locationLat != null && ev.locationLng != null) {
+                return `https://www.google.com/maps?q=${ev.locationLat},${ev.locationLng}&z=15&output=embed`;
+              }
+              const parts = [
+                ev.locationDescription,
+                ev.locationStreet,
+                ev.locationHouseNumber,
+                ev.locationPostcode,
+              ].filter((part): part is string => Boolean(part));
+              return parts.length > 0
+                ? `https://www.google.com/maps?q=${encodeURIComponent(parts.join(" "))}&output=embed`
+                : null;
+            };
 
-              <Show when={currentEvent().mapUrl}>
-                <p class="mb-2">
-                  <a
-                    href={currentEvent().mapUrl!}
-                    class="underline"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {t("Bekijk op kaart", "View on map")}
-                  </a>
-                </p>
-              </Show>
-              <Show when={currentEvent().registrationUrl}>
-                <p class="mb-2">
-                  <a
-                    href={currentEvent().registrationUrl!}
-                    class="underline"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {t("Aanmelden", "Register")}
-                  </a>
-                </p>
-              </Show>
-              <Show when={currentEvent().externalEventUrl}>
-                <p class="mb-2">
-                  <a
-                    href={currentEvent().externalEventUrl!}
-                    class="underline"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {t("Meer info", "More info")}
-                  </a>
-                </p>
-              </Show>
-              <Show when={actionError()}>
-                {(message) => <p class="mt-4 text-red-700">{message()}</p>}
-              </Show>
+            return (
+              <>
+                <Title>
+                  {pickLocalized(currentEvent().titleNl, currentEvent().titleEn, lang())} — Vegan
+                  Activists NL
+                </Title>
 
-              <Show when={canModerate()}>
-                <div class="mt-8 flex flex-wrap gap-3 border-t border-zinc-200 pt-6">
-                  <a
-                    href={`/${lang()}/events/${currentEvent().slug}/edit`}
-                    class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
-                  >
-                    {t("Bewerken", "Edit")}
-                  </a>
-                  <Show
-                    when={currentEvent().status === "visible"}
-                    fallback={
-                      <button
-                        type="button"
-                        class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
-                        onClick={() => onSetStatus("visible")}
-                      >
-                        {currentEvent().status === "draft"
-                          ? t("Publiceren", "Publish")
-                          : t("Tonen", "Show")}
-                      </button>
-                    }
-                  >
-                    <button
-                      type="button"
-                      class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
-                      onClick={() => onSetStatus("hidden")}
-                    >
-                      {t("Verbergen", "Hide")}
-                    </button>
+                <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                  <Show when={currentEvent().flyerPreviewImageId}>
+                    {(id) => (
+                      <img
+                        // A JSON-API string here, not a domain Sha256 - the server already vetted it.
+                        src={imageUrl(id() as Sha256)}
+                        alt=""
+                        class="max-h-96 w-full object-cover"
+                      />
+                    )}
                   </Show>
-                  <Show when={currentEvent().status !== "cancelled"}>
-                    <button
-                      type="button"
-                      class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
-                      onClick={() => onSetStatus("cancelled")}
-                    >
-                      {t("Evenement annuleren", "Cancel event")}
-                    </button>
-                  </Show>
-                  <button
-                    type="button"
-                    class="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700 transition hover:bg-red-50"
-                    onClick={onDelete}
-                  >
-                    {t("Verwijderen", "Delete")}
-                  </button>
+
+                  <div class="p-6 sm:p-8">
+                    <div class="mb-4 flex items-start justify-between gap-3">
+                      <h1 class="text-2xl font-semibold text-zinc-900">
+                        {pickLocalized(currentEvent().titleNl, currentEvent().titleEn, lang())}
+                      </h1>
+                      <Show when={currentEvent().status !== "visible"}>
+                        <span class="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                          {currentEvent().status === "cancelled"
+                            ? t("Geannuleerd", "Cancelled")
+                            : currentEvent().status === "draft"
+                              ? t("Concept", "Draft")
+                              : t("Verborgen", "Hidden")}
+                          {currentEvent().statusReason ? ` — ${currentEvent().statusReason}` : ""}
+                        </span>
+                      </Show>
+                    </div>
+
+                    <div class="mb-6 space-y-2 text-zinc-700">
+                      <p class="flex items-center gap-2">
+                        <CalendarIcon class="h-5 w-5 shrink-0 text-emerald-500" />
+                        <span>{formatDate(currentEvent().startAt)}</span>
+                      </p>
+                      <p class="flex items-start gap-2">
+                        <MapPinIcon class="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                        <span>
+                          {locationKindLabels[currentEvent().locationKind]} —{" "}
+                          {currentEvent().locationDescription}
+                          <Show when={currentEvent().locationStreet}>
+                            <>
+                              <br />
+                              {currentEvent().locationStreet} {currentEvent().locationHouseNumber},{" "}
+                              {currentEvent().locationPostcode}
+                            </>
+                          </Show>
+                          <Show when={currentEvent().mapUrl}>
+                            {" "}
+                            <a
+                              href={currentEvent().mapUrl!}
+                              class="text-emerald-700 underline hover:text-emerald-800"
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {t("Bekijk op kaart", "View on map")}
+                            </a>
+                          </Show>
+                        </span>
+                      </p>
+                      <Show when={currentEvent().organizerName}>
+                        <p class="flex items-center gap-2">
+                          <BuildingIcon class="h-5 w-5 shrink-0 text-emerald-500" />
+                          <span>
+                            {t("Georganiseerd door", "Organized by")} {currentEvent().organizerName}
+                          </span>
+                        </p>
+                      </Show>
+                    </div>
+
+                    <Show when={mapEmbedSrc()}>
+                      {(src) => (
+                        <div class="mb-6 overflow-hidden rounded-xl border border-zinc-200">
+                          <iframe
+                            title={t("Kaart", "Map")}
+                            src={src()}
+                            class="h-64 w-full"
+                            style={{ border: "0" }}
+                            loading="lazy"
+                            referrerpolicy="no-referrer-when-downgrade"
+                          />
+                        </div>
+                      )}
+                    </Show>
+
+                    <p class="mb-6 whitespace-pre-wrap text-zinc-800">
+                      <LinkifiedText
+                        text={pickLocalized(
+                          currentEvent().descriptionNl,
+                          currentEvent().descriptionEn,
+                          lang(),
+                        )}
+                      />
+                    </p>
+
+                    <div class="flex flex-wrap gap-3">
+                      <Show when={currentEvent().registrationUrl}>
+                        <a
+                          href={currentEvent().registrationUrl!}
+                          class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {t("Aanmelden", "Register")}
+                        </a>
+                      </Show>
+                      <Show when={currentEvent().externalEventUrl && !isArcImport()}>
+                        <a
+                          href={currentEvent().externalEventUrl!}
+                          class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {t("Meer info", "More info")}
+                        </a>
+                      </Show>
+                    </div>
+
+                    <Show when={currentEvent().viewerIsSiteAdmin && sourceLabel()}>
+                      {(label) => (
+                        <div class="mt-6 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">
+                          <span>
+                            {t("Alleen zichtbaar voor beheerders — bron:", "Admin-only — source:")}{" "}
+                            <strong>{label()}</strong>
+                          </span>
+                          <Show when={currentEvent().externalEventUrl}>
+                            <a
+                              href={currentEvent().externalEventUrl!}
+                              class="underline"
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {t("Origineel bekijken", "View original")}
+                            </a>
+                          </Show>
+                        </div>
+                      )}
+                    </Show>
+
+                    <Show when={actionError()}>
+                      {(message) => <p class="mt-4 text-red-700">{message()}</p>}
+                    </Show>
+
+                    <Show when={canModerate()}>
+                      <div class="mt-8 flex flex-wrap gap-3 border-t border-zinc-200 pt-6">
+                        <a
+                          href={`/${lang()}/events/${currentEvent().slug}/edit`}
+                          class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
+                        >
+                          {t("Bewerken", "Edit")}
+                        </a>
+                        <Show
+                          when={currentEvent().status === "visible"}
+                          fallback={
+                            <button
+                              type="button"
+                              class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
+                              onClick={() => onSetStatus("visible")}
+                            >
+                              {currentEvent().status === "draft"
+                                ? t("Publiceren", "Publish")
+                                : t("Tonen", "Show")}
+                            </button>
+                          }
+                        >
+                          <button
+                            type="button"
+                            class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
+                            onClick={() => onSetStatus("hidden")}
+                          >
+                            {t("Verbergen", "Hide")}
+                          </button>
+                        </Show>
+                        <Show when={currentEvent().status !== "cancelled"}>
+                          <button
+                            type="button"
+                            class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
+                            onClick={() => onSetStatus("cancelled")}
+                          >
+                            {t("Evenement annuleren", "Cancel event")}
+                          </button>
+                        </Show>
+                        <button
+                          type="button"
+                          class="rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700 transition hover:bg-red-50"
+                          onClick={onDelete}
+                        >
+                          {t("Verwijderen", "Delete")}
+                        </button>
+                      </div>
+                    </Show>
+                  </div>
                 </div>
-              </Show>
-            </>
-          )}
+              </>
+            );
+          }}
         </Show>
       </Show>
     </main>

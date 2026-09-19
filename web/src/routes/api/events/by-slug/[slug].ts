@@ -18,6 +18,8 @@ export async function GET(event: APIEvent): Promise<Response> {
               found,
               canModifyEvent(found, actingUser),
               canLinkEventOrg(found, actingUser),
+              null,
+              actingUser?.isSiteAdmin ?? false,
             ),
           } satisfies GetEventBySlugResponse)
         : Response.json({ error: "not_found" } satisfies GetEventBySlugResponse, { status: 404 }),
