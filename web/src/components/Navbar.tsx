@@ -51,7 +51,7 @@ function LanguageSwitcher(props: { lang: Locale; pathname: string; onNavigate?: 
         </svg>
       </summary>
 
-      <div class="absolute right-0 z-10 mt-2 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
+      <div class="absolute right-0 z-40 mt-2 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
         <For each={["nl", "en"] as Locale[]}>
           {(code) => (
             <a
@@ -110,7 +110,7 @@ function AccountMenu(props: {
         </svg>
       </summary>
 
-      <div class="absolute right-0 z-10 mt-2 w-48 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
+      <div class="absolute right-0 z-40 mt-2 w-48 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
         <For each={props.accountLinks}>
           {(link) => (
             <a
@@ -270,7 +270,7 @@ export function Navbar() {
   ];
 
   return (
-    <nav class="sticky top-0 z-50 border-b border-zinc-200 bg-white/85 shadow-sm backdrop-blur-md md:static">
+    <nav class="sticky top-0 z-50 border-b border-zinc-200 bg-white/85 shadow-sm backdrop-blur-md md:relative">
       <div
         class={`mx-auto flex max-w-6xl items-center justify-between px-6 transition-[padding] duration-200 md:py-3 ${
           scrolled() ? "py-1" : "py-3"
