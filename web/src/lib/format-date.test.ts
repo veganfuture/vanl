@@ -16,27 +16,32 @@ describe("formatEventDate", () => {
   });
 
   it("shows 'Today' plus the time for an event starting today", () => {
-    expect(formatEventDate(localIso(2026, 8, 16, 14, 0), "en")).toBe("Today 14:00");
-    expect(formatEventDate(localIso(2026, 8, 16, 14, 0), "nl")).toBe("Vandaag 14:00");
+    expect(formatEventDate(localIso(2026, 8, 16, 14, 0), "en", true)).toBe("Today 14:00");
+    expect(formatEventDate(localIso(2026, 8, 16, 14, 0), "nl", true)).toBe("Vandaag 14:00");
   });
 
   it("shows 'Tomorrow' plus the time for an event starting tomorrow", () => {
-    expect(formatEventDate(localIso(2026, 8, 17, 9, 30), "en")).toBe("Tomorrow 09:30");
-    expect(formatEventDate(localIso(2026, 8, 17, 9, 30), "nl")).toBe("Morgen 09:30");
+    expect(formatEventDate(localIso(2026, 8, 17, 9, 30), "en", true)).toBe("Tomorrow 09:30");
+    expect(formatEventDate(localIso(2026, 8, 17, 9, 30), "nl", true)).toBe("Morgen 09:30");
   });
 
   it("leads with the short weekday and omits the year for a date later this year", () => {
-    expect(formatEventDate(localIso(2026, 9, 24, 14, 0), "en")).toBe("Sat 24 Oct 14:00");
+    expect(formatEventDate(localIso(2026, 9, 24, 14, 0), "en", true)).toBe("Sat 24 Oct 14:00");
   });
 
   it("includes the year for a date in a different year", () => {
-    expect(formatEventDate(localIso(2027, 0, 5, 14, 0), "en")).toBe("Tue 5 Jan 2027 14:00");
+    expect(formatEventDate(localIso(2027, 0, 5, 14, 0), "en", true)).toBe("Tue 5 Jan 2027 14:00");
   });
 
   it("does not treat a date a week from now as 'today' or 'tomorrow'", () => {
-    const result = formatEventDate(localIso(2026, 8, 23, 14, 0), "en");
+    const result = formatEventDate(localIso(2026, 8, 23, 14, 0), "en", true);
     expect(result).not.toContain("Today");
     expect(result).not.toContain("Tomorrow");
     expect(result).toBe("Wed 23 Sept 14:00");
+  });
+
+  it("omits the time entirely when timeKnown is false", () => {
+    expect(formatEventDate(localIso(2026, 8, 16, 14, 0), "en", false)).toBe("Today");
+    expect(formatEventDate(localIso(2026, 9, 24, 14, 0), "en", false)).toBe("Sat 24 Oct");
   });
 });

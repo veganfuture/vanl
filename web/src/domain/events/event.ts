@@ -19,7 +19,11 @@ export type Event = {
   descriptionNl: string | null;
   descriptionEn: string | null;
   startAt: Date;
+  /** False when only startAt's date is meaningful (e.g. ARC-imported events with no specified time) - the time itself is a meaningless midnight placeholder and must not be displayed. */
+  startTimeKnown: boolean;
   endAt: Date | null;
+  /** Same caveat as startTimeKnown - only meaningful when endAt is non-null. */
+  endTimeKnown: boolean;
   locationKind: EventLocationKind;
   /** Canonical woonplaats. A foreign key, not wrapped in a value class - see Place. */
   placeId: Uuid;

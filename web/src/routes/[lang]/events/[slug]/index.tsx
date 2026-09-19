@@ -5,6 +5,7 @@ import { LinkifiedText } from "~/components/LinkifiedText";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { Toast } from "~/components/Toast";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
+import { formatEventDate } from "~/lib/format-date";
 import { pickLocalized, useLang } from "~/lib/i18n";
 import { imageUrl } from "~/lib/image-url";
 import type { Sha256 } from "~/lib/sha256";
@@ -96,13 +97,6 @@ export default function EventDetailPage() {
       isWarn: false,
     },
   });
-
-  function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString(lang() === "nl" ? "nl-NL" : "en-GB", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  }
 
   const [actionError, setActionError] = createSignal<string | null>(null);
   const [refreshKey, setRefreshKey] = createSignal(0);
@@ -232,7 +226,9 @@ export default function EventDetailPage() {
                   {currentEvent().statusReason ? ` — ${currentEvent().statusReason}` : ""}
                 </p>
               </Show>
-              <p class="mb-1 text-zinc-600">{formatDate(currentEvent().startAt)}</p>
+              <p class="mb-1 text-zinc-600">
+                {formatEventDate(currentEvent().startAt, lang(), currentEvent().startTimeKnown)}
+              </p>
               <p class="mb-4 text-zinc-600">
                 {locationKindLabels[currentEvent().locationKind]} —{" "}
                 {currentEvent().locationDescription}
