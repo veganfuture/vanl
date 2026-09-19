@@ -157,14 +157,11 @@ export default function OrganizationsListPage() {
                             }
                           >
                             {(event) => (
-                              // No orgLogoThumbnailImageId: the org's own logo is already
-                              // shown to the left of this whole card, so falling back to
-                              // it here would just repeat it - only show a thumbnail when
-                              // the event has its own flyer.
                               <EventCard
                                 event={event()}
                                 lang={lang()}
                                 href={`/${lang()}/events/${event().slug}`}
+                                orgLogoThumbnailImageId={org.logoThumbnailImageId}
                               />
                             )}
                           </Show>

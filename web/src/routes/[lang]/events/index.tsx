@@ -11,6 +11,7 @@ import {
   Show,
 } from "solid-js";
 import { EventCard } from "~/components/EventCard";
+import { ChevronDownIcon, FilterIcon } from "~/components/icons";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { MultiSelectAutocomplete } from "~/components/MultiSelectAutocomplete";
 import { apiFetch } from "~/lib/api-fetch";
@@ -279,20 +280,7 @@ export default function EventsListPage() {
             onClick={() => setFiltersOpen((open) => !open)}
           >
             <span class="flex items-center gap-2 text-sm font-medium text-zinc-700">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                class="h-4 w-4 text-emerald-600"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M3 4.5h18M6.75 12h10.5M10.5 19.5h3"
-                />
-              </svg>
+              <FilterIcon class="h-4 w-4 text-emerald-600" />
               {t("Filters", "Filters")}
               <Show when={hasActiveFilters()}>
                 <span class="rounded-full bg-emerald-600 px-1.5 py-0.5 text-xs font-semibold text-white">
@@ -300,16 +288,9 @@ export default function EventsListPage() {
                 </span>
               </Show>
             </span>
-            <svg
+            <ChevronDownIcon
               class={`h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-200 ${filtersOpen() ? "rotate-180" : "rotate-0"}`}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              aria-hidden="true"
-            >
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
+            />
           </button>
 
           <Show when={!filtersOpen() && hasActiveFilters()}>

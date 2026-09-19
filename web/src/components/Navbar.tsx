@@ -1,5 +1,6 @@
 import { useLocation } from "@solidjs/router";
 import { createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { AccountIcon, ChevronDownIcon, HamburgerIcon } from "~/components/icons";
 import { apiFetch } from "~/lib/api-fetch";
 import { useLang, type Locale } from "~/lib/i18n";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
@@ -39,16 +40,7 @@ function LanguageSwitcher(props: { lang: Locale; pathname: string; onNavigate?: 
       <summary class="list-none flex cursor-pointer items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm hover:border-emerald-400">
         <span>{LANGUAGE_META[props.lang].flag}</span>
         <span>{LANGUAGE_META[props.lang].label}</span>
-        <svg
-          class="h-3 w-3 text-zinc-500 transition-transform duration-200 group-open:rotate-180"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
+        <ChevronDownIcon class="h-3 w-3 text-zinc-500 transition-transform duration-200 group-open:rotate-180" />
       </summary>
 
       <div class="absolute right-0 z-40 mt-2 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
@@ -96,18 +88,9 @@ function AccountMenu(props: {
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary class="list-none flex cursor-pointer items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm hover:border-emerald-400">
-        <img src="/account-icon.svg" alt="" class="h-4 w-4 shrink-0" />
+        <AccountIcon class="h-4 w-4 shrink-0 text-zinc-500" />
         <span class="max-w-[10rem] truncate">{props.displayName}</span>
-        <svg
-          class="h-3 w-3 text-zinc-500 transition-transform duration-200 group-open:rotate-180"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
+        <ChevronDownIcon class="h-3 w-3 text-zinc-500 transition-transform duration-200 group-open:rotate-180" />
       </summary>
 
       <div class="absolute right-0 z-40 mt-2 w-48 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
@@ -165,19 +148,12 @@ function MobileAccountMenu(props: {
         class={`${linkClass} flex w-full items-center justify-between`}
       >
         <span class="flex items-center gap-1.5">
-          <img src="/account-icon.svg" alt="" class="h-4 w-4 shrink-0" />
+          <AccountIcon class="h-4 w-4 shrink-0 text-zinc-500" />
           {props.t("Account", "Account")}
         </span>
-        <svg
+        <ChevronDownIcon
           class={`h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-200 ${open() ? "rotate-180" : "rotate-0"}`}
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
+        />
       </button>
       <Show when={open()}>
         <div id="mobile-account-menu-panel" class="space-y-1 py-1 pl-4">
@@ -343,23 +319,7 @@ export function Navbar() {
           aria-expanded={mobileOpen()}
           onClick={() => setMobileOpen((open) => !open)}
         >
-          <svg
-            class="h-6 w-6"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <Show
-              when={mobileOpen()}
-              fallback={
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              }
-            >
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </Show>
-          </svg>
+          <HamburgerIcon class="h-6 w-6" open={mobileOpen()} />
         </button>
       </div>
 

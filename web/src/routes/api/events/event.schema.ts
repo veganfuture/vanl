@@ -45,6 +45,11 @@ export const EventJsonSchema = z.object({
   canEdit: z.boolean(),
   /** Server-computed via canLinkEventOrg (event_service.ts) - stricter than canEdit: only site_admin or the event's own creator may attach/detach its organization, regardless of who else may otherwise edit it. */
   canManageOrgLink: z.boolean(),
+  source: z.enum(["manual", "signal_import", "external_import"]),
+  /** Only meaningful when source = "external_import" (e.g. "animalrightscalendar.com") - see Event.externalSourceName. */
+  externalSourceName: z.string().nullable(),
+  /** Server-computed from the resolved acting user, same pattern as canEdit - lets the event detail page show provenance (e.g. "imported from ARC") only to site admins, never re-deriving the role client-side. Defaults false for callers that don't resolve a viewer (list/mutation endpoints don't need it). */
+  viewerIsSiteAdmin: z.boolean(),
 });
 export type EventJson = z.infer<typeof EventJsonSchema>;
 
@@ -61,6 +66,7 @@ export function toEventJson(
   canEdit: boolean,
   canManageOrgLink: boolean,
   municipalityName: string | null = null,
+  viewerIsSiteAdmin: boolean = false,
 ): EventJson {
   return {
     id: event.id.value,
@@ -97,6 +103,9 @@ export function toEventJson(
     isFeatured: event.isFeatured,
     canEdit,
     canManageOrgLink,
+    source: event.source,
+    externalSourceName: event.externalSourceName,
+    viewerIsSiteAdmin,
   };
 }
 

@@ -1,4 +1,5 @@
 import { Show } from "solid-js";
+import { BuildingIcon, CalendarIcon, MapPinIcon } from "~/components/icons";
 import { EventThumbnail } from "~/components/EventThumbnail";
 import { formatEventDate } from "~/lib/format-date";
 import { pickLocalized, type Locale } from "~/lib/i18n";
@@ -13,12 +14,13 @@ import type { EventJson } from "~/routes/api/events/event.schema";
  * (place, org, status badge) are present. The place segment always shows
  * when `event.municipalityName` is set (resolved server-side by GET
  * /api/events - see event.schema.ts's toEventJson) - callers never pass it
- * in separately. Thumbnail fallback, the status badge, and the publishing
- * org link are still opt-in via props: e.g. the org "next event" teaser
- * omits `orgLogoThumbnailImageId` on purpose (the org's own logo is already
- * shown right next to it, so falling back to it here would just repeat
- * it), and only the events overview page passes `org` - on the other two
- * surfaces the publishing org is already obvious from the page itself.
+ * in separately. The thumbnail fallback (`orgLogoThumbnailImageId`) is
+ * always passed by every caller now, even on org-scoped pages where the
+ * org's own logo is shown elsewhere on the page too - the card is meant to
+ * look identical everywhere it appears, rather than varying by surface. The
+ * status badge and the publishing org link are still opt-in via props: only
+ * the events overview page passes `org` - on the other two surfaces the
+ * publishing org is already obvious from the page itself.
  */
 export function EventCard(props: {
   event: EventJson;
@@ -52,20 +54,7 @@ export function EventCard(props: {
           </Show>
         </div>
         <p class="mt-1 truncate text-sm text-zinc-600">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            class="mr-1 inline-block h-4 w-4 shrink-0 align-text-bottom text-emerald-500"
-            aria-hidden="true"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"
-            />
-          </svg>
+          <CalendarIcon class="mr-1 inline-block h-4 w-4 shrink-0 align-text-bottom text-emerald-500" />
           <span>
             {formatEventDate(props.event.startAt, props.lang, props.event.startTimeKnown)}
           </span>
@@ -73,6 +62,7 @@ export function EventCard(props: {
             {(name) => (
               <>
                 <span class="mx-1.5 text-zinc-300">·</span>
+                <MapPinIcon class="mr-1 inline-block h-4 w-4 shrink-0 align-text-bottom text-emerald-500" />
                 <span>{name()}</span>
               </>
             )}
@@ -81,6 +71,7 @@ export function EventCard(props: {
             {(org) => (
               <>
                 <span class="mx-1.5 text-zinc-300">·</span>
+                <BuildingIcon class="mr-1 inline-block h-4 w-4 shrink-0 align-text-bottom text-emerald-500" />
                 <a
                   href={`/${props.lang}/organizations/${org().slug}`}
                   class="text-zinc-600 hover:text-emerald-700 hover:underline"
