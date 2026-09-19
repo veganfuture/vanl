@@ -29,11 +29,6 @@ export default function EventDetailPage() {
   const { lang, t } = useLang();
   const [toastMessage, dismissToast] = useQueryToast(lang);
 
-  const locationKindLabels: Record<string, string> = {
-    precise_address: t("Exact adres", "Precise address"),
-    meeting_point_city_only: t("Verzamelpunt", "Meeting point"),
-  };
-
   const deleteErrorMessages = (): ErrorMessagesFor<DeleteEventResponse> => ({
     unauthorized: {
       message: t("Je moet inloggen om dat te doen.", "You need to log in to do that."),
@@ -287,7 +282,6 @@ export default function EventDetailPage() {
                       <div class="flex items-start gap-2">
                         <MapPinIcon class="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
                         <span>
-                          {locationKindLabels[currentEvent().locationKind]} —{" "}
                           {currentEvent().locationDescription}
                           <Show when={currentEvent().locationStreet}>
                             <>
@@ -296,7 +290,10 @@ export default function EventDetailPage() {
                               {currentEvent().locationPostcode}
                             </>
                           </Show>
-                          <Show when={currentEvent().mapUrl}>
+                          {/* The embedded map below already shows exactly
+                              where this is - only offer an outbound link
+                              when there's no embed to look at instead. */}
+                          <Show when={currentEvent().mapUrl && !mapEmbedSrc()}>
                             {" "}
                             <a
                               href={currentEvent().mapUrl!}
