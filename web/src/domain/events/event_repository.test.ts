@@ -55,7 +55,9 @@ function baseEventInput(overrides: Partial<NewEventInput> = {}): NewEventInput {
     descriptionNl: "Een test evenement",
     descriptionEn: "A test event",
     startAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+    startTimeKnown: true,
     endAt: null,
+    endTimeKnown: true,
     locationKind: "meeting_point_city_only",
     placeId: testPlaceId,
     locationDescription: "Somewhere in town",
@@ -142,6 +144,30 @@ describe("createEvent", () => {
     const event = result._unsafeUnwrap();
     expect(event.locationStreet).toBe("Europalaan");
     expect(event.locationLat).toBeCloseTo(52.06415055, 6);
+  });
+
+  it("round-trips startTimeKnown/endTimeKnown", async () => {
+    const publisher = await makeUser("publisher-with-unknown-time");
+    const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const end = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+    const result = await repository.createEvent(
+      baseEventInput({
+        publisherUserId: publisher,
+        startAt: start,
+        startTimeKnown: false,
+        endAt: end,
+        endTimeKnown: false,
+      }),
+    );
+
+    const event = result._unsafeUnwrap();
+    expect(event.startTimeKnown).toBe(false);
+    expect(event.endTimeKnown).toBe(false);
+
+    const reloaded = (await repository.findEventById(event.id))._unsafeUnwrap();
+    expect(reloaded?.startTimeKnown).toBe(false);
+    expect(reloaded?.endTimeKnown).toBe(false);
   });
 });
 

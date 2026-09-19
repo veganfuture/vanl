@@ -29,7 +29,9 @@ export type ValidatableEvent = {
   descriptionNl: string | null;
   descriptionEn: string | null;
   startAt: Date | null;
+  startTimeKnown: boolean;
   endAt: Date | null;
+  endTimeKnown: boolean;
   locationKind: EventLocationKind;
   placeId: Uuid | null;
   locationDescription: string | null;

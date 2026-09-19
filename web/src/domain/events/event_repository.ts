@@ -31,7 +31,9 @@ const EventRowSchema = z.object({
   description_nl: z.string().nullable(),
   description_en: z.string().nullable(),
   start_at: z.coerce.date(),
+  start_time_known: z.boolean(),
   end_at: z.coerce.date().nullable(),
+  end_time_known: z.boolean(),
   location_kind: z.enum(["precise_address", "meeting_point_city_only"]),
   place_id: z.string(),
   location_description: z.string(),
@@ -129,7 +131,9 @@ function mapEventRow(row: unknown): Result<Event, DbError> {
     descriptionNl: parsed.description_nl,
     descriptionEn: parsed.description_en,
     startAt: parsed.start_at,
+    startTimeKnown: parsed.start_time_known,
     endAt: parsed.end_at,
+    endTimeKnown: parsed.end_time_known,
     locationKind: parsed.location_kind,
     // events.place_id is a uuid-typed foreign key - trusted, not re-parsed.
     placeId: parsed.place_id as Uuid,
@@ -192,7 +196,9 @@ export type NewEventInput = {
   descriptionNl: string | null;
   descriptionEn: string | null;
   startAt: Date;
+  startTimeKnown: boolean;
   endAt: Date | null;
+  endTimeKnown: boolean;
   locationKind: EventLocationKind;
   placeId: Uuid;
   locationDescription: string;
@@ -241,8 +247,8 @@ export class EventRepository {
     return ResultAsync.fromPromise(
       this.sql`
         insert into events (
-          slug, title_nl, title_en, description_nl, description_en, start_at, end_at,
-          location_kind, place_id, location_description, location_street,
+          slug, title_nl, title_en, description_nl, description_en, start_at, start_time_known,
+          end_at, end_time_known, location_kind, place_id, location_description, location_street,
           location_house_number, location_postcode, location_lat, location_lng,
           location_pdok_id, map_url, external_event_url, registration_url, organizer_name,
           publisher_user_id, publisher_org_id, created_by, updated_by, source, external_source_id,
@@ -250,7 +256,8 @@ export class EventRepository {
         )
         values (
           ${input.slug}, ${input.titleNl}, ${input.titleEn}, ${input.descriptionNl},
-          ${input.descriptionEn}, ${input.startAt}, ${input.endAt}, ${input.locationKind},
+          ${input.descriptionEn}, ${input.startAt}, ${input.startTimeKnown}, ${input.endAt},
+          ${input.endTimeKnown}, ${input.locationKind},
           ${input.placeId}, ${input.locationDescription}, ${input.locationStreet},
           ${input.locationHouseNumber}, ${input.locationPostcode}, ${input.locationLat},
           ${input.locationLng}, ${input.locationPdokId}, ${input.mapUrl},
@@ -505,7 +512,9 @@ export class EventRepository {
           description_nl = ${fields.descriptionNl},
           description_en = ${fields.descriptionEn},
           start_at = ${fields.startAt},
+          start_time_known = ${fields.startTimeKnown},
           end_at = ${fields.endAt},
+          end_time_known = ${fields.endTimeKnown},
           location_kind = ${fields.locationKind},
           place_id = ${fields.placeId},
           location_description = ${fields.locationDescription},

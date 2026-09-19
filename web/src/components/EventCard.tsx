@@ -55,7 +55,9 @@ export function EventCard(props: {
         </div>
         <p class="mt-1 truncate text-sm text-zinc-600">
           <CalendarIcon class="mr-1 inline-block h-4 w-4 shrink-0 align-text-bottom text-emerald-500" />
-          <span>{formatEventDate(props.event.startAt, props.lang)}</span>
+          <span>
+            {formatEventDate(props.event.startAt, props.lang, props.event.startTimeKnown)}
+          </span>
           <Show when={props.event.municipalityName}>
             {(name) => (
               <>

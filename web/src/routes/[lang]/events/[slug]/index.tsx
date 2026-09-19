@@ -6,6 +6,7 @@ import { LinkifiedText } from "~/components/LinkifiedText";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { Toast } from "~/components/Toast";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
+import { formatEventDate } from "~/lib/format-date";
 import { pickLocalized, useLang } from "~/lib/i18n";
 import { imageUrl } from "~/lib/image-url";
 import type { Sha256 } from "~/lib/sha256";
@@ -92,13 +93,6 @@ export default function EventDetailPage() {
       isWarn: false,
     },
   });
-
-  function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString(lang() === "nl" ? "nl-NL" : "en-GB", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  }
 
   const [actionError, setActionError] = createSignal<string | null>(null);
   const [refreshKey, setRefreshKey] = createSignal(0);
@@ -277,7 +271,13 @@ export default function EventDetailPage() {
                     <div class="mb-6 flex flex-col gap-2 text-zinc-700">
                       <div class="flex items-center gap-2">
                         <CalendarIcon class="h-5 w-5 shrink-0 text-emerald-500" />
-                        <span>{formatDate(currentEvent().startAt)}</span>
+                        <span>
+                          {formatEventDate(
+                            currentEvent().startAt,
+                            lang(),
+                            currentEvent().startTimeKnown,
+                          )}
+                        </span>
                       </div>
                       <div class="flex items-start gap-2">
                         <MapPinIcon class="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />

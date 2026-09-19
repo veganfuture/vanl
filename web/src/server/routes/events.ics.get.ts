@@ -1,4 +1,5 @@
 import { defineHandler, getQuery } from "h3";
+import { formatInTimeZone } from "date-fns-tz";
 import type { EventWithPublisherOrgName } from "~/domain/events/event_repository";
 import { eventService } from "~/domain/events/event_service";
 import { pickLocalized } from "~/lib/i18n";
@@ -43,7 +44,18 @@ function formatIcsDate(date: Date): string {
     .replace(/\.\d{3}Z$/, "Z");
 }
 
-function eventToVEvent(event: EventWithPublisherOrgName): string {
+/**
+ * RFC 5545 §3.6.1 all-day form (DTSTART/DTEND;VALUE=DATE), for when only the
+ * date is meaningful (see Event.startTimeKnown/endTimeKnown) - must read the
+ * calendar date in Amsterdam local time, not UTC: a date-only start/end
+ * stores Amsterdam midnight as a UTC instant, which in UTC falls on the
+ * *previous* calendar day.
+ */
+function formatIcsDateOnly(date: Date): string {
+  return formatInTimeZone(date, "Europe/Amsterdam", "yyyyMMdd");
+}
+
+export function eventToVEvent(event: EventWithPublisherOrgName): string {
   const summary = pickLocalized(event.titleNl, event.titleEn, "nl");
   const description = pickLocalized(event.descriptionNl, event.descriptionEn, "nl");
   const locationParts = [
@@ -65,8 +77,14 @@ function eventToVEvent(event: EventWithPublisherOrgName): string {
     "BEGIN:VEVENT",
     `UID:${event.id.value}@veganactivists.nl`,
     `DTSTAMP:${formatIcsDate(event.updatedAt)}`,
-    `DTSTART:${formatIcsDate(event.startAt)}`,
-    event.endAt ? `DTEND:${formatIcsDate(event.endAt)}` : null,
+    event.startTimeKnown
+      ? `DTSTART:${formatIcsDate(event.startAt)}`
+      : `DTSTART;VALUE=DATE:${formatIcsDateOnly(event.startAt)}`,
+    event.endAt
+      ? event.endTimeKnown
+        ? `DTEND:${formatIcsDate(event.endAt)}`
+        : `DTEND;VALUE=DATE:${formatIcsDateOnly(event.endAt)}`
+      : null,
     summary ? `SUMMARY:${escapeIcsText(summary)}` : null,
     description ? `DESCRIPTION:${escapeIcsText(description)}` : null,
     locationParts.length > 0 ? `LOCATION:${escapeIcsText(locationParts.join(", "))}` : null,

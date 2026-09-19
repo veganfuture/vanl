@@ -1,6 +1,12 @@
 import type { VEvent } from "node-ical";
 import { describe, expect, it } from "vitest";
-import { detectOrganizer, flyerUrlOf, reusedFlyerUrls, type RealEvent } from "./import-arc-events";
+import {
+  detectOrganizer,
+  flyerUrlOf,
+  reusedFlyerUrls,
+  toRealEvent,
+  type RealEvent,
+} from "./import-arc-events";
 
 function baseEvent(overrides: Partial<RealEvent> = {}): RealEvent {
   return {
@@ -10,7 +16,9 @@ function baseEvent(overrides: Partial<RealEvent> = {}): RealEvent {
     descriptionNl: null,
     descriptionEn: null,
     startAt: new Date(),
+    startTimeKnown: true,
     endAt: null,
+    endTimeKnown: true,
     location: "Somewhere",
     geo: { lat: 52, lon: 5 },
     externalEventUrl: null,
@@ -18,6 +26,70 @@ function baseEvent(overrides: Partial<RealEvent> = {}): RealEvent {
     ...overrides,
   };
 }
+
+describe("toRealEvent", () => {
+  /**
+   * Synthetic fixtures, not captured from a live pull - the ARC feed
+   * currently has no VALUE=DATE (date-only) VEVENTs to sample from. Mirrors
+   * node-ical's own documented shape instead: `DateWithTimeZone = Date &
+   * {tz?: string; dateOnly?: true}` (node_modules/node-ical/node-ical.d.ts).
+   */
+  function dateOnly(iso: string): VEvent["start"] {
+    const date = new Date(iso) as VEvent["start"];
+    date.dateOnly = true;
+    return date;
+  }
+
+  it("marks startTimeKnown/endTimeKnown false for a date-only VEVENT", () => {
+    const event = {
+      uid: "date-only-event",
+      start: dateOnly("2026-09-19T00:00:00.000Z"),
+      end: dateOnly("2026-09-20T00:00:00.000Z"),
+      geo: { lat: 52, lon: 5 },
+      location: { val: "Somewhere" },
+      summary: { val: "All-day event" },
+      description: { val: "A description" },
+    } as unknown as VEvent;
+
+    const result = toRealEvent([event]);
+
+    expect(result.startTimeKnown).toBe(false);
+    expect(result.endTimeKnown).toBe(false);
+  });
+
+  it("marks startTimeKnown/endTimeKnown true for a normal timed VEVENT", () => {
+    const event = {
+      uid: "timed-event",
+      start: new Date("2026-09-19T18:00:00.000Z") as VEvent["start"],
+      end: new Date("2026-09-19T20:00:00.000Z") as VEvent["start"],
+      geo: { lat: 52, lon: 5 },
+      location: { val: "Somewhere" },
+      summary: { val: "Evening event" },
+      description: { val: "A description" },
+    } as unknown as VEvent;
+
+    const result = toRealEvent([event]);
+
+    expect(result.startTimeKnown).toBe(true);
+    expect(result.endTimeKnown).toBe(true);
+  });
+
+  it("treats endTimeKnown as true when there is no end at all", () => {
+    const event = {
+      uid: "no-end-event",
+      start: new Date("2026-09-19T18:00:00.000Z") as VEvent["start"],
+      geo: { lat: 52, lon: 5 },
+      location: { val: "Somewhere" },
+      summary: { val: "No end event" },
+      description: { val: "A description" },
+    } as unknown as VEvent;
+
+    const result = toRealEvent([event]);
+
+    expect(result.endAt).toBeNull();
+    expect(result.endTimeKnown).toBe(true);
+  });
+});
 
 describe("detectOrganizer", () => {
   it("recognizes Cube of Truth as Anonymous for the Voiceless", () => {
