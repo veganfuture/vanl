@@ -7,7 +7,15 @@ import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 type NavLink = { label: string; href: string };
 
 const linkClass =
-  "block rounded-md px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900";
+  "block rounded-md px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-emerald-50 hover:text-emerald-800";
+
+const ctaLinkClass =
+  "block rounded-full bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700";
+
+const LANGUAGE_META: Record<Locale, { flag: string; label: string }> = {
+  nl: { flag: "🇳🇱", label: "Nederlands" },
+  en: { flag: "🇬🇧", label: "English" },
+};
 
 /** Swaps the leading /nl or /en segment of a path, or falls back to the bare locale root. */
 function pathWithLang(pathname: string, targetLang: Locale): string {
@@ -15,11 +23,22 @@ function pathWithLang(pathname: string, targetLang: Locale): string {
   return match ? `/${targetLang}${match[2] ?? ""}` : `/${targetLang}`;
 }
 
-function LanguageSwitcher(props: { pathname: string; onNavigate?: () => void }) {
+function LanguageSwitcher(props: { lang: Locale; pathname: string; onNavigate?: () => void }) {
+  // `open` is mirrored from the native <details> via onToggle rather than
+  // left uncontrolled - a locale switch is a client-side route change, so
+  // this component stays mounted across it, and an uncontrolled <details>
+  // would stay open instead of closing once a language is picked.
+  const [open, setOpen] = createSignal(false);
+
   return (
-    <details class="relative group">
-      <summary class="list-none flex cursor-pointer items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm hover:border-zinc-400">
-        <span>🌐</span>
+    <details
+      class="relative group"
+      open={open()}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary class="list-none flex cursor-pointer items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm hover:border-emerald-400">
+        <span>{LANGUAGE_META[props.lang].flag}</span>
+        <span>{LANGUAGE_META[props.lang].label}</span>
         <svg
           class="h-3 w-3 text-zinc-500 transition-transform duration-200 group-open:rotate-180"
           xmlns="http://www.w3.org/2000/svg"
@@ -33,20 +52,20 @@ function LanguageSwitcher(props: { pathname: string; onNavigate?: () => void }) 
       </summary>
 
       <div class="absolute right-0 z-10 mt-2 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
-        <a
-          href={pathWithLang(props.pathname, "nl")}
-          class="block px-3 py-2 text-sm text-zinc-800 no-underline hover:bg-zinc-50"
-          onClick={() => props.onNavigate?.()}
-        >
-          🇳🇱 Nederlands
-        </a>
-        <a
-          href={pathWithLang(props.pathname, "en")}
-          class="block px-3 py-2 text-sm text-zinc-800 no-underline hover:bg-zinc-50"
-          onClick={() => props.onNavigate?.()}
-        >
-          🇬🇧 English
-        </a>
+        <For each={["nl", "en"] as Locale[]}>
+          {(code) => (
+            <a
+              href={pathWithLang(props.pathname, code)}
+              class="block px-3 py-2 text-sm text-zinc-800 no-underline hover:bg-emerald-50"
+              onClick={() => {
+                setOpen(false);
+                props.onNavigate?.();
+              }}
+            >
+              {LANGUAGE_META[code].flag} {LANGUAGE_META[code].label}
+            </a>
+          )}
+        </For>
       </div>
     </details>
   );
@@ -65,9 +84,18 @@ function AccountMenu(props: {
   loggingOut: boolean;
   onLogout: () => void;
 }) {
+  // Same controlled-open pattern as LanguageSwitcher, for the same reason:
+  // an uncontrolled <details> would stay open after a client-side route
+  // change to one of the account links below.
+  const [open, setOpen] = createSignal(false);
+
   return (
-    <details class="relative group">
-      <summary class="list-none flex cursor-pointer items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm hover:border-zinc-400">
+    <details
+      class="relative group"
+      open={open()}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary class="list-none flex cursor-pointer items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm hover:border-emerald-400">
         <img src="/account-icon.svg" alt="" class="h-4 w-4 shrink-0" />
         <span class="max-w-[10rem] truncate">{props.displayName}</span>
         <svg
@@ -87,7 +115,8 @@ function AccountMenu(props: {
           {(link) => (
             <a
               href={link.href}
-              class="block px-3 py-2 text-sm text-zinc-800 no-underline hover:bg-zinc-50"
+              class="block px-3 py-2 text-sm text-zinc-800 no-underline hover:bg-emerald-50"
+              onClick={() => setOpen(false)}
             >
               {link.label}
             </a>
@@ -96,8 +125,11 @@ function AccountMenu(props: {
         <button
           type="button"
           disabled={props.loggingOut}
-          onClick={() => props.onLogout()}
-          class="block w-full px-3 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
+          onClick={() => {
+            setOpen(false);
+            props.onLogout();
+          }}
+          class="block w-full px-3 py-2 text-left text-sm text-zinc-800 hover:bg-emerald-50 disabled:opacity-50"
         >
           {props.loggingOut
             ? props.lang === "nl"
@@ -238,7 +270,7 @@ export function Navbar() {
   ];
 
   return (
-    <nav class="sticky top-0 z-50 border-b border-zinc-200 bg-white md:static">
+    <nav class="sticky top-0 z-50 border-b border-zinc-200 bg-white/85 shadow-sm backdrop-blur-md md:static">
       <div
         class={`mx-auto flex max-w-6xl items-center justify-between px-6 transition-[padding] duration-200 md:py-3 ${
           scrolled() ? "py-1" : "py-3"
@@ -282,8 +314,8 @@ export function Navbar() {
               when={!me.loading && me()}
               fallback={
                 <Show when={!me.loading}>
-                  <a href={`/${lang()}/login`} class={linkClass}>
-                    {t("Login / Aanmelden", "Login / Signup")}
+                  <a href={`/${lang()}/login`} class={ctaLinkClass}>
+                    {t("Inloggen", "Log in")}
                   </a>
                 </Show>
               }
@@ -299,7 +331,7 @@ export function Navbar() {
               )}
             </Show>
           </Show>
-          <LanguageSwitcher pathname={location.pathname} />
+          <LanguageSwitcher lang={lang()} pathname={location.pathname} />
         </div>
 
         <button
@@ -347,10 +379,10 @@ export function Navbar() {
                 <Show when={!me.loading}>
                   <a
                     href={`/${lang()}/login`}
-                    class={linkClass}
+                    class={`${ctaLinkClass} text-center`}
                     onClick={() => setMobileOpen(false)}
                   >
-                    {t("Login / Aanmelden", "Login / Signup")}
+                    {t("Inloggen", "Log in")}
                   </a>
                 </Show>
               }
@@ -367,6 +399,7 @@ export function Navbar() {
           </Show>
           <div class="px-3 py-2">
             <LanguageSwitcher
+              lang={lang()}
               pathname={location.pathname}
               onNavigate={() => setMobileOpen(false)}
             />
