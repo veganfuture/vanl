@@ -226,6 +226,12 @@ const ORGANIZER_RULES: ReadonlyArray<{
     test: (title, description) =>
       /\bbite\s*back\b/i.test(title) || /biteback\.nl/i.test(description),
   },
+  {
+    organizer: "International Council for Animal Welfare",
+    test: (_title, description) =>
+      /international council for animal welfare/i.test(description) ||
+      /\bi-caw\.org\b/i.test(description),
+  },
 ];
 
 /**
