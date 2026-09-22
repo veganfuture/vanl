@@ -236,6 +236,26 @@ describe("detectOrganizer", () => {
     expect(detectOrganizer(event)).not.toBe("Bite Back");
   });
 
+  it("recognizes a 'Hosted by International Council for Animal Welfare' description as ICAW", () => {
+    // Real ARC event text: ICAW's events carry no title mention and no
+    // domain link, just this literal trailing line in the description.
+    const event = baseEvent({
+      titleEn: "Protest against fur: Milan Fashion Week Campaign",
+      descriptionEn:
+        "Get up-to-date information at: https://luma.com/9uuqzdxu\n\nAddress:\nGebouw Parnas\n" +
+        "Amsterdam, Netherlands\n\nHosted by International Council for Animal Welfare",
+    });
+    expect(detectOrganizer(event)).toBe("International Council for Animal Welfare");
+  });
+
+  it("recognizes an i-caw.org link in the description as ICAW", () => {
+    const event = baseEvent({
+      titleEn: "Vegan outreach event",
+      descriptionEn: "Questions? Visit https://www.i-caw.org/ for more information.",
+    });
+    expect(detectOrganizer(event)).toBe("International Council for Animal Welfare");
+  });
+
   it("returns null when nothing matches", () => {
     const event = baseEvent({ titleEn: "Vegan potluck", descriptionEn: "Bring a dish to share." });
     expect(detectOrganizer(event)).toBeNull();

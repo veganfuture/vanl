@@ -213,6 +213,30 @@ const ORGANIZATIONS: OrgSeed[] = [
       "dierenrechten als onderdeel van een bredere strijd tegen speciësisme, racisme, seksisme en " +
       "andere vormen van onderdrukking.",
   },
+  {
+    name: "International Council for Animal Welfare",
+    slug: "international-council-for-animal-welfare",
+    websiteUrl: "https://www.i-caw.org/",
+    logoAssetPath:
+      "scripts/seed-assets/organizations/international-council-for-animal-welfare.png",
+    descriptionEn:
+      "The International Council for Animal Welfare (ICAW) is a 501(c)(3) nonprofit " +
+      "headquartered in Philadelphia that campaigns to hold multinational corporations " +
+      "accountable for higher animal welfare standards throughout their supply chains, " +
+      "combining scientific research, public pressure campaigns and policy advocacy. In the " +
+      "Netherlands it organises street protests targeting specific companies over animal " +
+      "welfare issues, including demonstrations against fur at Milan Fashion Week and at LVMH, " +
+      "against foie gras supplier Hanos, and against shrimp farming practices linked to Lidl.",
+    descriptionNl:
+      "De International Council for Animal Welfare (ICAW) is een Amerikaanse " +
+      "non-profitorganisatie (501(c)(3)), gevestigd in Philadelphia, die campagne voert om " +
+      "multinationals verantwoordelijk te houden voor hogere dierenwelzijnsnormen in hun " +
+      "toeleveringsketens, met een combinatie van wetenschappelijk onderzoek, publieksdruk en " +
+      "beleidsbeïnvloeding. In Nederland organiseert de organisatie straatprotesten gericht " +
+      "tegen specifieke bedrijven, waaronder demonstraties tegen bont bij Milan Fashion Week " +
+      "en bij LVMH, tegen foie-gras-leverancier Hanos, en tegen garnalenkweekpraktijken " +
+      "gelinkt aan Lidl.",
+  },
 ];
 
 async function seedOrganizationLogo(
