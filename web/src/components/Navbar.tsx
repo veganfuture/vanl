@@ -63,11 +63,6 @@ function LanguageSwitcher(props: { lang: Locale; pathname: string; onNavigate?: 
   );
 }
 
-/** True for the bare front page ("/", "/nl", "/en"), false for any deeper route. */
-function isFrontPage(pathname: string): boolean {
-  return /^\/(nl|en)?\/?$/.test(pathname);
-}
-
 /** Desktop account dropdown - My events / My organizations / Account / Sign out. */
 function AccountMenu(props: {
   lang: Locale;
@@ -278,34 +273,32 @@ export function Navbar() {
         </a>
 
         <div class="hidden items-center gap-1 md:flex">
-          <Show when={!isFrontPage(location.pathname)}>
-            <For each={links()}>
-              {(link) => (
-                <a href={link.href} class={linkClass}>
-                  {link.label}
+          <For each={links()}>
+            {(link) => (
+              <a href={link.href} class={linkClass}>
+                {link.label}
+              </a>
+            )}
+          </For>
+          <Show
+            when={!me.loading && me()}
+            fallback={
+              <Show when={!me.loading}>
+                <a href={`/${lang()}/login`} class={ctaLinkClass}>
+                  {t("Inloggen", "Log in")}
                 </a>
-              )}
-            </For>
-            <Show
-              when={!me.loading && me()}
-              fallback={
-                <Show when={!me.loading}>
-                  <a href={`/${lang()}/login`} class={ctaLinkClass}>
-                    {t("Inloggen", "Log in")}
-                  </a>
-                </Show>
-              }
-            >
-              {(currentMe) => (
-                <AccountMenu
-                  lang={lang()}
-                  displayName={currentMe().displayName}
-                  accountLinks={accountLinks()}
-                  loggingOut={loggingOut()}
-                  onLogout={onLogout}
-                />
-              )}
-            </Show>
+              </Show>
+            }
+          >
+            {(currentMe) => (
+              <AccountMenu
+                lang={lang()}
+                displayName={currentMe().displayName}
+                accountLinks={accountLinks()}
+                loggingOut={loggingOut()}
+                onLogout={onLogout}
+              />
+            )}
           </Show>
           <LanguageSwitcher lang={lang()} pathname={location.pathname} />
         </div>
@@ -325,37 +318,35 @@ export function Navbar() {
 
       <Show when={mobileOpen()}>
         <div class="space-y-1 border-t border-zinc-200 px-6 py-3 md:hidden">
-          <Show when={!isFrontPage(location.pathname)}>
-            <For each={links()}>
-              {(link) => (
-                <a href={link.href} class={linkClass} onClick={() => setMobileOpen(false)}>
-                  {link.label}
+          <For each={links()}>
+            {(link) => (
+              <a href={link.href} class={linkClass} onClick={() => setMobileOpen(false)}>
+                {link.label}
+              </a>
+            )}
+          </For>
+          <Show
+            when={!me.loading && me()}
+            fallback={
+              <Show when={!me.loading}>
+                <a
+                  href={`/${lang()}/login`}
+                  class={`${ctaLinkClass} text-center`}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {t("Inloggen", "Log in")}
                 </a>
-              )}
-            </For>
-            <Show
-              when={!me.loading && me()}
-              fallback={
-                <Show when={!me.loading}>
-                  <a
-                    href={`/${lang()}/login`}
-                    class={`${ctaLinkClass} text-center`}
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    {t("Inloggen", "Log in")}
-                  </a>
-                </Show>
-              }
-            >
-              <MobileAccountMenu
-                lang={lang()}
-                t={t}
-                accountLinks={accountLinks()}
-                loggingOut={loggingOut()}
-                onNavigate={() => setMobileOpen(false)}
-                onLogout={onLogout}
-              />
-            </Show>
+              </Show>
+            }
+          >
+            <MobileAccountMenu
+              lang={lang()}
+              t={t}
+              accountLinks={accountLinks()}
+              loggingOut={loggingOut()}
+              onNavigate={() => setMobileOpen(false)}
+              onLogout={onLogout}
+            />
           </Show>
           <div class="px-3 py-2">
             <LanguageSwitcher
