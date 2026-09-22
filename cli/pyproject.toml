@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vanl-cli"
+version = "0.0.0"
+description = "Unified ops CLI for the Vegan Activists NL server (vanl web/bot/db ...)"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[project.scripts]
+vanl = "vanl_cli.__main__:main"
+
+[dependency-groups]
+dev = [
+    "ruff==0.15.4",
+    "pyrefly==1.1.0",
+    "pytest==8.3.3",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv]
+exclude-newer = "14 days"
+
+[tool.pytest.ini_options]
+testpaths = ["src", "tests"]
+pythonpath = ["src"]
+
+[tool.pyrefly]
+preset = "default"
+"search-path" = ["src"]
+project-includes = ["src"]
+
+[tool.pyrefly.errors]
+implicit-any-empty-container = "warn"
+bad-function-definition = "warn"
+implicit-any-attribute = "error"
+implicit-any-parameter = "error"
+implicit-import = "error"
+implicitly-defined-attribute = "error"
+implicit-abstract-class = "error"
+unannotated-return = "warn"
+unannotated-parameter = "error"
+unannotated-attribute = "error"
+unnecessary-comparison = "error"
+unreachable = "error"
+untyped-import = "error"
+name-mismatch = "error"
+non-exhaustive-match = "error"
+redundant-condition = "error"
+unused-ignore = "error"
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = []
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"

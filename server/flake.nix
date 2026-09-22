@@ -15,12 +15,15 @@
   inputs.bot.inputs.nixpkgs.follows = "nixpkgs";
   inputs.web.url = "path:../web";
   inputs.web.inputs.nixpkgs.follows = "nixpkgs";
+  inputs.cli.url = "path:../cli";
+  inputs.cli.inputs.nixpkgs.follows = "nixpkgs";
 
   outputs = {
     nixpkgs,
     disko,
     bot,
     web,
+    cli,
     ...
   }: let
     system = "x86_64-linux";
@@ -77,6 +80,7 @@
         disko.nixosModules.disko
         bot.nixosModules.default
         web.nixosModules.default
+        cli.nixosModules.default
         ./configuration.nix
         ./hardware-configuration/vanl-hostkey1.nix
       ];

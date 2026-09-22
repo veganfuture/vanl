@@ -12,6 +12,7 @@ bot/data
 web/node_modules
 web/out
 **/__pycache__
+**/*.egg-info
 
 # Specific files to whitelist
 !/.gitignore
