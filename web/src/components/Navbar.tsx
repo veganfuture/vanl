@@ -10,11 +10,11 @@ type NavLink = { label: string; href: string };
 const linkClass =
   "block shrink-0 whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium text-zinc-700 hover:bg-emerald-50 hover:text-emerald-800";
 
-const ctaLinkClass =
-  "block shrink-0 whitespace-nowrap rounded-full bg-emerald-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700";
+const loginLinkClass =
+  "block shrink-0 whitespace-nowrap rounded-full bg-emerald-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 no-underline";
 
 const donateLinkClass =
-  "block shrink-0 whitespace-nowrap rounded-full bg-red-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700";
+  "block shrink-0 whitespace-nowrap rounded-full bg-red-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 no-underline";
 
 const LANGUAGE_META: Record<Locale, { flag: string; label: string }> = {
   nl: { flag: "🇳🇱", label: "Nederlands" },
@@ -296,7 +296,7 @@ export function Navbar() {
             when={!me.loading && me()}
             fallback={
               <Show when={!me.loading}>
-                <a href={`/${lang()}/login`} class={ctaLinkClass}>
+                <a href={`/${lang()}/login`} class={loginLinkClass}>
                   {t("Inloggen", "Log in")}
                 </a>
               </Show>
@@ -350,7 +350,7 @@ export function Navbar() {
               <Show when={!me.loading}>
                 <a
                   href={`/${lang()}/login`}
-                  class={`${ctaLinkClass} text-center`}
+                  class={`${loginLinkClass} text-center`}
                   onClick={() => setMobileOpen(false)}
                 >
                   {t("Inloggen", "Log in")}
