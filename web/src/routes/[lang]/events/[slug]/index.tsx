@@ -1,6 +1,6 @@
-import { useParams } from "@solidjs/router";
-import { Title } from "@solidjs/meta";
-import { createResource, createSignal, Show } from "solid-js";
+import { createAsync, useParams } from "@solidjs/router";
+import { Link, Meta, Title } from "@solidjs/meta";
+import { createSignal, Show, Suspense } from "solid-js";
 import { BuildingIcon, CalendarIcon, MapPinIcon } from "~/components/icons";
 import { LinkifiedText } from "~/components/LinkifiedText";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
@@ -9,6 +9,7 @@ import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fet
 import { formatEventDate } from "~/lib/format-date";
 import { pickLocalized, useLang } from "~/lib/i18n";
 import { imageUrl } from "~/lib/image-url";
+import { BASE_URL, OG_IMAGE, truncate, withBaseUrl } from "~/lib/metadata";
 import type { Sha256 } from "~/lib/sha256";
 import { useQueryToast } from "~/lib/toast";
 import { GetEventBySlugResponseSchema } from "~/routes/api/events/by-slug/[slug].schema";
@@ -97,9 +98,13 @@ export default function EventDetailPage() {
   const [actionError, setActionError] = createSignal<string | null>(null);
   const [refreshKey, setRefreshKey] = createSignal(0);
 
-  const [event] = createResource(
-    () => [params.slug ?? "", refreshKey()] as const,
-    async ([slug]) => {
+  // deferStream: true - without it, the streamed SSR response flushes <head>
+  // before this resolves, so the <Title>/<Meta> tags below (which depend on
+  // the fetched event) never reach crawlers that don't execute JS.
+  const event = createAsync(
+    async () => {
+      const slug = params.slug ?? "";
+      refreshKey();
       const result = await apiFetch(`/api/events/by-slug/${encodeURIComponent(slug)}`, {
         response: GetEventBySlugResponseSchema,
       });
@@ -108,6 +113,7 @@ export default function EventDetailPage() {
         () => null,
       );
     },
+    { deferStream: true },
   );
 
   const canModerate = () => event()?.canEdit ?? false;
@@ -186,7 +192,7 @@ export default function EventDetailPage() {
       <Show when={toastMessage()}>
         {(message) => <Toast message={message()} onDismiss={dismissToast} />}
       </Show>
-      <Show when={!event.loading} fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
+      <Suspense fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
         <Show
           when={event()}
           fallback={
@@ -232,12 +238,43 @@ export default function EventDetailPage() {
                 : null;
             };
 
+            const title = () =>
+              pickLocalized(currentEvent().titleNl, currentEvent().titleEn, lang());
+
+            const description = () => {
+              const raw = pickLocalized(
+                currentEvent().descriptionNl,
+                currentEvent().descriptionEn,
+                lang(),
+              ).trim();
+              const text =
+                raw ||
+                `${formatEventDate(currentEvent().startAt, lang(), currentEvent().startTimeKnown)} · ${currentEvent().locationDescription}`;
+              return truncate(text);
+            };
+
+            const ogImage = () => {
+              const id = currentEvent().flyerPreviewImageId ?? currentEvent().flyerFullImageId;
+              // A JSON-API string here, not a domain Sha256 - the server already vetted it.
+              return id ? withBaseUrl(imageUrl(id as Sha256)) : withBaseUrl(OG_IMAGE);
+            };
+
+            const canonicalUrl = () => `${BASE_URL}/${lang()}/events/${currentEvent().slug}`;
+
             return (
               <>
-                <Title>
-                  {pickLocalized(currentEvent().titleNl, currentEvent().titleEn, lang())} — Vegan
-                  Activists NL
-                </Title>
+                <Title>{title()} — Vegan Activists NL</Title>
+                <Meta property="og:title" content={`${title()} — Vegan Activists NL`} />
+                <Meta property="og:description" content={description()} />
+                <Meta property="og:image" content={ogImage()} />
+                <Meta property="og:image:alt" content={title()} />
+                <Meta property="og:url" content={canonicalUrl()} />
+                <Meta property="og:locale" content={lang() === "nl" ? "nl_NL" : "en_US"} />
+                <Meta name="twitter:card" content="summary_large_image" />
+                <Meta name="twitter:title" content={title()} />
+                <Meta name="twitter:description" content={description()} />
+                <Meta name="twitter:image" content={ogImage()} />
+                <Link rel="canonical" href={canonicalUrl()} />
 
                 <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
                   <Show when={currentEvent().flyerPreviewImageId}>
@@ -253,9 +290,7 @@ export default function EventDetailPage() {
 
                   <div class="p-6 sm:p-8">
                     <div class="mb-4 flex items-start justify-between gap-3">
-                      <h1 class="text-2xl font-semibold text-zinc-900">
-                        {pickLocalized(currentEvent().titleNl, currentEvent().titleEn, lang())}
-                      </h1>
+                      <h1 class="text-2xl font-semibold text-zinc-900">{title()}</h1>
                       <Show when={currentEvent().status !== "visible"}>
                         <span class="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
                           {currentEvent().status === "cancelled"
@@ -443,7 +478,7 @@ export default function EventDetailPage() {
             );
           }}
         </Show>
-      </Show>
+      </Suspense>
     </main>
   );
 }

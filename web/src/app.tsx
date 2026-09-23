@@ -5,15 +5,24 @@ import { ErrorBoundary, Suspense } from "solid-js";
 import { ErrorFallback } from "~/components/ErrorFallback";
 import { Footer } from "~/components/Footer";
 import { Navbar } from "~/components/Navbar";
+import { SITE_DESCRIPTION, SITE_TITLE } from "~/lib/metadata";
 import "./app.css";
-
-const SITE_DESCRIPTION = "The #1 vegan activists group in the Netherlands ✊";
 
 export default function App() {
   return (
     <MetaProvider>
-      <Title>Vegan Activists NL</Title>
+      <Title>{SITE_TITLE}</Title>
       <Meta name="description" content={SITE_DESCRIPTION} />
+      {/* og:title/description/image and twitter:* are deliberately NOT
+          defaulted here - unlike <Title>, <Meta> isn't deduped as a true
+          HTML singleton, so a page-level override would render ALONGSIDE
+          this default instead of replacing it (confirmed by curling actual
+          event/org pages: both tags appeared, which is exactly wrong for
+          crawlers). Each page that wants an OG/Twitter card sets its own
+          complete set instead; other pages fall back to <title>/description,
+          which crawlers already understand. */}
+      <Meta property="og:type" content="website" />
+      <Meta property="og:site_name" content={SITE_TITLE} />
       <Link rel="manifest" href="/site.webmanifest" />
       <Router
         root={(props) => (
