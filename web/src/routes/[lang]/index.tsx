@@ -1,12 +1,13 @@
-import { Link, Meta, Title } from "@solidjs/meta";
+import { Link } from "@solidjs/meta";
 import { useParams } from "@solidjs/router";
 import { Show } from "solid-js";
 import { GroupsAccordion } from "~/components/GroupsAccordion";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { NotFound } from "~/components/NotFound";
+import { SocialMeta } from "~/components/SocialMeta";
 import { GROUPS } from "~/lib/groups";
 import { useLang } from "~/lib/i18n";
-import { BASE_URL } from "~/lib/metadata";
+import { BASE_URL, OG_IMAGE, SITE_DESCRIPTION, withBaseUrl } from "~/lib/metadata";
 
 /** Read by src/middleware.ts to decide this page is safe to cache publicly for anonymous visitors. */
 export const route = { info: { cachePolicy: "public" } };
@@ -22,8 +23,13 @@ export default function LandingPage() {
     // silently render the landing page - fall through to a real 404 instead.
     <Show when={isValidLang()} fallback={<NotFound />}>
       <LocaleCookieSync lang={lang()} />
-      <Title>VeganActivists.nl</Title>
-      <Meta property="og:locale" content={lang() === "nl" ? "nl_NL" : "en_US"} />
+      <SocialMeta
+        name="VeganActivists.nl"
+        description={SITE_DESCRIPTION}
+        image={withBaseUrl(OG_IMAGE)}
+        url={`${BASE_URL}/${lang()}`}
+        locale={lang() === "nl" ? "nl_NL" : "en_US"}
+      />
       <Link rel="alternate" hreflang="en" href={`${BASE_URL}/en`} />
       <Link rel="alternate" hreflang="nl" href={`${BASE_URL}/nl`} />
 

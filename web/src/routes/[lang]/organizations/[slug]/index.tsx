@@ -1,11 +1,12 @@
-import { useParams } from "@solidjs/router";
-import { Title } from "@solidjs/meta";
-import { createResource, For, Show } from "solid-js";
+import { createAsync, useParams } from "@solidjs/router";
+import { createResource, For, Show, Suspense } from "solid-js";
 import { EventCard } from "~/components/EventCard";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
+import { SocialMeta } from "~/components/SocialMeta";
 import { Toast } from "~/components/Toast";
 import { apiFetch } from "~/lib/api-fetch";
 import { imageUrl } from "~/lib/image-url";
+import { BASE_URL, OG_IMAGE, SITE_DESCRIPTION, truncate, withBaseUrl } from "~/lib/metadata";
 import type { Sha256 } from "~/lib/sha256";
 import { pickLocalized, useLang } from "~/lib/i18n";
 import { useQueryToast } from "~/lib/toast";
@@ -20,9 +21,12 @@ export default function OrganizationDetailPage() {
   const { lang, t } = useLang();
   const [toastMessage, dismissToast] = useQueryToast(lang);
 
-  const [org] = createResource(
-    () => params.slug ?? "",
-    async (slug) => {
+  // deferStream: true - without it, the streamed SSR response flushes <head>
+  // before this resolves, so the <Title>/<Meta> tags below (which depend on
+  // the fetched org) never reach crawlers that don't execute JS.
+  const org = createAsync(
+    async () => {
+      const slug = params.slug ?? "";
       const result = await apiFetch(`/api/organizations/by-slug/${encodeURIComponent(slug)}`, {
         response: GetOrganizationBySlugResponseSchema,
       });
@@ -31,6 +35,7 @@ export default function OrganizationDetailPage() {
         () => null,
       );
     },
+    { deferStream: true },
   );
 
   const [events] = createResource(
@@ -54,7 +59,7 @@ export default function OrganizationDetailPage() {
       <Show when={toastMessage()}>
         {(message) => <Toast message={message()} onDismiss={dismissToast} />}
       </Show>
-      <Show when={!org.loading} fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
+      <Suspense fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
         <Show
           when={org()}
           fallback={
@@ -63,96 +68,124 @@ export default function OrganizationDetailPage() {
             </p>
           }
         >
-          {(currentOrg) => (
-            <>
-              <Title>{currentOrg().name} — Vegan Activists NL</Title>
-              <Show when={currentOrg().logoFullImageId}>
-                {(id) => (
-                  <img
-                    // A JSON-API string here, not a domain Sha256 - the server already vetted it.
-                    src={imageUrl(id() as Sha256)}
-                    alt=""
-                    class="mb-4 h-24 w-24 rounded-lg border border-zinc-200 object-cover"
-                  />
-                )}
-              </Show>
-              <div class="mb-2 flex items-center justify-between">
-                <h1 class="text-2xl font-semibold">{currentOrg().name}</h1>
-                <Show when={canManage()}>
-                  <div class="flex gap-2">
-                    <a
-                      href={`/${lang()}/organizations/${currentOrg().slug}/members`}
-                      class="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-semibold transition hover:bg-zinc-50"
-                    >
-                      {t("Leden", "Members")}
-                    </a>
-                    <a
-                      href={`/${lang()}/organizations/${currentOrg().slug}/edit`}
-                      class="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-semibold transition hover:bg-zinc-50"
-                    >
-                      {t("Bewerken", "Edit")}
-                    </a>
-                  </div>
-                </Show>
-              </div>
-              <Show
-                when={pickLocalized(currentOrg().descriptionNl, currentOrg().descriptionEn, lang())}
-              >
-                {(description) => (
-                  <p class="mb-4 whitespace-pre-wrap text-zinc-700">{description()}</p>
-                )}
-              </Show>
-              <Show when={currentOrg().websiteUrl}>
-                <p class="mb-8">
-                  <a
-                    href={currentOrg().websiteUrl!}
-                    class="underline"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {currentOrg().websiteUrl}
-                  </a>
-                </p>
-              </Show>
+          {(currentOrg) => {
+            const description = () =>
+              truncate(
+                pickLocalized(currentOrg().descriptionNl, currentOrg().descriptionEn, lang()) ||
+                  SITE_DESCRIPTION,
+              );
 
-              <h2 class="mb-4 text-lg font-semibold">
-                {t("Aankomende evenementen", "Upcoming events")}
-              </h2>
-              <Show
-                when={!events.loading}
-                fallback={<p class="text-zinc-600">{t("Evenementen laden…", "Loading events…")}</p>}
-              >
+            const ogImage = () => {
+              const id = currentOrg().logoFullImageId ?? currentOrg().logoThumbnailImageId;
+              // A JSON-API string here, not a domain Sha256 - the server already vetted it.
+              return id ? withBaseUrl(imageUrl(id as Sha256)) : withBaseUrl(OG_IMAGE);
+            };
+
+            const canonicalUrl = () => `${BASE_URL}/${lang()}/organizations/${currentOrg().slug}`;
+
+            return (
+              <>
+                <SocialMeta
+                  name={currentOrg().name}
+                  description={description()}
+                  image={ogImage()}
+                  url={canonicalUrl()}
+                  locale={lang() === "nl" ? "nl_NL" : "en_US"}
+                />
+                <Show when={currentOrg().logoFullImageId}>
+                  {(id) => (
+                    <img
+                      // A JSON-API string here, not a domain Sha256 - the server already vetted it.
+                      src={imageUrl(id() as Sha256)}
+                      alt=""
+                      class="mb-4 h-24 w-24 rounded-lg border border-zinc-200 object-cover"
+                    />
+                  )}
+                </Show>
+                <div class="mb-2 flex items-center justify-between">
+                  <h1 class="text-2xl font-semibold">{currentOrg().name}</h1>
+                  <Show when={canManage()}>
+                    <div class="flex gap-2">
+                      <a
+                        href={`/${lang()}/organizations/${currentOrg().slug}/members`}
+                        class="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-semibold transition hover:bg-zinc-50"
+                      >
+                        {t("Leden", "Members")}
+                      </a>
+                      <a
+                        href={`/${lang()}/organizations/${currentOrg().slug}/edit`}
+                        class="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-semibold transition hover:bg-zinc-50"
+                      >
+                        {t("Bewerken", "Edit")}
+                      </a>
+                    </div>
+                  </Show>
+                </div>
                 <Show
-                  when={events() && events()!.length > 0}
+                  when={pickLocalized(
+                    currentOrg().descriptionNl,
+                    currentOrg().descriptionEn,
+                    lang(),
+                  )}
+                >
+                  {(orgDescription) => (
+                    <p class="mb-4 whitespace-pre-wrap text-zinc-700">{orgDescription()}</p>
+                  )}
+                </Show>
+                <Show when={currentOrg().websiteUrl}>
+                  <p class="mb-8">
+                    <a
+                      href={currentOrg().websiteUrl!}
+                      class="underline"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {currentOrg().websiteUrl}
+                    </a>
+                  </p>
+                </Show>
+
+                <h2 class="mb-4 text-lg font-semibold">
+                  {t("Aankomende evenementen", "Upcoming events")}
+                </h2>
+                <Show
+                  when={!events.loading}
                   fallback={
-                    <p class="text-zinc-600 italic">
-                      {t(
-                        "Geen bekende aankomende evenementen — dat betekent niet dat er geen gepland zijn, we weten er alleen niet van.",
-                        "No known upcoming events — that doesn't mean there aren't any planned, we just don't know of them.",
-                      )}
-                    </p>
+                    <p class="text-zinc-600">{t("Evenementen laden…", "Loading events…")}</p>
                   }
                 >
-                  <ul class="space-y-4">
-                    <For each={events()}>
-                      {(event) => (
-                        <li class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
-                          <EventCard
-                            event={event}
-                            lang={lang()}
-                            href={`/${lang()}/events/${event.slug}`}
-                            orgLogoThumbnailImageId={currentOrg().logoThumbnailImageId}
-                          />
-                        </li>
-                      )}
-                    </For>
-                  </ul>
+                  <Show
+                    when={events() && events()!.length > 0}
+                    fallback={
+                      <p class="text-zinc-600 italic">
+                        {t(
+                          "Geen bekende aankomende evenementen — dat betekent niet dat er geen gepland zijn, we weten er alleen niet van.",
+                          "No known upcoming events — that doesn't mean there aren't any planned, we just don't know of them.",
+                        )}
+                      </p>
+                    }
+                  >
+                    <ul class="space-y-4">
+                      <For each={events()}>
+                        {(event) => (
+                          <li class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
+                            <EventCard
+                              event={event}
+                              lang={lang()}
+                              href={`/${lang()}/events/${event.slug}`}
+                              orgLogoThumbnailImageId={currentOrg().logoThumbnailImageId}
+                            />
+                          </li>
+                        )}
+                      </For>
+                    </ul>
+                  </Show>
                 </Show>
-              </Show>
-            </>
-          )}
+              </>
+            );
+          }}
         </Show>
-      </Show>
+      </Suspense>
     </main>
   );
 }
