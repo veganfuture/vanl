@@ -217,8 +217,7 @@ const ORGANIZATIONS: OrgSeed[] = [
     name: "International Council for Animal Welfare",
     slug: "international-council-for-animal-welfare",
     websiteUrl: "https://www.i-caw.org/",
-    logoAssetPath:
-      "scripts/seed-assets/organizations/international-council-for-animal-welfare.png",
+    logoAssetPath: "scripts/seed-assets/organizations/international-council-for-animal-welfare.png",
     descriptionEn:
       "The International Council for Animal Welfare (ICAW) is a 501(c)(3) nonprofit " +
       "headquartered in Philadelphia that campaigns to hold multinational corporations " +
@@ -236,6 +235,26 @@ const ORGANIZATIONS: OrgSeed[] = [
       "tegen specifieke bedrijven, waaronder demonstraties tegen bont bij Milan Fashion Week " +
       "en bij LVMH, tegen foie-gras-leverancier Hanos, en tegen garnalenkweekpraktijken " +
       "gelinkt aan Lidl.",
+  },
+  {
+    name: "Dutch Anti-Fur Movement",
+    slug: "dutch-anti-fur-movement",
+    websiteUrl: "https://www.instagram.com/dam.dutchantifurmovement/",
+    logoAssetPath: "scripts/seed-assets/organizations/dutch-anti-fur-movement.jpg",
+    descriptionEn:
+      "DAM (Dutch Anti-Fur Movement) is a Dutch grassroots animal rights collective that " +
+      "organises street protests outside fur-selling shops and fashion retailers, including " +
+      "on Amsterdam's P.C. Hooftstraat, active since at least 2021. It is part of the " +
+      "international pressure campaign that led fashion house Max Mara to stop using fur in " +
+      "2024, and coordinates its outreach and actions via Instagram " +
+      "(@dam.dutchantifurmovement).",
+    descriptionNl:
+      "DAM (Dutch Anti-Fur Movement) is een Nederlands basisactivistencollectief voor " +
+      "dierenrechten dat straatprotesten organiseert bij bontverkopende winkels en " +
+      "modezaken, onder meer op de Amsterdamse P.C. Hooftstraat, actief sinds ten minste " +
+      "2021. De groep maakt deel uit van de internationale drukcampagne die er in 2024 toe " +
+      "leidde dat modehuis Max Mara stopte met het gebruik van bont, en coördineert haar " +
+      "activisme via Instagram (@dam.dutchantifurmovement).",
   },
 ];
 
