@@ -7,11 +7,15 @@ import type { EventJson } from "~/routes/api/events/event.schema";
 
 /**
  * The event row shown on the events overview, an organization's "next
- * event" teaser, and an organization's upcoming-events list. Every card is
- * exactly two lines tall - a truncated title and a truncated "date · place
- * · org" meta line - so cards line up at a uniform, compact height
- * regardless of how long the title is or how many of the optional bits
- * (place, org, status badge) are present. The place segment always shows
+ * event" teaser, and an organization's upcoming-events list. Above the `sm`
+ * breakpoint every card is exactly two lines tall - a truncated title and a
+ * truncated "date · place · org" meta line - so cards line up at a uniform,
+ * compact height regardless of how long the title is or how many of the
+ * optional bits (place, org, status badge) are present. Below `sm` the meta
+ * bits stack vertically instead (one per line, no dots, no truncation) since
+ * there isn't enough width to keep them on one line without clipping - cards
+ * there vary in height with however many bits are present. The place segment
+ * always shows
  * when `event.municipalityName` is set (resolved server-side by GET
  * /api/events - see event.schema.ts's toEventJson) - callers never pass it
  * in separately. The thumbnail fallback (`orgLogoThumbnailImageId`) is
@@ -31,7 +35,7 @@ export function EventCard(props: {
   statusLabel?: string;
 }) {
   return (
-    <div class="group flex items-center gap-4">
+    <div class="group flex items-start gap-4 sm:items-center">
       <EventThumbnail
         flyerThumbnailImageId={props.event.flyerThumbnailImageId}
         orgLogoThumbnailImageId={props.orgLogoThumbnailImageId}
@@ -53,24 +57,26 @@ export function EventCard(props: {
             )}
           </Show>
         </div>
-        <p class="mt-1 truncate text-sm text-zinc-600">
-          <CalendarIcon class="mr-1 inline-block h-4 w-4 shrink-0 align-text-bottom text-emerald-500" />
-          <span>
-            {formatEventDate(props.event.startAt, props.lang, props.event.startTimeKnown)}
+        <div class="mt-1 flex flex-col gap-0.5 text-sm text-zinc-600 sm:flex-row sm:items-center sm:gap-0 sm:truncate">
+          <span class="flex items-center">
+            <CalendarIcon class="mr-1 inline-block h-4 w-4 shrink-0 align-text-bottom text-emerald-500" />
+            <span>
+              {formatEventDate(props.event.startAt, props.lang, props.event.startTimeKnown)}
+            </span>
           </span>
           <Show when={props.event.municipalityName}>
             {(name) => (
-              <>
-                <span class="mx-1.5 text-zinc-300">·</span>
+              <span class="flex items-center">
+                <span class="hidden text-zinc-300 sm:mx-1.5 sm:inline">·</span>
                 <MapPinIcon class="mr-1 inline-block h-4 w-4 shrink-0 align-text-bottom text-emerald-500" />
                 <span>{name()}</span>
-              </>
+              </span>
             )}
           </Show>
           <Show when={props.org}>
             {(org) => (
-              <>
-                <span class="mx-1.5 text-zinc-300">·</span>
+              <span class="flex items-center">
+                <span class="hidden text-zinc-300 sm:mx-1.5 sm:inline">·</span>
                 <BuildingIcon class="mr-1 inline-block h-4 w-4 shrink-0 align-text-bottom text-emerald-500" />
                 <a
                   href={`/${props.lang}/organizations/${org().slug}`}
@@ -78,10 +84,10 @@ export function EventCard(props: {
                 >
                   {org().name}
                 </a>
-              </>
+              </span>
             )}
           </Show>
-        </p>
+        </div>
       </div>
     </div>
   );
