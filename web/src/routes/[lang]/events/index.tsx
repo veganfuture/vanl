@@ -15,6 +15,7 @@ import { ChevronDownIcon, FilterIcon } from "~/components/icons";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { MultiSelectAutocomplete } from "~/components/MultiSelectAutocomplete";
 import { apiFetch } from "~/lib/api-fetch";
+import { GROUPS } from "~/lib/groups";
 import { useLang } from "~/lib/i18n";
 import { PROVINCES } from "~/lib/provinces";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
@@ -57,6 +58,9 @@ type EventGroup = {
 
 /** Read by src/middleware.ts to decide this page is safe to cache publicly for anonymous visitors. */
 export const route = { info: { cachePolicy: "public" } };
+
+/** Not every event organizers run makes it into this calendar - many are only ever posted in this Signal group. */
+const eventsSignalGroup = GROUPS.find((g) => g.id === "events");
 
 export default function EventsListPage() {
   const { lang, t } = useLang();
@@ -248,6 +252,28 @@ export default function EventsListPage() {
     <main class="mx-auto max-w-3xl px-6 py-12">
       <LocaleCookieSync lang={lang()} />
       <Title>{t("Evenementen", "Events")} — Vegan Activists NL</Title>
+
+      <Show when={eventsSignalGroup}>
+        {(group) => (
+          <div class="mb-6 flex flex-col items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              {t(
+                "Nog niet alle evenementen staan al in deze kalender - veel worden eerst gedeeld in de Signal-groep voor evenementen. Wil je niets missen?",
+                "Not every event is listed here yet - many are first shared in the events Signal group. Want to make sure you don't miss any?",
+              )}
+            </p>
+            <a
+              href={group().url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 no-underline"
+            >
+              {t("Word lid van de groep", "Join the group")}
+            </a>
+          </div>
+        )}
+      </Show>
+
       <div class="mb-6 flex items-center justify-between">
         <h1 class="text-2xl font-semibold">{t("Evenementen", "Events")}</h1>
         <Show when={me()}>
