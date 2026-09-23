@@ -57,7 +57,7 @@ export function EventCard(props: {
             )}
           </Show>
         </div>
-        <div class="mt-1 flex flex-col gap-1.5 text-sm text-zinc-600 sm:flex-row sm:items-center sm:gap-0 sm:truncate">
+        <div class="mt-2 flex flex-col gap-1.5 text-sm text-zinc-600 sm:mt-1 sm:flex-row sm:items-center sm:gap-0 sm:truncate">
           <span class="flex items-center">
             <CalendarIcon class="mr-1 inline-block h-4 w-4 shrink-0 align-text-bottom text-emerald-500" />
             <span>
