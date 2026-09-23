@@ -16,7 +16,7 @@ export function NotFound() {
         </p>
         <p class="mb-6 text-sm text-zinc-500">
           Het spijt ons, we konden de pagina niet vinden. Maar nu we je toch spreken: het is een
-          goed moment om <span class="font-semibold text-emerald-700">vegan te gaan</span>.
+          goed moment om <span class="font-semibold text-emerald-700">vegan te worden</span>.
         </p>
         <p class="text-sm text-zinc-600">
           <a href="/nl" class="underline decoration-emerald-300 underline-offset-2">
