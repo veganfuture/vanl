@@ -1,9 +1,9 @@
 import { createAsync, useParams } from "@solidjs/router";
-import { Link, Meta, Title } from "@solidjs/meta";
 import { createSignal, Show, Suspense } from "solid-js";
 import { BuildingIcon, CalendarIcon, MapPinIcon } from "~/components/icons";
 import { LinkifiedText } from "~/components/LinkifiedText";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
+import { SocialMeta } from "~/components/SocialMeta";
 import { Toast } from "~/components/Toast";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { formatEventDate } from "~/lib/format-date";
@@ -263,18 +263,13 @@ export default function EventDetailPage() {
 
             return (
               <>
-                <Title>{title()} — Vegan Activists NL</Title>
-                <Meta property="og:title" content={`${title()} — Vegan Activists NL`} />
-                <Meta property="og:description" content={description()} />
-                <Meta property="og:image" content={ogImage()} />
-                <Meta property="og:image:alt" content={title()} />
-                <Meta property="og:url" content={canonicalUrl()} />
-                <Meta property="og:locale" content={lang() === "nl" ? "nl_NL" : "en_US"} />
-                <Meta name="twitter:card" content="summary_large_image" />
-                <Meta name="twitter:title" content={title()} />
-                <Meta name="twitter:description" content={description()} />
-                <Meta name="twitter:image" content={ogImage()} />
-                <Link rel="canonical" href={canonicalUrl()} />
+                <SocialMeta
+                  name={title()}
+                  description={description()}
+                  image={ogImage()}
+                  url={canonicalUrl()}
+                  locale={lang() === "nl" ? "nl_NL" : "en_US"}
+                />
 
                 <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
                   <Show when={currentEvent().flyerPreviewImageId}>

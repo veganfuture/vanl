@@ -1,8 +1,8 @@
 import { createAsync, useParams } from "@solidjs/router";
-import { Link, Meta, Title } from "@solidjs/meta";
 import { createResource, For, Show, Suspense } from "solid-js";
 import { EventCard } from "~/components/EventCard";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
+import { SocialMeta } from "~/components/SocialMeta";
 import { Toast } from "~/components/Toast";
 import { apiFetch } from "~/lib/api-fetch";
 import { imageUrl } from "~/lib/image-url";
@@ -85,18 +85,13 @@ export default function OrganizationDetailPage() {
 
             return (
               <>
-                <Title>{currentOrg().name} — Vegan Activists NL</Title>
-                <Meta property="og:title" content={`${currentOrg().name} — Vegan Activists NL`} />
-                <Meta property="og:description" content={description()} />
-                <Meta property="og:image" content={ogImage()} />
-                <Meta property="og:image:alt" content={currentOrg().name} />
-                <Meta property="og:url" content={canonicalUrl()} />
-                <Meta property="og:locale" content={lang() === "nl" ? "nl_NL" : "en_US"} />
-                <Meta name="twitter:card" content="summary_large_image" />
-                <Meta name="twitter:title" content={currentOrg().name} />
-                <Meta name="twitter:description" content={description()} />
-                <Meta name="twitter:image" content={ogImage()} />
-                <Link rel="canonical" href={canonicalUrl()} />
+                <SocialMeta
+                  name={currentOrg().name}
+                  description={description()}
+                  image={ogImage()}
+                  url={canonicalUrl()}
+                  locale={lang() === "nl" ? "nl_NL" : "en_US"}
+                />
                 <Show when={currentOrg().logoFullImageId}>
                   {(id) => (
                     <img
