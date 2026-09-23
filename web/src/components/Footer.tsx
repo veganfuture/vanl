@@ -19,9 +19,10 @@ export function Footer() {
             <p class="text-sm font-semibold text-zinc-900">VeganActivists.nl</p>
             <p class="text-xs text-zinc-500">
               {t(
-                "Vrij te gebruiken. Geen rechten voorbehouden. Met liefde van Vegan Future 💚",
-                "Free to use. No rights reserved. With love from Vegan Future 💚",
+                "Vrij te gebruiken. Geen rechten voorbehouden. Met liefde van ",
+                "Free to use. No rights reserved. With love from ",
               )}
+              <a href="https://veganfuture.org">Vegan Future</a>💚
             </p>
           </div>
         </div>
