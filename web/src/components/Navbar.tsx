@@ -13,6 +13,9 @@ const linkClass =
 const ctaLinkClass =
   "block rounded-full bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700";
 
+const donateLinkClass =
+  "block rounded-full bg-red-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700";
+
 const LANGUAGE_META: Record<Locale, { flag: string; label: string }> = {
   nl: { flag: "🇳🇱", label: "Nederlands" },
   en: { flag: "🇬🇧", label: "English" },
@@ -280,6 +283,9 @@ export function Navbar() {
               </a>
             )}
           </For>
+          <a href={`/${lang()}/donate`} class={donateLinkClass}>
+            ❤️ {t("Doneer", "Donate")}
+          </a>
           <Show
             when={!me.loading && me()}
             fallback={
@@ -325,6 +331,13 @@ export function Navbar() {
               </a>
             )}
           </For>
+          <a
+            href={`/${lang()}/donate`}
+            class={`${donateLinkClass} text-center`}
+            onClick={() => setMobileOpen(false)}
+          >
+            ❤️ {t("Doneer", "Donate")}
+          </a>
           <Show
             when={!me.loading && me()}
             fallback={
