@@ -12,7 +12,7 @@ export function NotFound() {
           <span class="font-semibold text-emerald-700">Go vegan.</span>
         </p>
         <p class="mb-6 text-sm text-zinc-500">
-          Deze pagina bestaat niet. Bio-industrie zou ook niet moeten bestaan.{" "}
+          Deze pagina bestaat niet. Vee-industrie zou ook niet moeten bestaan.{" "}
           <span class="font-semibold text-emerald-700">Word vegan.</span>
         </p>
         <p class="text-sm text-zinc-600">
