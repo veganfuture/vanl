@@ -5,18 +5,15 @@ export function NotFound() {
     <main class="flex min-h-screen items-center justify-center bg-gradient-to-b from-emerald-50 via-white to-emerald-50 px-6 text-center">
       <HttpStatusCode code={404} />
       <div class="max-w-md">
-        <p class="mb-3 text-6xl">🥕</p>
-        <h1 class="mb-2 text-2xl font-extrabold tracking-tight text-zinc-900">
-          404 &mdash; this page has left the farm
-        </h1>
+        <p class="mb-3 text-6xl">🌱</p>
+        <h1 class="mb-4 text-2xl font-extrabold tracking-tight text-zinc-900">404</h1>
         <p class="mb-1 text-zinc-700">
-          We're really sorry, we couldn't find the page you were looking for. But hey, since
-          you're already here: it's a great time to{" "}
-          <span class="font-semibold text-emerald-700">go vegan</span>.
+          This page doesn't exist. Neither should animal agriculture.{" "}
+          <span class="font-semibold text-emerald-700">Go vegan.</span>
         </p>
         <p class="mb-6 text-sm text-zinc-500">
-          Het spijt ons, we konden de pagina niet vinden. Maar nu we je toch spreken: het is een
-          goed moment om <span class="font-semibold text-emerald-700">vegan te worden</span>.
+          Deze pagina bestaat niet. Dierenlandbouw zou ook niet moeten bestaan.{" "}
+          <span class="font-semibold text-emerald-700">Ga vegan.</span>
         </p>
         <p class="text-sm text-zinc-600">
           <a href="/nl" class="underline decoration-emerald-300 underline-offset-2">
