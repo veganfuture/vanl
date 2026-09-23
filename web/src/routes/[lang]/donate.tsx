@@ -25,8 +25,8 @@ export default function DonatePage() {
       <div class="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
         <p class="mb-4 text-sm text-zinc-700">
           {t(
-            "Je kunt geld overmaken via bunq.me:",
-            "You can send money via bunq.me:",
+            "Je kunt geld overmaken via iDEAL or credit card:",
+            "You can send money via credit card or iDEAL:",
           )}
         </p>
         <a
@@ -41,8 +41,8 @@ export default function DonatePage() {
 
       <p class="mt-6 text-sm text-zinc-600">
         {t(
-          "Bedankt voor je steun - iedere bijdrage maakt verschil!",
-          "Thank you for your support - every contribution makes a difference!",
+          "Bedankt voor je steun. Iedere bijdrage maakt verschil!",
+          "Thank you for your support. Every contribution makes a difference!",
         )}
       </p>
     </main>
