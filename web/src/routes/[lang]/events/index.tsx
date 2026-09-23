@@ -258,8 +258,8 @@ export default function EventsListPage() {
           <div class="mb-6 flex flex-col items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 sm:flex-row sm:items-center sm:justify-between">
             <p>
               {t(
-                "Nog niet alle evenementen staan al in deze kalender - veel worden eerst gedeeld in de Signal-groep voor evenementen. Wil je niets missen?",
-                "Not every event is listed here yet - many are first shared in the events Signal group. Want to make sure you don't miss any?",
+                "Nog niet alle evenementen staan al in deze kalender: veel worden eerst gedeeld in de Signal-groep voor evenementen. Wil je niets missen?",
+                "Not every event is listed here yet: many are first shared in the events Signal group. Want to make sure you don't miss any?",
               )}
             </p>
             <a
@@ -268,7 +268,7 @@ export default function EventsListPage() {
               rel="noopener noreferrer"
               class="inline-flex shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 no-underline"
             >
-              {t("Word lid van de groep", "Join the group")}
+              {t("Word lid van de Signal-groep voor evenementen", "Join the events Signal group")}
             </a>
           </div>
         )}
