@@ -217,8 +217,7 @@ const ORGANIZATIONS: OrgSeed[] = [
     name: "International Council for Animal Welfare",
     slug: "international-council-for-animal-welfare",
     websiteUrl: "https://www.i-caw.org/",
-    logoAssetPath:
-      "scripts/seed-assets/organizations/international-council-for-animal-welfare.png",
+    logoAssetPath: "scripts/seed-assets/organizations/international-council-for-animal-welfare.png",
     descriptionEn:
       "The International Council for Animal Welfare (ICAW) is a 501(c)(3) nonprofit " +
       "headquartered in Philadelphia that campaigns to hold multinational corporations " +
@@ -236,6 +235,31 @@ const ORGANIZATIONS: OrgSeed[] = [
       "tegen specifieke bedrijven, waaronder demonstraties tegen bont bij Milan Fashion Week " +
       "en bij LVMH, tegen foie-gras-leverancier Hanos, en tegen garnalenkweekpraktijken " +
       "gelinkt aan Lidl.",
+  },
+  {
+    name: "Bont voor Dieren",
+    slug: "bont-voor-dieren",
+    websiteUrl: "https://www.bontvoordieren.nl/",
+    logoAssetPath: "scripts/seed-assets/organizations/bont-voor-dieren.png",
+    descriptionEn:
+      "Bont voor Dieren is a Dutch animal protection foundation, established in 1986, " +
+      "dedicated to ending the fur trade through political lobbying, consumer education and " +
+      "pressure on fashion brands and retailers. Its campaigns helped secure national bans on " +
+      "fox, chinchilla and mink farming, the closure of the last Dutch mink farm in 2021, and " +
+      "an EU-wide ban on cat, dog and seal fur imports, and it declared Amsterdam's " +
+      "Hartenstraat Europe's first fur-free shopping street in 2016. It maintains a Fur Free " +
+      'List of fur-free retailers, runs street-level "Te Bont Politie" outreach, and is a ' +
+      "member of the international Fur Free Alliance.",
+    descriptionNl:
+      "Bont voor Dieren is een Nederlandse dierenbeschermingsstichting, opgericht in 1986, die " +
+      "zich inzet voor een einde aan de bonthandel door middel van politieke lobby, " +
+      "publieksvoorlichting en druk op modemerken en retailers. Campagnes van de stichting " +
+      "hebben bijgedragen aan nationale verboden op vossen-, chinchilla- en nertsenfokkerij, " +
+      "de sluiting van de laatste Nederlandse nertsenfokkerij in 2021, en een EU-breed " +
+      "importverbod op katten-, honden- en zeehondenbont, en in 2016 riep de stichting de " +
+      "Amsterdamse Hartenstraat uit tot Europa's eerste bontvrije winkelstraat. De organisatie " +
+      "beheert de Bontvrij-lijst van bontvrije retailers, voert straatactivisme onder de naam " +
+      '"Te Bont Politie" en is aangesloten bij de internationale Fur Free Alliance.',
   },
 ];
 
