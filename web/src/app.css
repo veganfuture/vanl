@@ -2,6 +2,14 @@
 
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Dedicated navbar breakpoint, distinct from Tailwind's default `md`
+     (768px). The desktop nav's actual content (logo, links, donate, login,
+     language switcher) doesn't fit in 768px - it used to switch to desktop
+     layout too early and visibly squash there instead of showing the mobile
+     hamburger. Tuned empirically against the tightened Navbar spacing; see
+     `nav:` usages in Navbar.tsx. */
+  --breakpoint-nav: 56rem;
 }
 
 /* Self-hosted (not Google's CDN) - see public/fonts/plus-jakarta-sans-OFL.txt for the license.

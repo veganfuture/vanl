@@ -8,13 +8,13 @@ import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 type NavLink = { label: string; href: string };
 
 const linkClass =
-  "block rounded-md px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-emerald-50 hover:text-emerald-800";
+  "block shrink-0 whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium text-zinc-700 hover:bg-emerald-50 hover:text-emerald-800";
 
 const ctaLinkClass =
-  "block rounded-full bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700";
+  "block shrink-0 whitespace-nowrap rounded-full bg-emerald-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700";
 
 const donateLinkClass =
-  "block rounded-full bg-red-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700";
+  "block shrink-0 whitespace-nowrap rounded-full bg-red-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700";
 
 const LANGUAGE_META: Record<Locale, { flag: string; label: string }> = {
   nl: { flag: "🇳🇱", label: "Nederlands" },
@@ -36,14 +36,14 @@ function LanguageSwitcher(props: { lang: Locale; pathname: string; onNavigate?: 
 
   return (
     <details
-      class="relative group"
+      class="relative group shrink-0"
       open={open()}
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
-      <summary class="list-none flex cursor-pointer items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm hover:border-emerald-400">
+      <summary class="list-none flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-full border border-zinc-300 bg-white px-2.5 py-1.5 text-sm shadow-sm hover:border-emerald-400">
         <span>{LANGUAGE_META[props.lang].flag}</span>
         <span>{LANGUAGE_META[props.lang].label}</span>
-        <ChevronDownIcon class="h-3 w-3 text-zinc-500 transition-transform duration-200 group-open:rotate-180" />
+        <ChevronDownIcon class="h-3 w-3 shrink-0 text-zinc-500 transition-transform duration-200 group-open:rotate-180" />
       </summary>
 
       <div class="absolute right-0 z-40 mt-2 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
@@ -81,14 +81,14 @@ function AccountMenu(props: {
 
   return (
     <details
-      class="relative group"
+      class="relative group shrink-0"
       open={open()}
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
-      <summary class="list-none flex cursor-pointer items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm hover:border-emerald-400">
+      <summary class="list-none flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-full border border-zinc-300 bg-white px-2.5 py-1.5 text-sm shadow-sm hover:border-emerald-400">
         <AccountIcon class="h-4 w-4 shrink-0 text-zinc-500" />
-        <span class="max-w-[10rem] truncate">{props.displayName}</span>
-        <ChevronDownIcon class="h-3 w-3 text-zinc-500 transition-transform duration-200 group-open:rotate-180" />
+        <span class="max-w-[8rem] truncate">{props.displayName}</span>
+        <ChevronDownIcon class="h-3 w-3 shrink-0 text-zinc-500 transition-transform duration-200 group-open:rotate-180" />
       </summary>
 
       <div class="absolute right-0 z-40 mt-2 w-48 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
@@ -195,7 +195,7 @@ export function Navbar() {
   // On mobile the navbar is sticky (see the JSX below), so it's on screen
   // for as long as the user is browsing a page - shrinking it once they
   // start scrolling keeps it from permanently eating a large chunk of a
-  // small screen. Desktop's `md:static` nav isn't sticky, so this has no
+  // small screen. Desktop's `nav:relative` nav isn't sticky, so this has no
   // visible effect there. events/index.tsx's filter bar mirrors this same
   // 56px shrunk height to stay flush against it once scrolled.
   const [scrolled, setScrolled] = createSignal(false);
@@ -244,29 +244,35 @@ export function Navbar() {
   ];
 
   return (
-    <nav class="sticky top-0 z-50 border-b border-zinc-200 bg-white/85 shadow-sm backdrop-blur-md md:relative">
+    <nav class="sticky top-0 z-50 border-b border-zinc-200 bg-white/85 shadow-sm backdrop-blur-md nav:relative">
       <div
-        class={`mx-auto flex max-w-6xl items-center justify-between px-6 transition-[padding] duration-200 md:py-3 ${
+        class={`mx-auto flex max-w-6xl items-center justify-between px-6 transition-[padding] duration-200 nav:py-3 ${
           scrolled() ? "py-1" : "py-3"
         }`}
       >
-        <a href={`/${lang()}`} class="flex items-center gap-3 no-underline">
+        <a href={`/${lang()}`} class="flex shrink-0 items-center gap-2 no-underline">
           <span class="inline-flex">
             <img
               src="/apple-touch-icon.png"
               width={60}
               height={60}
               alt="Vegan Activists NL logo"
-              class={`shrink-0 transition-all duration-200 md:h-[60px] md:w-[60px] ${
+              class={`shrink-0 transition-all duration-200 nav:h-[60px] nav:w-[60px] ${
                 scrolled() ? "h-8 w-8" : "h-[60px] w-[60px]"
               }`}
             />
           </span>
           <div>
-            <p class="my-1 py-0 text-sm font-semibold leading-tight text-zinc-900">
+            <p class="my-1 whitespace-nowrap py-0 text-sm font-semibold leading-tight text-zinc-900">
               VeganActivists.nl
             </p>
-            <p class="my-1 hidden py-0 text-xs text-zinc-600 md:block">
+            {/* Decorative only, so it's held back to a wider breakpoint than
+                the nav/mobile switch itself - it's the longest piece of text
+                in the bar (especially in Dutch), and letting it in at the
+                same breakpoint as the nav links is what previously caused
+                the logo block to wrap/squash right as the desktop layout
+                kicked in. */}
+            <p class="my-1 hidden whitespace-nowrap py-0 text-xs text-zinc-600 lg:block">
               {t(
                 "Samen sterk voor dierenrechten • Nederland",
                 "Together united for animal rights • Netherlands",
@@ -275,7 +281,7 @@ export function Navbar() {
           </div>
         </a>
 
-        <div class="hidden items-center gap-1 md:flex">
+        <div class="hidden items-center gap-1 nav:flex">
           <For each={links()}>
             {(link) => (
               <a href={link.href} class={linkClass}>
@@ -311,7 +317,7 @@ export function Navbar() {
 
         <button
           type="button"
-          class={`inline-flex items-center justify-center rounded-md text-zinc-700 transition-[padding] duration-200 hover:bg-zinc-100 md:hidden md:p-2 ${
+          class={`inline-flex items-center justify-center rounded-md text-zinc-700 transition-[padding] duration-200 hover:bg-zinc-100 nav:hidden nav:p-2 ${
             scrolled() ? "p-1" : "p-2"
           }`}
           aria-label={t("Menu omschakelen", "Toggle menu")}
@@ -323,7 +329,7 @@ export function Navbar() {
       </div>
 
       <Show when={mobileOpen()}>
-        <div class="space-y-1 border-t border-zinc-200 px-6 py-3 md:hidden">
+        <div class="space-y-1 border-t border-zinc-200 px-6 py-3 nav:hidden">
           <For each={links()}>
             {(link) => (
               <a href={link.href} class={linkClass} onClick={() => setMobileOpen(false)}>

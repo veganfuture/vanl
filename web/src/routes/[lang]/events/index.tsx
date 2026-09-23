@@ -262,10 +262,10 @@ export default function EventsListPage() {
 
       <div
         ref={filterBarRef}
-        class={`sticky top-[40px] z-30 mb-8 md:static md:mx-0 ${docked() ? "-mx-6" : ""}`}
+        class={`sticky top-[40px] z-30 mb-8 nav:static nav:mx-0 ${docked() ? "-mx-6" : ""}`}
       >
         <div
-          class={`transition-[border-radius] md:rounded-2xl md:border md:border-zinc-200 md:bg-white/90 md:shadow-sm md:backdrop-blur-sm ${
+          class={`transition-[border-radius] nav:rounded-2xl nav:border nav:border-zinc-200 nav:bg-white/90 nav:shadow-sm nav:backdrop-blur-sm ${
             docked()
               ? "border-b border-zinc-200 bg-white shadow-sm"
               : "rounded-2xl border border-zinc-200 bg-white/90 shadow-sm backdrop-blur-sm"
@@ -273,7 +273,7 @@ export default function EventsListPage() {
         >
           <button
             type="button"
-            class={`flex w-full items-center justify-between gap-3 text-left transition hover:bg-zinc-50 md:rounded-2xl md:px-4 md:py-3 ${
+            class={`flex w-full items-center justify-between gap-3 text-left transition hover:bg-zinc-50 nav:rounded-2xl nav:px-4 nav:py-3 ${
               docked() ? "px-6 py-2.5" : "rounded-2xl px-4 py-3"
             }`}
             aria-expanded={filtersOpen()}
@@ -295,7 +295,7 @@ export default function EventsListPage() {
 
           <Show when={!filtersOpen() && hasActiveFilters()}>
             <div
-              class={`flex flex-wrap items-center gap-1.5 pb-3 md:px-4 ${docked() ? "px-6" : "px-4"}`}
+              class={`flex flex-wrap items-center gap-1.5 pb-3 nav:px-4 ${docked() ? "px-6" : "px-4"}`}
             >
               <For each={selectedProvinces()}>
                 {(province) => (
@@ -357,7 +357,7 @@ export default function EventsListPage() {
 
           <Show when={filtersOpen()}>
             <div
-              class={`flex flex-col gap-3 border-t border-zinc-100 py-4 sm:flex-row sm:flex-wrap sm:items-end md:px-4 ${docked() ? "px-6" : "px-4"}`}
+              class={`flex flex-col gap-3 border-t border-zinc-100 py-4 sm:flex-row sm:flex-wrap sm:items-end nav:px-4 ${docked() ? "px-6" : "px-4"}`}
             >
               <div class="w-full sm:w-56">
                 <MultiSelectAutocomplete
