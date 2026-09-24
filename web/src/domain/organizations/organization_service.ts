@@ -125,6 +125,14 @@ export class OrganizationService {
     });
   }
 
+  /** Public - no auth required. Backs the event detail page's "organized by" link (see toEventJson's organizerOrgSlug). */
+  getOrganizationById(id: OrganizationId): ResultAsync<Organization | null, never> {
+    return this.repository.findOrganizationById(id).orElse((dbError) => {
+      logger.error({ err: dbError }, "failed to look up organization by id");
+      return okAsync(null);
+    });
+  }
+
   /** Public listing - active orgs only. */
   listOrganizations(): ResultAsync<Organization[], never> {
     return this.repository.listActiveOrganizations().orElse((dbError) => {
