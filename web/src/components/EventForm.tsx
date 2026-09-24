@@ -9,6 +9,7 @@ import {
   EVENT_URL_MAX_LENGTH,
 } from "~/lib/event_validation";
 import { apiFetch, type ErrorMessagesFor } from "~/lib/api-fetch";
+import { EVENT_TZ, resolveDateOnlyInstant } from "~/lib/event_date";
 import { ImagePickerField } from "./ImagePickerField";
 import { makeT, type Locale } from "~/lib/i18n";
 import type { EventJson } from "~/routes/api/events/event.schema";
@@ -125,15 +126,17 @@ export function emptyEventFormValues(): EventFormValues {
 // Date(value)` would) silently gives the wrong instant for anyone not
 // currently in the Netherlands. date-fns-tz handles the IANA-timezone-aware
 // conversion (Amsterdam's UTC offset isn't fixed - CET/CEST - and there's a
-// genuinely ambiguous hour each October when clocks go back).
-const AMSTERDAM_TZ = "Europe/Amsterdam";
+// genuinely ambiguous hour each October when clocks go back). EVENT_TZ is
+// shared with ~/lib/event_date so the date-only case (see localDateToIso
+// below) can't drift from the one true "date-only means Amsterdam midnight"
+// definition used elsewhere (e.g. import-arc-events.ts).
 
 /** Converts a `<input type="datetime-local">` value, read as Amsterdam wall-clock time, to a full UTC ISO instant. */
 function localDateTimeToIso(value: string): string | null {
   if (!value) {
     return null;
   }
-  const date = fromZonedTime(value, AMSTERDAM_TZ);
+  const date = fromZonedTime(value, EVENT_TZ);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
@@ -142,7 +145,7 @@ function isoToLocalDateTime(iso: string | null): string {
   if (!iso) {
     return "";
   }
-  return formatInTimeZone(new Date(iso), AMSTERDAM_TZ, "yyyy-MM-dd'T'HH:mm");
+  return formatInTimeZone(new Date(iso), EVENT_TZ, "yyyy-MM-dd'T'HH:mm");
 }
 
 /** Extracts just the "HH:mm" wall-clock time-of-day from a stored UTC ISO instant, in Amsterdam time - used to prefill a start/end time from a previous event without also prefilling its date (see events/new.tsx's prefill-from-previous-event picker). */
@@ -150,15 +153,15 @@ export function isoToLocalTime(iso: string | null): string | null {
   if (!iso) {
     return null;
   }
-  return formatInTimeZone(new Date(iso), AMSTERDAM_TZ, "HH:mm");
+  return formatInTimeZone(new Date(iso), EVENT_TZ, "HH:mm");
 }
 
-/** Converts a `<input type="date">` value, read as an Amsterdam calendar date, to a full UTC ISO instant at Amsterdam midnight. */
+/** Converts a `<input type="date">` value to a full UTC ISO instant, via ~/lib/event_date's shared date-only convention. */
 function localDateToIso(value: string): string | null {
   if (!value) {
     return null;
   }
-  const date = fromZonedTime(`${value}T00:00`, AMSTERDAM_TZ);
+  const date = resolveDateOnlyInstant(value);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
@@ -167,7 +170,7 @@ function isoToLocalDate(iso: string | null): string {
   if (!iso) {
     return "";
   }
-  return formatInTimeZone(new Date(iso), AMSTERDAM_TZ, "yyyy-MM-dd");
+  return formatInTimeZone(new Date(iso), EVENT_TZ, "yyyy-MM-dd");
 }
 
 /** Pure calendar-day arithmetic on a bare "yyyy-MM-dd" string - no timezone involved, so DST can't shift it by a day. */

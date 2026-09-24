@@ -39,6 +39,23 @@ describe("toRealEvent", () => {
     return date;
   }
 
+  /**
+   * Mirrors node-ical's *actual* construction for a bare `VALUE=DATE`
+   * property - `new Date(year, monthIndex, day)`, i.e. local calendar
+   * components, not a UTC instant (see node-ical's ical-parser-utils.js:
+   * "No TZ info - assume same timezone as this computer"). Unlike dateOnly()
+   * above (a UTC-instant shortcut that's only ever used to test the
+   * startTimeKnown/endTimeKnown booleans), this one actually exercises
+   * normalizeDateOnly's ambient-timezone independence: its local getters
+   * yield (year, monthIndex, day) in *any* system timezone the test runner
+   * happens to use, exactly like the real parser.
+   */
+  function localDateOnly(year: number, monthIndex: number, day: number): VEvent["start"] {
+    const date = new Date(year, monthIndex, day) as VEvent["start"];
+    date.dateOnly = true;
+    return date;
+  }
+
   it("marks startTimeKnown/endTimeKnown false for a date-only VEVENT", () => {
     const event = {
       uid: "date-only-event",
@@ -54,6 +71,55 @@ describe("toRealEvent", () => {
 
     expect(result.startTimeKnown).toBe(false);
     expect(result.endTimeKnown).toBe(false);
+  });
+
+  it("normalizes a date-only VEVENT to Amsterdam midnight as a UTC instant (CEST), independent of the test runner's own timezone", () => {
+    const event = {
+      uid: "date-only-summer",
+      start: localDateOnly(2026, 8, 19), // 2026-09-19, CEST (UTC+2)
+      end: localDateOnly(2026, 8, 20),
+      geo: { lat: 52, lon: 5 },
+      location: { val: "Somewhere" },
+      summary: { val: "All-day event" },
+      description: { val: "A description" },
+    } as unknown as VEvent;
+
+    const result = toRealEvent([event]);
+
+    expect(result.startAt.toISOString()).toBe("2026-09-18T22:00:00.000Z");
+    expect(result.endAt?.toISOString()).toBe("2026-09-19T22:00:00.000Z");
+  });
+
+  it("normalizes a date-only VEVENT to Amsterdam midnight as a UTC instant (CET, winter)", () => {
+    const event = {
+      uid: "date-only-winter",
+      start: localDateOnly(2026, 0, 19), // 2026-01-19, CET (UTC+1)
+      geo: { lat: 52, lon: 5 },
+      location: { val: "Somewhere" },
+      summary: { val: "All-day event" },
+      description: { val: "A description" },
+    } as unknown as VEvent;
+
+    const result = toRealEvent([event]);
+
+    expect(result.startAt.toISOString()).toBe("2026-01-18T23:00:00.000Z");
+  });
+
+  it("leaves a timed VEVENT's instant untouched (no dateOnly normalization)", () => {
+    const event = {
+      uid: "timed-untouched",
+      start: new Date("2026-09-19T18:00:00.000Z") as VEvent["start"],
+      end: new Date("2026-09-19T20:00:00.000Z") as VEvent["start"],
+      geo: { lat: 52, lon: 5 },
+      location: { val: "Somewhere" },
+      summary: { val: "Evening event" },
+      description: { val: "A description" },
+    } as unknown as VEvent;
+
+    const result = toRealEvent([event]);
+
+    expect(result.startAt.toISOString()).toBe("2026-09-19T18:00:00.000Z");
+    expect(result.endAt?.toISOString()).toBe("2026-09-19T20:00:00.000Z");
   });
 
   it("marks startTimeKnown/endTimeKnown true for a normal timed VEVENT", () => {

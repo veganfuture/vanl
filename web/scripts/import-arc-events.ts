@@ -19,6 +19,7 @@ import type { Uuid } from "../src/lib/uuid";
 import { reverseGeocode } from "../src/domain/events/pdok-client";
 import { generateSlug } from "../src/lib/slug";
 import { validateEvent, type ValidatableEvent } from "../src/lib/event_validation";
+import { resolveDateOnlyInstantFromParts } from "../src/lib/event_date";
 
 /**
  * Imports events from animalrightscalendar.com (ARC) into our events table.
@@ -279,6 +280,30 @@ function groupEvents(events: VEvent[]): VEvent[][] {
 }
 
 /**
+ * node-ical parses a bare `VALUE=DATE` property (no TZID - see its own
+ * "assume same timezone as this computer" comment) via `new Date(y, m-1, d)`,
+ * i.e. using the *import script process's* ambient system timezone, not
+ * Amsterdam's - so its absolute instant is only right if that process happens
+ * to run with Europe/Amsterdam as its system zone (true in prod today, see
+ * server/configuration.nix's `time.timeZone`, but not guaranteed, and not
+ * true for `bun test`). Reading back its Y/M/D via the Date's own local
+ * getters (still the calendar day node-ical actually parsed, regardless of
+ * ambient zone - local getters and the local constructor it used are always
+ * self-consistent) and handing off to ~/lib/event_date's
+ * resolveDateOnlyInstantFromParts - the same convention EventForm.tsx uses
+ * for a real user's date-only input, via resolveDateOnlyInstant - is what
+ * makes this deterministic, independent of the running process's own zone.
+ * Without this, a date-only event's start_at wouldn't exactly match its own
+ * manually-created twin were it to loop back through ARC (see
+ * EventRepository.findEventByTitleAndStart), silently letting a duplicate
+ * through.
+ */
+function normalizeDateOnly(date: VEvent["start"]): Date {
+  if (!date.dateOnly) return date;
+  return resolveDateOnlyInstantFromParts(date.getFullYear(), date.getMonth() + 1, date.getDate());
+}
+
+/**
  * Turns one (start, end, location) group into a single real-world event.
  * Members are sorted by uid first so the canonical external id (and the
  * choice between duplicate postings) is deterministic across re-runs.
@@ -296,9 +321,9 @@ export function toRealEvent(group: VEvent[]): RealEvent {
     titleEn: pickText(sorted.map((e) => textOf(e.summary))),
     descriptionNl: null,
     descriptionEn: pickText(sorted.map((e) => textOf(e.description))),
-    startAt: canonical.start,
+    startAt: normalizeDateOnly(canonical.start),
     startTimeKnown: !canonical.start.dateOnly,
-    endAt: canonical.end ?? null,
+    endAt: canonical.end ? normalizeDateOnly(canonical.end) : null,
     endTimeKnown: canonical.end ? !canonical.end.dateOnly : true,
     location: textOf(canonical.location)!,
     geo: geoOf(canonical)!,
@@ -617,6 +642,7 @@ async function main(): Promise<void> {
   let filteredNonNl = 0;
   let skippedNoPlace = 0;
   let skippedValidation = 0;
+  let skippedDuplicateTitle = 0;
   let failed = 0;
   let created = 0;
   let updated = 0;
@@ -738,6 +764,34 @@ async function main(): Promise<void> {
       }
 
       const title = event.titleNl ?? event.titleEn;
+
+      // A never-before-seen external_source_id doesn't necessarily mean a new
+      // real-world event: it could be one we published ourselves and exported
+      // to ARC via /events.ics, now looping back under an ARC-assigned id
+      // we've never seen. Title+start is the only stable link back to that
+      // original event ARC's feed still carries - skip creating a duplicate
+      // when it matches, but never touch the matched event itself (it may not
+      // even be one of ours; the point is just to not double it).
+      if (!existing.value && title) {
+        const titleMatch = await eventRepository.findEventByTitleAndStart(title, event.startAt);
+        if (titleMatch.isErr()) {
+          failed++;
+          console.error(
+            `Failed to check for a title/start duplicate for "${title}" (${event.externalSourceId}): ` +
+              `${titleMatch.error.message}`,
+          );
+          continue;
+        }
+        if (titleMatch.value) {
+          skippedDuplicateTitle++;
+          console.log(
+            `Skipping "${title}" (${event.externalSourceId}): an event with the same title and ` +
+              `start time already exists (${titleMatch.value.id.value}) - treating as a duplicate.`,
+          );
+          continue;
+        }
+      }
+
       const organizerName = detectOrganizer(event);
       const organizerOrg = organizerName
         ? await resolveOrganizerOrganization(organizerName, organizationRepository)
@@ -885,8 +939,8 @@ async function main(): Promise<void> {
         `flyers (${flyersSkippedReused} skipped as a same-pull-reused image, ${flyersSkippedDuplicate} ` +
         `skipped as a cross-run content duplicate), filtered out ` +
         `${filteredNonNl} non-NL events, skipped ${skippedNoPlace} for no matching place, ` +
-        `${skippedValidation} failing validation, ${crossCheckMismatches} on a second-opinion ` +
-        `mismatch, ${failed} failed outright.`,
+        `${skippedValidation} failing validation, ${skippedDuplicateTitle} as a title/start duplicate, ` +
+        `${crossCheckMismatches} on a second-opinion mismatch, ${failed} failed outright.`,
     );
   } finally {
     await sql.end();

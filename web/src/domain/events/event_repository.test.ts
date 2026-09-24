@@ -191,6 +191,76 @@ describe("lookups", () => {
   });
 });
 
+describe("findEventByTitleAndStart", () => {
+  it("matches case- and whitespace-insensitively against titleNl", async () => {
+    const publisher = await makeUser("publisher-title-nl");
+    const startAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const created = (
+      await repository.createEvent(
+        baseEventInput({
+          publisherUserId: publisher,
+          slug: "title-nl-event",
+          titleNl: "Cube of Truth: Nijmegen",
+          titleEn: null,
+          startAt,
+        }),
+      )
+    )._unsafeUnwrap();
+
+    const found = (
+      await repository.findEventByTitleAndStart("  cube of truth: nijmegen  ", startAt)
+    )._unsafeUnwrap();
+    expect(found?.id.equals(created.id)).toBe(true);
+  });
+
+  it("matches against titleEn when titleNl doesn't match", async () => {
+    const publisher = await makeUser("publisher-title-en");
+    const startAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const created = (
+      await repository.createEvent(
+        baseEventInput({
+          publisherUserId: publisher,
+          slug: "title-en-event",
+          titleNl: "Nederlandse titel",
+          titleEn: "Street Outreach",
+          startAt,
+        }),
+      )
+    )._unsafeUnwrap();
+
+    const found = (
+      await repository.findEventByTitleAndStart("Street Outreach", startAt)
+    )._unsafeUnwrap();
+    expect(found?.id.equals(created.id)).toBe(true);
+  });
+
+  it("does not match when the title is the same but start_at differs", async () => {
+    const publisher = await makeUser("publisher-title-diff-start");
+    const startAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await repository.createEvent(
+      baseEventInput({
+        publisherUserId: publisher,
+        slug: "diff-start-event",
+        titleEn: "Vigil for the Animals",
+        startAt,
+      }),
+    );
+
+    const otherStart = new Date(startAt.getTime() + 60 * 60 * 1000);
+    const found = (
+      await repository.findEventByTitleAndStart("Vigil for the Animals", otherStart)
+    )._unsafeUnwrap();
+    expect(found).toBeNull();
+  });
+
+  it("returns null when nothing matches", async () => {
+    const found = (
+      await repository.findEventByTitleAndStart("Nothing like this exists", new Date())
+    )._unsafeUnwrap();
+    expect(found).toBeNull();
+  });
+});
+
 describe("listVisibleEvents", () => {
   it("only returns visible events, soonest first", async () => {
     const publisher = await makeUser("publisher-dave");
