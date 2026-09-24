@@ -372,8 +372,15 @@ export class AuthService {
     });
   }
 
-  /** Admin "Users" detail page only - unlike getSessionUser, does not hide a disabled user (the page needs to find them to re-enable). */
-  findUserById(id: UserId): ResultAsync<User | null, never> {
+  /**
+   * site_admin only - admin_users.ts's own gate is on top of this, not
+   * instead of it. Unlike getSessionUser, does not hide a disabled user
+   * (the admin page needs to find them to re-enable/rename).
+   */
+  findUserById(actingUser: ActingUser, id: UserId): ResultAsync<User | null, "forbidden"> {
+    if (!actingUser.isSiteAdmin) {
+      return errAsync("forbidden");
+    }
     return this.repository.findUserById(id).orElse((dbError) => {
       logger.error({ err: dbError }, "failed to find user by id");
       return okAsync(null);
@@ -402,8 +409,18 @@ export class AuthService {
       });
   }
 
-  /** Admin "Users" detail page only - site_admin gate lives in admin_users.ts, same split as every other admin mutation there. */
-  setUserDisabled(id: UserId, disabled: boolean): ResultAsync<User, "internal_error"> {
+  /**
+   * site_admin only - admin_users.ts's own gate (plus its cannot-disable-
+   * self business rule) is on top of this, not instead of it.
+   */
+  setUserDisabled(
+    actingUser: ActingUser,
+    id: UserId,
+    disabled: boolean,
+  ): ResultAsync<User, "forbidden" | "internal_error"> {
+    if (!actingUser.isSiteAdmin) {
+      return errAsync("forbidden");
+    }
     return this.repository.setUserDisabled(id, disabled).mapErr((dbError) => {
       logger.error({ err: dbError }, "failed to set user disabled");
       return "internal_error" as const;
@@ -442,16 +459,30 @@ export class AuthService {
     });
   }
 
-  /** Admin "Users" page only. Fails closed to an empty list on a DB error, same reasoning as isSiteAdmin. */
-  listAllUsers(): ResultAsync<User[], never> {
+  /**
+   * site_admin only - admin_users.ts's own gate is on top of this, not
+   * instead of it. Fails closed to an empty list on a DB error, same
+   * reasoning as isSiteAdmin.
+   */
+  listAllUsers(actingUser: ActingUser): ResultAsync<User[], "forbidden"> {
+    if (!actingUser.isSiteAdmin) {
+      return errAsync("forbidden");
+    }
     return this.repository.listAllUsers().orElse((dbError) => {
       logger.error({ err: dbError }, "failed to list all users");
       return okAsync([]);
     });
   }
 
-  /** Admin "Users" page only - keyed by UserId.value so callers can look up by the same string ActingUser.orgRoles uses. */
-  listLastLoginByUser(): ResultAsync<Map<string, Date>, never> {
+  /**
+   * site_admin only - admin_users.ts's own gate is on top of this, not
+   * instead of it. Keyed by UserId.value so callers can look up by the
+   * same string ActingUser.orgRoles uses.
+   */
+  listLastLoginByUser(actingUser: ActingUser): ResultAsync<Map<string, Date>, "forbidden"> {
+    if (!actingUser.isSiteAdmin) {
+      return errAsync("forbidden");
+    }
     return this.repository
       .listLastLoginByUser()
       .orElse((dbError) => {

@@ -39,8 +39,8 @@ export function listAdminUserSummaries(
   }
 
   return ResultAsync.combine([
-    authService.listAllUsers(),
-    authService.listLastLoginByUser(),
+    authService.listAllUsers(actingUser),
+    authService.listLastLoginByUser(actingUser),
     organizationRepository.listAllMembershipsWithOrgNames().orElse((dbError) => {
       logger.error({ err: dbError }, "failed to list all memberships with org names");
       return okAsync([]);
@@ -80,8 +80,8 @@ export function getAdminUserDetail(
   }
 
   return ResultAsync.combine([
-    authService.findUserById(userId),
-    authService.listLastLoginByUser(),
+    authService.findUserById(actingUser, userId),
+    authService.listLastLoginByUser(actingUser),
     organizationRepository.listAllMembershipsWithOrgNames().orElse((dbError) => {
       logger.error({ err: dbError }, "failed to list all memberships with org names");
       return okAsync([]);
@@ -124,11 +124,11 @@ export function setUserDisabled(
     return errAsync("cannot_disable_self");
   }
 
-  return authService.findUserById(userId).andThen((user) => {
+  return authService.findUserById(actingUser, userId).andThen((user) => {
     if (!user) {
       return errAsync<void, SetUserDisabledError>("not_found");
     }
-    return authService.setUserDisabled(userId, disabled).map(() => undefined);
+    return authService.setUserDisabled(actingUser, userId, disabled).map(() => undefined);
   });
 }
 
@@ -154,7 +154,7 @@ export function renameAccount(
     return errAsync("reserved");
   }
 
-  return authService.findUserById(userId).andThen((user) => {
+  return authService.findUserById(actingUser, userId).andThen((user) => {
     if (!user) {
       return errAsync<void, RenameAccountError>("not_found");
     }
