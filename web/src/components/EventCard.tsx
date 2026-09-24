@@ -19,8 +19,8 @@ import type { EventJson } from "~/routes/api/events/event.schema";
  * `sm:contents`, same trick as the organization list card) instead of
  * indenting the whole text column, so the meta line isn't squeezed into a
  * narrower strip than it needs on small screens; this duplicates the title
- * (and status badge) markup once per breakpoint since the two layouts group
- * the thumbnail with different siblings. The place segment always shows
+ * markup once per breakpoint since the two layouts group the thumbnail with
+ * different siblings. The place segment always shows
  * when `event.municipalityName` is set (resolved server-side by GET
  * /api/events - see event.schema.ts's toEventJson) - callers never pass it
  * in separately. The thumbnail fallback (`orgLogoThumbnailImageId`) is
@@ -29,7 +29,10 @@ import type { EventJson } from "~/routes/api/events/event.schema";
  * look identical everywhere it appears, rather than varying by surface. The
  * status badge and the publishing org link are still opt-in via props: only
  * the events overview page passes `org` - on the other two surfaces the
- * publishing org is already obvious from the page itself.
+ * publishing org is already obvious from the page itself. The status badge
+ * is the first meta-line item when present, ahead of date/place/org - the
+ * date's leading dot separator is therefore conditional on it (place/org's
+ * own leading dots stay unconditional, since date always precedes them).
  *
  * The whole card is a stretched link to the event (the title anchor's
  * `after:absolute after:inset-0` extends its click/tap target to fill the
@@ -47,17 +50,6 @@ export function EventCard(props: {
 }) {
   const title = () => pickLocalized(props.event.titleNl, props.event.titleEn, props.lang);
 
-  const statusBadge = () => (
-    <Show when={props.statusLabel}>
-      {(label) => (
-        <span class="shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-          {label()}
-          {props.event.statusReason ? ` — ${props.event.statusReason}` : ""}
-        </span>
-      )}
-    </Show>
-  );
-
   return (
     <div class="group relative flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
       <div class="flex items-center gap-3 sm:contents">
@@ -71,20 +63,29 @@ export function EventCard(props: {
         >
           {title()}
         </a>
-        <div class="sm:hidden">{statusBadge()}</div>
       </div>
       <div class="min-w-0 flex-1">
-        <div class="hidden items-center gap-2 sm:flex">
-          <a
-            href={props.href}
-            class="min-w-0 flex-1 truncate text-lg leading-snug font-semibold text-zinc-900 no-underline transition-colors after:absolute after:inset-0 after:content-[''] group-hover:text-emerald-700"
-          >
-            {title()}
-          </a>
-          {statusBadge()}
-        </div>
+        <a
+          href={props.href}
+          class="hidden min-w-0 truncate text-lg leading-snug font-semibold text-zinc-900 no-underline transition-colors after:absolute after:inset-0 after:content-[''] group-hover:text-emerald-700 sm:block"
+        >
+          {title()}
+        </a>
         <div class="mt-2 flex flex-col gap-1.5 text-sm text-zinc-600 sm:mt-1 sm:flex-row sm:items-center sm:gap-0 sm:truncate">
+          <Show when={props.statusLabel}>
+            {(label) => (
+              <span class="flex items-center">
+                <span class="shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                  {label()}
+                  {props.event.statusReason ? ` — ${props.event.statusReason}` : ""}
+                </span>
+              </span>
+            )}
+          </Show>
           <span class="flex items-center">
+            <Show when={props.statusLabel}>
+              <span class="hidden text-zinc-300 sm:mx-1.5 sm:inline">·</span>
+            </Show>
             <CalendarIcon class="mr-1 inline-block h-4 w-4 shrink-0 align-text-bottom text-emerald-500" />
             <span>
               {formatEventDate(props.event.startAt, props.lang, props.event.startTimeKnown)}
