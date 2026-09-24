@@ -1,12 +1,14 @@
 import { useParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
-import { createMemo, createResource, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createResource, createSignal, For, Show } from "solid-js";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { makeT, useLang, type Locale } from "~/lib/i18n";
 import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import {
   GetAdminUserDetailResponseSchema,
+  RenameAccountRequestSchema,
+  RenameAccountResponseSchema,
   SetUserDisabledRequestSchema,
   SetUserDisabledResponseSchema,
 } from "~/routes/api/admin/users/[id].schema";
@@ -33,6 +35,8 @@ type ActionErrorCode =
   | "member_not_found"
   | "sole_admin"
   | "validation"
+  | "reserved"
+  | "name_taken"
   | "internal_error";
 
 function actionErrorMessages(lang: Locale): ErrorMessagesFor<{ error: ActionErrorCode }> {
@@ -92,6 +96,14 @@ function actionErrorMessages(lang: Locale): ErrorMessagesFor<{ error: ActionErro
         "Please check the form and try again.",
       ),
       isWarn: false,
+    },
+    reserved: {
+      message: t("Deze gebruikersnaam is gereserveerd.", "That account name is reserved."),
+      isWarn: true,
+    },
+    name_taken: {
+      message: t("Deze gebruikersnaam is al in gebruik.", "That account name is already taken."),
+      isWarn: true,
     },
     internal_error: {
       message: t(
@@ -166,6 +178,13 @@ export default function AdminUserDetailPage() {
   const [selectedOrgId, setSelectedOrgId] = createSignal("");
   const [newRole, setNewRole] = createSignal<MembershipJson["role"]>("org_editor");
   const [adding, setAdding] = createSignal(false);
+  const [accountNameInput, setAccountNameInput] = createSignal("");
+  const [renaming, setRenaming] = createSignal(false);
+
+  createEffect(() => {
+    const user = detail();
+    if (user) setAccountNameInput(user.accountName);
+  });
 
   async function onToggleDisabled() {
     const user = detail();
@@ -186,6 +205,29 @@ export default function AdminUserDetailPage() {
       );
     } finally {
       setDisabling(false);
+    }
+  }
+
+  async function onRenameAccount(submitEvent: SubmitEvent) {
+    submitEvent.preventDefault();
+    const user = detail();
+    const nextAccountName = accountNameInput().trim();
+    if (!user || !nextAccountName || nextAccountName === user.accountName) return;
+    setActionError(null);
+    setRenaming(true);
+    try {
+      const result = await apiFetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        request: RenameAccountRequestSchema,
+        body: { accountName: nextAccountName },
+        response: RenameAccountResponseSchema,
+      });
+      result.match(
+        () => refetchDetail(),
+        (error) => setActionError(describeApiError(error, actionErrorMessages(lang()))),
+      );
+    } finally {
+      setRenaming(false);
     }
   }
 
@@ -311,6 +353,38 @@ export default function AdminUserDetailPage() {
                       </Show>
                     </dd>
                   </dl>
+
+                  <h2 class="mb-4 text-lg font-semibold">
+                    {t("Gebruikersnaam wijzigen", "Rename account")}
+                  </h2>
+                  <form class="mb-10 flex flex-wrap items-end gap-3" onSubmit={onRenameAccount}>
+                    <label class="block">
+                      <span class="block text-sm font-medium">
+                        {t("Gebruikersnaam", "Account name")}
+                      </span>
+                      <input
+                        type="text"
+                        class="mt-1 block rounded border border-zinc-300 px-3 py-2"
+                        required
+                        minLength={3}
+                        maxLength={32}
+                        pattern="[a-zA-Z0-9][a-zA-Z0-9_-]*"
+                        value={accountNameInput()}
+                        onInput={(e) => setAccountNameInput(e.currentTarget.value)}
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      disabled={
+                        renaming() ||
+                        !accountNameInput().trim() ||
+                        accountNameInput().trim() === user().accountName
+                      }
+                      class="rounded-lg bg-zinc-800 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-zinc-900 disabled:opacity-50"
+                    >
+                      {renaming() ? t("Bezig…", "Renaming…") : t("Opslaan", "Save")}
+                    </button>
+                  </form>
 
                   <button
                     type="button"

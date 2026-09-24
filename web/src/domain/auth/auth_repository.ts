@@ -280,6 +280,23 @@ export class AuthRepository {
     ).andThen((rows) => mapUserRow(rows[0]));
   }
 
+  /**
+   * Admin "Users" detail page only - self-service profile edit deliberately
+   * excludes account_name (see updateProfile). Uniqueness is enforced by the
+   * column's citext unique constraint, not a pre-check here; callers detect
+   * a conflict via isUniqueViolation(dbError.cause).
+   */
+  updateAccountName(id: UserId, accountName: AccountName): ResultAsync<User, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        update users set account_name = ${accountName.value}, updated_at = now()
+        where id = ${id.value}
+        returning *
+      `,
+      (cause): DbError => ({ message: "Failed to update account name", cause }),
+    ).andThen((rows) => mapUserRow(rows[0]));
+  }
+
   findUserBySignalAci(aci: SignalAci): ResultAsync<User | null, DbError> {
     return ResultAsync.fromPromise(
       this.sql`

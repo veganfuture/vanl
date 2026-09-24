@@ -3,7 +3,7 @@ import { logger } from "~/lib/logger";
 import { organizationRepository } from "~/domain/organizations/organization_repository";
 import type { ActingUser } from "./acting_user";
 import { authService } from "./auth_service";
-import type { AccountName } from "./account_name";
+import { AccountName, isReservedAccountName } from "./account_name";
 import type { UserId } from "./user_id";
 import type { OrgRole } from "./roles";
 
@@ -39,8 +39,8 @@ export function listAdminUserSummaries(
   }
 
   return ResultAsync.combine([
-    authService.listAllUsers(),
-    authService.listLastLoginByUser(),
+    authService.listAllUsers(actingUser),
+    authService.listLastLoginByUser(actingUser),
     organizationRepository.listAllMembershipsWithOrgNames().orElse((dbError) => {
       logger.error({ err: dbError }, "failed to list all memberships with org names");
       return okAsync([]);
@@ -80,8 +80,8 @@ export function getAdminUserDetail(
   }
 
   return ResultAsync.combine([
-    authService.findUserById(userId),
-    authService.listLastLoginByUser(),
+    authService.findUserById(actingUser, userId),
+    authService.listLastLoginByUser(actingUser),
     organizationRepository.listAllMembershipsWithOrgNames().orElse((dbError) => {
       logger.error({ err: dbError }, "failed to list all memberships with org names");
       return okAsync([]);
@@ -124,10 +124,40 @@ export function setUserDisabled(
     return errAsync("cannot_disable_self");
   }
 
-  return authService.findUserById(userId).andThen((user) => {
+  return authService.findUserById(actingUser, userId).andThen((user) => {
     if (!user) {
       return errAsync<void, SetUserDisabledError>("not_found");
     }
-    return authService.setUserDisabled(userId, disabled).map(() => undefined);
+    return authService.setUserDisabled(actingUser, userId, disabled).map(() => undefined);
+  });
+}
+
+export type RenameAccountError =
+  "forbidden" | "not_found" | "validation" | "reserved" | "name_taken" | "internal_error";
+
+/** site_admin only - renames a user's account_name (their unique @handle), not their display name. */
+export function renameAccount(
+  actingUser: ActingUser,
+  userId: UserId,
+  newAccountName: string,
+): ResultAsync<void, RenameAccountError> {
+  if (!actingUser.isSiteAdmin) {
+    return errAsync("forbidden");
+  }
+
+  const accountNameResult = AccountName.from_string(newAccountName);
+  if (accountNameResult.isErr()) {
+    return errAsync("validation");
+  }
+  const accountName = accountNameResult.value;
+  if (isReservedAccountName(accountName)) {
+    return errAsync("reserved");
+  }
+
+  return authService.findUserById(actingUser, userId).andThen((user) => {
+    if (!user) {
+      return errAsync<void, RenameAccountError>("not_found");
+    }
+    return authService.setAccountName(actingUser, userId, accountName).map(() => undefined);
   });
 }

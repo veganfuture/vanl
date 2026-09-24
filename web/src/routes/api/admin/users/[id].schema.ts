@@ -40,11 +40,14 @@ export const GetAdminUserDetailResponseSchema = z.union([
 ]);
 export type GetAdminUserDetailResponse = z.infer<typeof GetAdminUserDetailResponseSchema>;
 
-/** PATCH /api/admin/users/[id] body. */
+/** PATCH /api/admin/users/[id] body - either toggles disabled or renames the account (one field per request). */
 export const SetUserDisabledRequestSchema = z.object({ disabled: z.boolean() });
 export type SetUserDisabledRequest = z.infer<typeof SetUserDisabledRequestSchema>;
 
-export const SetUserDisabledResponseSchema = z.union([
+export const RenameAccountRequestSchema = z.object({ accountName: z.string() });
+export type RenameAccountRequest = z.infer<typeof RenameAccountRequestSchema>;
+
+const AdminUserPatchResponseSchema = z.union([
   z.object({ ok: z.literal(true) }),
   z.object({
     error: z.enum([
@@ -53,8 +56,14 @@ export const SetUserDisabledResponseSchema = z.union([
       "cannot_disable_self",
       "not_found",
       "validation",
+      "reserved",
+      "name_taken",
       "internal_error",
     ]),
   }),
 ]);
+export const SetUserDisabledResponseSchema = AdminUserPatchResponseSchema;
 export type SetUserDisabledResponse = z.infer<typeof SetUserDisabledResponseSchema>;
+
+export const RenameAccountResponseSchema = AdminUserPatchResponseSchema;
+export type RenameAccountResponse = z.infer<typeof RenameAccountResponseSchema>;

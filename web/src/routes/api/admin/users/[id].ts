@@ -1,12 +1,14 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { getAdminUserDetail, setUserDisabled } from "~/domain/auth/admin_users";
+import { getAdminUserDetail, renameAccount, setUserDisabled } from "~/domain/auth/admin_users";
 import { resolveActingUser } from "~/domain/auth/acting_user";
 import { UserId } from "~/domain/auth/user_id";
 import { parseJsonBody } from "~/lib/http";
 import {
+  RenameAccountRequestSchema,
   SetUserDisabledRequestSchema,
   toAdminUserDetailJson,
   type GetAdminUserDetailResponse,
+  type RenameAccountResponse,
   type SetUserDisabledResponse,
 } from "./[id].schema";
 
@@ -16,6 +18,8 @@ const ERROR_STATUS: Record<string, number> = {
   cannot_disable_self: 409,
   not_found: 404,
   validation: 400,
+  reserved: 400,
+  name_taken: 409,
   internal_error: 500,
 };
 
@@ -60,7 +64,26 @@ export async function PATCH(event: APIEvent): Promise<Response> {
     });
   }
 
-  const parsed = SetUserDisabledRequestSchema.safeParse(await parseJsonBody(event.request));
+  const body = await parseJsonBody(event.request);
+
+  // Two distinct PATCH shapes share this route ({ disabled } vs { accountName }) -
+  // branch on which field is present rather than trying to merge them into one schema.
+  if (body && typeof body === "object" && "accountName" in body) {
+    const parsed = RenameAccountRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json({ error: "validation" } satisfies RenameAccountResponse, {
+        status: ERROR_STATUS.validation,
+      });
+    }
+    const result = await renameAccount(actingUser, userIdResult.value, parsed.data.accountName);
+    return result.match(
+      () => Response.json({ ok: true } satisfies RenameAccountResponse),
+      (error) =>
+        Response.json({ error } satisfies RenameAccountResponse, { status: ERROR_STATUS[error] }),
+    );
+  }
+
+  const parsed = SetUserDisabledRequestSchema.safeParse(body);
   if (!parsed.success) {
     return Response.json({ error: "validation" } satisfies SetUserDisabledResponse, {
       status: ERROR_STATUS.validation,

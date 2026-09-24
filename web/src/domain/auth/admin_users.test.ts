@@ -5,7 +5,12 @@ import { actingAs } from "./acting_user.test-helpers";
 import { AuthRepository } from "./auth_repository";
 import { SignalAci } from "./signal_aci";
 import { UserId } from "./user_id";
-import { getAdminUserDetail, listAdminUserSummaries, setUserDisabled } from "./admin_users";
+import {
+  getAdminUserDetail,
+  listAdminUserSummaries,
+  renameAccount,
+  setUserDisabled,
+} from "./admin_users";
 import { OrganizationRepository } from "../organizations/organization_repository";
 
 const authRepository = new AuthRepository(sql);
@@ -173,5 +178,52 @@ describe("setUserDisabled", () => {
     (await setUserDisabled(actingAs(admin, true), target, false))._unsafeUnwrap();
     const enabledDetail = (await getAdminUserDetail(actingAs(admin, true), target))._unsafeUnwrap();
     expect(enabledDetail.disabledAt).toBeNull();
+  });
+});
+
+describe("renameAccount", () => {
+  it("is forbidden for a non-site-admin", async () => {
+    const admin = await makeUser("admin9");
+    const target = await makeUser("target5");
+    const result = await renameAccount(actingAs(admin, false), target, "newname5");
+    expect(result._unsafeUnwrapErr()).toBe("forbidden");
+  });
+
+  it("returns not_found for a nonexistent user", async () => {
+    const admin = await makeUser("admin10");
+    const bogusId = UserId.from_string(crypto.randomUUID())._unsafeUnwrap();
+    const result = await renameAccount(actingAs(admin, true), bogusId, "newname10");
+    expect(result._unsafeUnwrapErr()).toBe("not_found");
+  });
+
+  it("returns validation for an invalid account name", async () => {
+    const admin = await makeUser("admin11");
+    const target = await makeUser("target6");
+    const result = await renameAccount(actingAs(admin, true), target, "no");
+    expect(result._unsafeUnwrapErr()).toBe("validation");
+  });
+
+  it("returns reserved for a reserved account name", async () => {
+    const admin = await makeUser("admin12");
+    const target = await makeUser("target7");
+    const result = await renameAccount(actingAs(admin, true), target, "arc-import");
+    expect(result._unsafeUnwrapErr()).toBe("reserved");
+  });
+
+  it("returns name_taken when another account already has that name", async () => {
+    const admin = await makeUser("admin13");
+    const target = await makeUser("target8");
+    await makeUser("takenname");
+    const result = await renameAccount(actingAs(admin, true), target, "takenname");
+    expect(result._unsafeUnwrapErr()).toBe("name_taken");
+  });
+
+  it("renames the account, reflected in getAdminUserDetail", async () => {
+    const admin = await makeUser("admin14");
+    const target = await makeUser("target9");
+
+    (await renameAccount(actingAs(admin, true), target, "renamed9"))._unsafeUnwrap();
+    const detail = (await getAdminUserDetail(actingAs(admin, true), target))._unsafeUnwrap();
+    expect(detail.accountName.value).toBe("renamed9");
   });
 });
