@@ -181,6 +181,12 @@
         name = "web-arc-import";
         scriptPath = "scripts/import-arc-events.ts";
       };
+      # Runs every registered daily cleanup task (currently just pruning login_challenges -
+      # see the script's own CLEANUP_TASKS for how to add more).
+      webDailyCleanup = mkBunScriptWrapper {
+        name = "web-daily-cleanup";
+        scriptPath = "scripts/daily-cleanup.ts";
+      };
       # Real, one-time (well, idempotent-upsert-so-safe-to-rerun) data loads, not dev-only test
       # fixtures (unlike seed-test-data, deliberately not given this treatment) - see
       # server/README.md's runbook for when to actually run these on the VPS.
@@ -452,6 +458,7 @@
         web-run = runWeb;
         web-migrate = webMigrate;
         web-arc-import = webArcImport;
+        web-daily-cleanup = webDailyCleanup;
         web-seed-places = webSeedPlaces;
         web-seed-organizations = webSeedOrganizations;
       };
@@ -579,6 +586,13 @@
               };
               text = ''exec ${webSelf.packages.${pkgs.system}.web-arc-import}/bin/web-arc-import "$@"'';
             })
+            (pkgs.writeShellApplication {
+              name = "vanl-web-daily-cleanup";
+              runtimeEnv = {
+                VANL_CONFIG_PATH = cfg.configFile;
+              };
+              text = ''exec ${webSelf.packages.${pkgs.system}.web-daily-cleanup}/bin/web-daily-cleanup "$@"'';
+            })
             # vanl-web-seed-places/vanl-web-seed-organizations: same shape as vanl-web-migrate
             # above - both idempotent upserts, safe to rerun, but not run automatically (no
             # systemd service/timer) since they only ever need running once, or after a
@@ -648,6 +662,36 @@
             wantedBy = ["timers.target"];
             timerConfig = {
               OnCalendar = "hourly";
+              Persistent = true;
+            };
+          };
+
+          # Runs every registered daily cleanup task - just login_challenges pruning today (it
+          # otherwise grows forever: a successful login only ever deletes its own row, see
+          # auth_repository.ts's deleteLoginChallenge), more to follow via
+          # scripts/daily-cleanup.ts's own CLEANUP_TASKS list. A single shared service/timer
+          # rather than one per task, so a new cleanup task never needs its own Nix wiring.
+          systemd.services.vanl-web-daily-cleanup = {
+            description = "Run daily database cleanup tasks";
+            environment = {
+              VANL_CONFIG_PATH = cfg.configFile;
+            };
+            serviceConfig = {
+              Type = "oneshot";
+              User = cfg.user;
+              Group = cfg.group;
+              ExecStart = "${webSelf.packages.${pkgs.system}.web-daily-cleanup}/bin/web-daily-cleanup";
+              EnvironmentFile = cfg.environmentFile;
+              StandardOutput = "journal";
+              StandardError = "journal";
+            };
+          };
+
+          systemd.timers.vanl-web-daily-cleanup = {
+            description = "Run the daily database cleanup tasks";
+            wantedBy = ["timers.target"];
+            timerConfig = {
+              OnCalendar = "daily";
               Persistent = true;
             };
           };

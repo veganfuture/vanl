@@ -131,6 +131,10 @@
   systemd.services.vanl-web-arc-import.after = ["postgresql-set-vanl-password.service"];
   systemd.services.vanl-web-arc-import.wants = ["postgresql-set-vanl-password.service"];
 
+  # Same ordering constraint as vanl-web above - the daily cleanup writes to the same DB.
+  systemd.services.vanl-web-daily-cleanup.after = ["postgresql-set-vanl-password.service"];
+  systemd.services.vanl-web-daily-cleanup.wants = ["postgresql-set-vanl-password.service"];
+
   # --- Cloudflare Tunnel: the website's only path to the public internet. cloudflared makes an
   # outbound-only connection to Cloudflare's edge, so no inbound port needs to be opened, and no
   # origin TLS is needed either (the tunnel itself is what's encrypted to Cloudflare - traffic

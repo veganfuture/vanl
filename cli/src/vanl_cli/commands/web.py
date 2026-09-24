@@ -23,12 +23,22 @@ def seed_organizations(args: list[str]) -> None:
     exec_utils.exec_command("vanl-web-seed-organizations", args)
 
 
+def daily_cleanup(args: list[str]) -> None:
+    env_file.require_database_password()
+    exec_utils.exec_command("vanl-web-daily-cleanup", args)
+
+
 def restart() -> None:
     exec_utils.exec_command("systemctl", ["restart", "vanl-web.service"])
 
 
-def logs(*, follow: bool, arc_import: bool) -> None:
-    unit = "vanl-web-arc-import.service" if arc_import else "vanl-web.service"
+def logs(*, follow: bool, arc_import: bool, daily_cleanup: bool) -> None:
+    if arc_import:
+        unit = "vanl-web-arc-import.service"
+    elif daily_cleanup:
+        unit = "vanl-web-daily-cleanup.service"
+    else:
+        unit = "vanl-web.service"
     journal_args = ["-u", unit]
     if follow:
         journal_args.append("-f")

@@ -44,20 +44,32 @@ def test_web_seed_organizations(fake_execvp: FakeExecCalls) -> None:
     ]
 
 
+def test_web_daily_cleanup(fake_execvp: FakeExecCalls) -> None:
+    web.daily_cleanup([])
+    assert fake_execvp == [("vanl-web-daily-cleanup", ["vanl-web-daily-cleanup"])]
+
+
 def test_web_restart(fake_execvp: FakeExecCalls) -> None:
     web.restart()
     assert fake_execvp == [("systemctl", ["systemctl", "restart", "vanl-web.service"])]
 
 
 def test_web_logs_default(fake_execvp: FakeExecCalls) -> None:
-    web.logs(follow=False, arc_import=False)
+    web.logs(follow=False, arc_import=False, daily_cleanup=False)
     assert fake_execvp == [("journalctl", ["journalctl", "-u", "vanl-web.service"])]
 
 
 def test_web_logs_follow_arc_import(fake_execvp: FakeExecCalls) -> None:
-    web.logs(follow=True, arc_import=True)
+    web.logs(follow=True, arc_import=True, daily_cleanup=False)
     assert fake_execvp == [
         ("journalctl", ["journalctl", "-u", "vanl-web-arc-import.service", "-f"])
+    ]
+
+
+def test_web_logs_daily_cleanup(fake_execvp: FakeExecCalls) -> None:
+    web.logs(follow=False, arc_import=False, daily_cleanup=True)
+    assert fake_execvp == [
+        ("journalctl", ["journalctl", "-u", "vanl-web-daily-cleanup.service"])
     ]
 
 

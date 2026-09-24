@@ -477,4 +477,19 @@ export class AuthRepository {
       (cause): DbError => ({ message: "Failed to delete login challenge", cause }),
     ).map(() => undefined);
   }
+
+  /**
+   * Deletes login_challenges rows older than `before` - one of
+   * scripts/daily-cleanup.ts's tasks, run on a schedule since nothing else ever removes a
+   * row here except a successful login (deleteLoginChallenge above). `before` must stay
+   * well short of `now() - OTP_SEND_RATE_LIMIT_WINDOW_SECONDS` (see otp.ts) -
+   * countLoginChallengesForUserSince/countLoginChallengesForIpSince need every row inside
+   * that window to still exist, or the rate limit they enforce silently weakens.
+   */
+  pruneLoginChallengesCreatedBefore(before: Date): ResultAsync<number, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`delete from login_challenges where created_at < ${before}`,
+      (cause): DbError => ({ message: "Failed to prune login challenges", cause }),
+    ).map((rows) => rows.count);
+  }
 }

@@ -48,6 +48,18 @@ def test_end_to_end_import_arc_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls == [("vanl-web-arc-import", ["vanl-web-arc-import", "--dry-run"])]
 
 
+def test_end_to_end_daily_cleanup(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, list[str]]] = []
+    monkeypatch.setattr("os.execvp", lambda binary, argv: calls.append((binary, argv)))
+    monkeypatch.setenv("VANL_DATABASE_PASSWORD", "test-password")
+
+    parser = build_parser()
+    args, extra = parser.parse_known_args(["web", "daily-cleanup"])
+    dispatch(args, extra)
+
+    assert calls == [("vanl-web-daily-cleanup", ["vanl-web-daily-cleanup"])]
+
+
 def test_end_to_end_web_logs_follow_arc_import(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[str, list[str]]] = []
     monkeypatch.setattr("os.execvp", lambda binary, argv: calls.append((binary, argv)))

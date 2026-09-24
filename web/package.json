@@ -16,6 +16,7 @@
     "seed-test-data": "bun run scripts/seed-test-data.ts",
     "seed-organizations": "bun run scripts/seed-organizations.ts",
     "import-arc-events": "bun run scripts/import-arc-events.ts",
+    "daily-cleanup": "bun run scripts/daily-cleanup.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write '**/*.{ts,tsx,css,json,js}' '!.output/**' '!.nitro/**' '!.vinxi/**' '!.direnv/**' '!.devdb/**' '!dist/**'",

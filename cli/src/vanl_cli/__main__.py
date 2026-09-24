@@ -21,6 +21,7 @@ FORWARDING_VERBS = {
     ("web", "import-arc"),
     ("web", "seed-places"),
     ("web", "seed-organizations"),
+    ("web", "daily-cleanup"),
     ("bot", "link"),
 }
 
@@ -38,11 +39,17 @@ def build_parser() -> argparse.ArgumentParser:
     web_sub.add_parser("import-arc", help="Import events from animalrightscalendar.com")
     web_sub.add_parser("seed-places", help="Seed the places table from PDOK")
     web_sub.add_parser("seed-organizations", help="Seed the fixed organizations list")
+    web_sub.add_parser("daily-cleanup", help="Run daily database cleanup tasks now")
     web_sub.add_parser("restart", help="systemctl restart vanl-web.service")
     web_logs = web_sub.add_parser("logs", help="journalctl -u vanl-web.service")
     web_logs.add_argument("-f", "--follow", action="store_true")
     web_logs.add_argument(
         "--arc-import", action="store_true", help="Show the ARC import service's logs instead"
+    )
+    web_logs.add_argument(
+        "--daily-cleanup",
+        action="store_true",
+        help="Show the daily cleanup service's logs instead",
     )
 
     bot_parser = subparsers.add_parser("bot", help="Signal bot operations")
@@ -76,10 +83,14 @@ def dispatch(args: argparse.Namespace, extra: list[str]) -> None:
             web.seed_places(extra)
         elif args.verb == "seed-organizations":
             web.seed_organizations(extra)
+        elif args.verb == "daily-cleanup":
+            web.daily_cleanup(extra)
         elif args.verb == "restart":
             web.restart()
         elif args.verb == "logs":
-            web.logs(follow=args.follow, arc_import=args.arc_import)
+            web.logs(
+                follow=args.follow, arc_import=args.arc_import, daily_cleanup=args.daily_cleanup
+            )
     elif args.namespace == "bot":
         if args.verb == "link":
             bot.link(extra)
