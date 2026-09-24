@@ -30,6 +30,12 @@ import type { EventJson } from "~/routes/api/events/event.schema";
  * status badge and the publishing org link are still opt-in via props: only
  * the events overview page passes `org` - on the other two surfaces the
  * publishing org is already obvious from the page itself.
+ *
+ * The whole card is a stretched link to the event (the title anchor's
+ * `after:absolute after:inset-0` extends its click/tap target to fill the
+ * `relative` root), except the org name, which stays its own link on top via
+ * `relative z-10` - it and the stretched title anchor are siblings, not
+ * nested, so this is plain overlapping boxes, not invalid nested `<a>`s.
  */
 export function EventCard(props: {
   event: EventJson;
@@ -53,7 +59,7 @@ export function EventCard(props: {
   );
 
   return (
-    <div class="group flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+    <div class="group relative flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
       <div class="flex items-center gap-3 sm:contents">
         <EventThumbnail
           flyerThumbnailImageId={props.event.flyerThumbnailImageId}
@@ -61,7 +67,7 @@ export function EventCard(props: {
         />
         <a
           href={props.href}
-          class="min-w-0 flex-1 truncate text-lg leading-snug font-semibold text-zinc-900 no-underline transition-colors group-hover:text-emerald-700 sm:hidden"
+          class="min-w-0 flex-1 truncate text-lg leading-snug font-semibold text-zinc-900 no-underline transition-colors after:absolute after:inset-0 after:content-[''] group-hover:text-emerald-700 sm:hidden"
         >
           {title()}
         </a>
@@ -71,7 +77,7 @@ export function EventCard(props: {
         <div class="hidden items-center gap-2 sm:flex">
           <a
             href={props.href}
-            class="min-w-0 flex-1 truncate text-lg leading-snug font-semibold text-zinc-900 no-underline transition-colors group-hover:text-emerald-700"
+            class="min-w-0 flex-1 truncate text-lg leading-snug font-semibold text-zinc-900 no-underline transition-colors after:absolute after:inset-0 after:content-[''] group-hover:text-emerald-700"
           >
             {title()}
           </a>
@@ -95,7 +101,7 @@ export function EventCard(props: {
           </Show>
           <Show when={props.org}>
             {(org) => (
-              <span class="flex items-center">
+              <span class="relative z-10 flex items-center">
                 <span class="hidden text-zinc-300 sm:mx-1.5 sm:inline">·</span>
                 <BuildingIcon class="mr-1 inline-block h-4 w-4 shrink-0 align-text-bottom text-emerald-500" />
                 <a
