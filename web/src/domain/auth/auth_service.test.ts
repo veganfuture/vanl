@@ -58,10 +58,14 @@ function extractCookieValue(setCookieHeader: string, name: string): string {
 }
 
 async function makeUser(accountName: string): Promise<User> {
+  return makeUserWithAci(crypto.randomUUID(), accountName);
+}
+
+async function makeUserWithAci(aci: string, accountName: string): Promise<User> {
   const result = (
     await repository.createUserFromSignup(
       {
-        signalAci: SignalAci.from_string(crypto.randomUUID())._unsafeUnwrap(),
+        signalAci: SignalAci.from_string(aci)._unsafeUnwrap(),
         accountName: AccountName.from_string(accountName)._unsafeUnwrap(),
         email: "person@example.com",
         displayName: "Test Person",
@@ -77,18 +81,34 @@ async function makeUser(accountName: string): Promise<User> {
 }
 
 describe("inspectSignupToken", () => {
-  it("returns the aci for a fresh, valid token", async () => {
+  it("reports a fresh signup for a fresh, valid token", async () => {
     const aci = "22222222-2222-2222-2222-222222222222";
     const token = signWithDevKey(aci);
 
     const result = await service.inspectSignupToken(token);
 
-    expect(result._unsafeUnwrap().value).toBe(aci);
+    expect(result._unsafeUnwrap()).toEqual({ status: "new_signup" });
   });
 
   it("rejects a malformed token", async () => {
     const result = await service.inspectSignupToken("garbage");
     expect(result._unsafeUnwrapErr()).toBe("invalid");
+  });
+
+  it("reports the existing account name when the token's aci already has an account", async () => {
+    const aci = "22222222-2222-2222-2222-222222222223";
+    const existing = await makeUserWithAci(aci, "kelly");
+    expect(existing.accountName.value).toBe("kelly");
+
+    // A fresh token for the same aci - not the same link that created the
+    // account, so isSignupNonceUsed is false and this can't be mistaken for
+    // "already_used".
+    const result = await service.inspectSignupToken(signWithDevKey(aci));
+
+    expect(result._unsafeUnwrap()).toEqual({
+      status: "already_registered",
+      accountName: "kelly",
+    });
   });
 });
 
@@ -177,6 +197,25 @@ describe("completeSignup", () => {
     });
 
     expect(result._unsafeUnwrapErr()).toBe("account_name_taken");
+  });
+
+  it("rejects, distinctly, a signup racing against another signup for the same signal aci", async () => {
+    // Simulates two concurrent completeSignup calls for the same aci racing
+    // past the inspect-time already_registered check: the first insert
+    // wins, the second must trip the signal_aci unique constraint and be
+    // reported as already_registered, not account_name_taken.
+    const aci = "77777777-7777-7777-7777-777777777702";
+    await makeUserWithAci(aci, "grace-two");
+
+    const result = await service.completeSignup({
+      token: signWithDevKey(aci),
+      accountName: "grace-three",
+      email: "grace3@example.com",
+      displayName: "Grace Three",
+      affiliationsNote: null,
+    });
+
+    expect(result._unsafeUnwrapErr()).toBe("already_registered");
   });
 
   it("rejects a reserved account name", async () => {

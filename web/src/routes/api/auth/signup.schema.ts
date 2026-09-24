@@ -22,6 +22,7 @@ export const SignupResponseSchema = z.union([
       "invalid_token",
       "already_used",
       "account_name_taken",
+      "already_registered",
       "validation",
       "internal_error",
     ]),
