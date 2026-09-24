@@ -84,7 +84,7 @@ export function MultiSelectAutocomplete(props: {
         </div>
       </label>
       <Show when={open()}>
-        <ul class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-lg">
+        <ul class="absolute z-40 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-lg">
           <Show
             when={filteredOptions().length > 0}
             fallback={<li class="px-3 py-2 text-sm text-zinc-500">{props.noResultsLabel}</li>}
