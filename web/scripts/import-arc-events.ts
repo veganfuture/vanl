@@ -19,7 +19,7 @@ import type { Uuid } from "../src/lib/uuid";
 import { reverseGeocode } from "../src/domain/events/pdok-client";
 import { generateSlug } from "../src/lib/slug";
 import { validateEvent, type ValidatableEvent } from "../src/lib/event_validation";
-import { resolveDateOnlyInstant } from "../src/lib/event_date";
+import { resolveDateOnlyInstantFromParts } from "../src/lib/event_date";
 
 /**
  * Imports events from animalrightscalendar.com (ARC) into our events table.
@@ -286,24 +286,21 @@ function groupEvents(events: VEvent[]): VEvent[][] {
  * Amsterdam's - so its absolute instant is only right if that process happens
  * to run with Europe/Amsterdam as its system zone (true in prod today, see
  * server/configuration.nix's `time.timeZone`, but not guaranteed, and not
- * true for `bun test`). Reducing to a "yyyy-MM-dd" string via the Date's own
- * local getters (read back from however it was actually constructed, so
- * still the calendar day node-ical actually parsed regardless of ambient
- * zone) and handing off to ~/lib/event_date's resolveDateOnlyInstant - the
- * same function EventForm.tsx uses for a real user's date-only input - is
- * what makes this deterministic and match our own date-only storage
- * convention, independent of the running process's own zone. Without this, a
- * date-only event's start_at wouldn't exactly match its own manually-created
- * twin were it to loop back through ARC (see
+ * true for `bun test`). Reading back its Y/M/D via the Date's own local
+ * getters (still the calendar day node-ical actually parsed, regardless of
+ * ambient zone - local getters and the local constructor it used are always
+ * self-consistent) and handing off to ~/lib/event_date's
+ * resolveDateOnlyInstantFromParts - the same convention EventForm.tsx uses
+ * for a real user's date-only input, via resolveDateOnlyInstant - is what
+ * makes this deterministic, independent of the running process's own zone.
+ * Without this, a date-only event's start_at wouldn't exactly match its own
+ * manually-created twin were it to loop back through ARC (see
  * EventRepository.findEventByTitleAndStart), silently letting a duplicate
  * through.
  */
 function normalizeDateOnly(date: VEvent["start"]): Date {
   if (!date.dateOnly) return date;
-  const y = String(date.getFullYear()).padStart(4, "0");
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return resolveDateOnlyInstant(`${y}-${m}-${d}`);
+  return resolveDateOnlyInstantFromParts(date.getFullYear(), date.getMonth() + 1, date.getDate());
 }
 
 /**
