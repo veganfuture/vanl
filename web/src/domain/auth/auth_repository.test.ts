@@ -382,4 +382,36 @@ describe("login challenges", () => {
       (await repository.countLoginChallengesForUserSince(user.id, before))._unsafeUnwrap(),
     ).toBe(0);
   });
+
+  it("pruneLoginChallengesCreatedBefore removes only rows older than the cutoff", async () => {
+    const user = await makeUser();
+    const oldId = (
+      await repository.insertLoginChallenge({
+        userId: user.id,
+        codeHash: "old",
+        expiresAt: new Date(Date.now() + 60_000),
+        requestedIp: null,
+      })
+    )._unsafeUnwrap();
+    await sql`update login_challenges set created_at = ${new Date(Date.now() - 86_400_000)} where id = ${oldId}`;
+
+    const cutoff = new Date();
+
+    const newId = (
+      await repository.insertLoginChallenge({
+        userId: user.id,
+        codeHash: "new",
+        expiresAt: new Date(Date.now() + 60_000),
+        requestedIp: null,
+      })
+    )._unsafeUnwrap();
+
+    const deletedCount = (
+      await repository.pruneLoginChallengesCreatedBefore(cutoff)
+    )._unsafeUnwrap();
+
+    expect(deletedCount).toBe(1);
+    const remaining = await sql`select id from login_challenges`;
+    expect(remaining.map((row) => row.id)).toEqual([newId]);
+  });
 });
