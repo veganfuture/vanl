@@ -9,7 +9,8 @@ import { z } from "zod";
  * module either fully evaluates or isn't included at all.
  */
 export const SignupInspectResponseSchema = z.union([
-  z.object({ aci: z.string() }),
+  z.object({ status: z.literal("new_signup") }),
+  z.object({ status: z.literal("already_registered"), accountName: z.string() }),
   z.object({ error: z.enum(["invalid", "already_used", "internal_error"]) }),
 ]);
 export type SignupInspectResponse = z.infer<typeof SignupInspectResponseSchema>;

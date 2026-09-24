@@ -16,7 +16,7 @@ export async function GET(event: APIEvent): Promise<Response> {
 
   const result = await authService.inspectSignupToken(token);
   return result.match(
-    (aci) => Response.json({ aci: aci.value } satisfies SignupInspectResponse),
+    (state) => Response.json(state satisfies SignupInspectResponse),
     (error) =>
       Response.json({ error } satisfies SignupInspectResponse, { status: ERROR_STATUS[error] }),
   );

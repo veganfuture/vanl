@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { loadConfig, type AppConfig } from "~/lib/config";
-import { isUniqueViolation, sql } from "~/lib/db";
+import { sql, uniqueViolationConstraint } from "~/lib/db";
 import { logger } from "~/lib/logger";
 import { AccountName, isReservedAccountName } from "./account_name";
 import { AuthRepository, type ActiveLoginChallenge, type DbError } from "./auth_repository";
@@ -43,7 +43,25 @@ export type CompleteSignupInput = {
 
 export type CompleteSignupSuccess = { user: User; setCookieHeaders: string[] };
 export type CompleteSignupError =
-  "invalid_token" | "already_used" | "account_name_taken" | "validation" | "internal_error";
+  | "invalid_token"
+  | "already_used"
+  | "account_name_taken"
+  | "already_registered"
+  | "validation"
+  | "internal_error";
+
+/**
+ * Result of checking a signup link before showing the form. `already_used`
+ * (this exact link was consumed already) is a distinct `InspectSignupTokenError`
+ * case below — `already_registered` here means the token is fresh but the
+ * Signal account behind it already has an account under a different name, so
+ * signing up again would either collide on signal_aci or silently orphan the
+ * old account. Surfacing the existing account name lets a user who forgot it
+ * recover just by asking the bot for a new signup link.
+ */
+export type SignupTokenState =
+  | { readonly status: "new_signup" }
+  | { readonly status: "already_registered"; readonly accountName: string };
 
 export type StartLoginError =
   "account_not_found" | "account_disabled" | "rate_limited" | "internal_error";
@@ -78,7 +96,7 @@ export class AuthService {
   ) {}
 
   /** GET-time check before showing the signup form — does not consume the nonce. */
-  inspectSignupToken(token: string): ResultAsync<SignalAci, InspectSignupTokenError> {
+  inspectSignupToken(token: string): ResultAsync<SignupTokenState, InspectSignupTokenError> {
     return verifySignupToken(this.config.signup_public_key, token)
       .mapErr((cause): InspectSignupTokenError => {
         logger.warn({ err: cause }, "rejected signup token at inspect time");
@@ -92,8 +110,9 @@ export class AuthService {
           // website have drifted out of agreement on the payload format, not
           // user error.
           logger.error({ err: aciResult.error }, "well-signed signup token had a non-UUID aci");
-          return errAsync<SignalAci, InspectSignupTokenError>("invalid");
+          return errAsync<SignupTokenState, InspectSignupTokenError>("invalid");
         }
+        const aci = aciResult.value;
 
         return this.repository
           .isSignupNonceUsed(payload.nonce)
@@ -101,9 +120,27 @@ export class AuthService {
             logger.error({ err: dbError }, "failed to check signup nonce usage");
             return "internal_error";
           })
-          .andThen((used): ResultAsync<SignalAci, InspectSignupTokenError> =>
-            used ? errAsync("already_used") : okAsync(aciResult.value),
-          );
+          .andThen((used): ResultAsync<SignupTokenState, InspectSignupTokenError> => {
+            if (used) {
+              return errAsync("already_used");
+            }
+            // A fresh, unused token can still belong to a Signal account that
+            // already signed up before (e.g. the bot issued a new link
+            // because the person asked to sign up again) — check for that
+            // here rather than letting them fill out the whole form only to
+            // hit the signal_aci unique constraint at the end.
+            return this.repository
+              .findUserBySignalAci(aci)
+              .mapErr((dbError): InspectSignupTokenError => {
+                logger.error({ err: dbError }, "failed to check existing account for signup aci");
+                return "internal_error";
+              })
+              .map((existingUser): SignupTokenState =>
+                existingUser
+                  ? { status: "already_registered", accountName: existingUser.accountName.value }
+                  : { status: "new_signup" },
+              );
+          });
       });
   }
 
@@ -158,7 +195,24 @@ export class AuthService {
             payload.nonce,
           )
           .mapErr((dbError): CompleteSignupError => {
-            if (isUniqueViolation(dbError.cause)) {
+            // The two unique constraints on `users` get conflated here on
+            // purpose as a last-resort fallback for a race the inspect-time
+            // findUserBySignalAci check above can't fully close (e.g. two
+            // concurrent signups for the same Signal account) — see the
+            // repository's note that uniqueness is only ever really enforced
+            // at the database layer. Which constraint actually fired still
+            // matters: it's the difference between "pick another name" and
+            // "you already have an account", so it's read off the Postgres
+            // error rather than assumed.
+            const constraint = uniqueViolationConstraint(dbError.cause);
+            if (constraint === "users_signal_aci_key") {
+              logger.warn(
+                { err: dbError },
+                "signup rejected: signal aci already has an account (race with inspect-time check)",
+              );
+              return "already_registered";
+            }
+            if (constraint === "users_account_name_key") {
               logger.warn(
                 { accountName: accountName.value, err: dbError },
                 "signup rejected: account name already taken",

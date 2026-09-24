@@ -40,3 +40,17 @@ export function isUniqueViolation(cause: unknown): boolean {
     (cause as { code: unknown }).code === "23505"
   );
 }
+
+/**
+ * The name of the constraint a unique-violation DbError's `cause` tripped
+ * (e.g. `users_signal_aci_key`), or `undefined` if `cause` isn't a unique
+ * violation at all. A table can have more than one unique constraint, so the
+ * Postgres error code alone (see `isUniqueViolation`) doesn't say which rule
+ * was actually broken.
+ */
+export function uniqueViolationConstraint(cause: unknown): string | undefined {
+  if (!isUniqueViolation(cause)) {
+    return undefined;
+  }
+  return (cause as { constraint_name?: string }).constraint_name;
+}

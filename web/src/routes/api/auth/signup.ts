@@ -8,6 +8,7 @@ const ERROR_STATUS: Record<string, number> = {
   invalid_token: 400,
   already_used: 409,
   account_name_taken: 409,
+  already_registered: 409,
   validation: 400,
   internal_error: 500,
 };
