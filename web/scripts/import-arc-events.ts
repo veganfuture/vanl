@@ -1,6 +1,7 @@
 import postgres from "postgres";
 import nodeIcal, { type ParameterValue, type VEvent } from "node-ical";
 import { Command } from "commander";
+import { fromZonedTime } from "date-fns-tz";
 import { okAsync, ResultAsync, type Result } from "neverthrow";
 import { loadConfig } from "../src/lib/config";
 import { AccountName } from "../src/domain/auth/account_name";
@@ -279,6 +280,27 @@ function groupEvents(events: VEvent[]): VEvent[][] {
 }
 
 /**
+ * node-ical parses a bare `VALUE=DATE` property (no TZID - see its own
+ * "assume same timezone as this computer" comment) via `new Date(y, m-1, d)`,
+ * i.e. using the *import script process's* ambient system timezone, not
+ * Amsterdam's - so its absolute instant is only right if that process happens
+ * to run with Europe/Amsterdam as its system zone (true in prod today, see
+ * server/configuration.nix's `time.timeZone`, but not guaranteed, and not
+ * true for `bun test`). Our own date-only events store Amsterdam midnight as
+ * a UTC instant instead (see format-date.ts's EVENT_DISPLAY_TZ comment) -
+ * reinterpreting the Date's already-correct Y/M/D (its local getters, read
+ * back from however it was actually constructed) as Amsterdam wall-clock
+ * time makes this match that convention deterministically, independent of
+ * the running process's own zone. Without this, a date-only event's start_at
+ * wouldn't exactly match its own manually-created twin were it to loop back
+ * through ARC (see EventRepository.findEventByTitleAndStart), silently
+ * letting a duplicate through.
+ */
+function normalizeDateOnly(date: VEvent["start"]): Date {
+  return date.dateOnly ? fromZonedTime(date, "Europe/Amsterdam") : date;
+}
+
+/**
  * Turns one (start, end, location) group into a single real-world event.
  * Members are sorted by uid first so the canonical external id (and the
  * choice between duplicate postings) is deterministic across re-runs.
@@ -296,9 +318,9 @@ export function toRealEvent(group: VEvent[]): RealEvent {
     titleEn: pickText(sorted.map((e) => textOf(e.summary))),
     descriptionNl: null,
     descriptionEn: pickText(sorted.map((e) => textOf(e.description))),
-    startAt: canonical.start,
+    startAt: normalizeDateOnly(canonical.start),
     startTimeKnown: !canonical.start.dateOnly,
-    endAt: canonical.end ?? null,
+    endAt: canonical.end ? normalizeDateOnly(canonical.end) : null,
     endTimeKnown: canonical.end ? !canonical.end.dateOnly : true,
     location: textOf(canonical.location)!,
     geo: geoOf(canonical)!,
