@@ -340,7 +340,20 @@ export default function EventDetailPage() {
                         <div class="flex items-center gap-2">
                           <BuildingIcon class="h-5 w-5 shrink-0 text-emerald-500" />
                           <span>
-                            {t("Georganiseerd door", "Organized by")} {currentEvent().organizerName}
+                            {t("Georganiseerd door", "Organized by")}{" "}
+                            <Show
+                              when={currentEvent().organizerOrgSlug}
+                              fallback={currentEvent().organizerName}
+                            >
+                              {(slug) => (
+                                <a
+                                  href={`/${lang()}/organizations/${slug()}`}
+                                  class="text-emerald-700 underline hover:text-emerald-800"
+                                >
+                                  {currentEvent().organizerName}
+                                </a>
+                              )}
+                            </Show>
                           </span>
                         </div>
                       </Show>

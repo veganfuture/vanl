@@ -33,6 +33,8 @@ export const EventJsonSchema = z.object({
   externalEventUrl: z.string().nullable(),
   registrationUrl: z.string().nullable(),
   organizerName: z.string().nullable(),
+  /** Resolved server-side from publisherOrgId (see toEventJson) - the vanl organization page to link "organized by" to, when the organizer is a registered organization. Null otherwise (unresolved callers, or events with no publisherOrgId). */
+  organizerOrgSlug: z.string().nullable(),
   flyerFullImageId: z.string().nullable(),
   flyerPreviewImageId: z.string().nullable(),
   flyerThumbnailImageId: z.string().nullable(),
@@ -67,6 +69,7 @@ export function toEventJson(
   canManageOrgLink: boolean,
   municipalityName: string | null = null,
   viewerIsSiteAdmin: boolean = false,
+  organizerOrgSlug: string | null = null,
 ): EventJson {
   return {
     id: event.id.value,
@@ -93,6 +96,7 @@ export function toEventJson(
     externalEventUrl: event.externalEventUrl,
     registrationUrl: event.registrationUrl,
     organizerName: event.organizerName,
+    organizerOrgSlug,
     flyerFullImageId: event.flyerFullImageId,
     flyerPreviewImageId: event.flyerPreviewImageId,
     flyerThumbnailImageId: event.flyerThumbnailImageId,
