@@ -281,7 +281,7 @@ export default function EventsListPage() {
             href={`/${lang()}/events/new`}
             class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
           >
-            {t("Evenement aanmaken", "Create event")}
+            {t("Maak evenement", "Create event")}
           </a>
         </Show>
       </div>
@@ -504,7 +504,7 @@ export default function EventsListPage() {
 
       <Show when={!me.loading && !me()}>
         <p class="mt-8 text-center text-sm text-zinc-600">
-          {t("Wil je een evenement aanmaken? ", "Want to create an event? ")}
+          {t("Wil je een evenement maken? ", "Want to create an event? ")}
           <a href={`/${lang()}/signup-help`} class="underline">
             {t("Meld je aan om een account te maken.", "Sign up to create an account.")}
           </a>

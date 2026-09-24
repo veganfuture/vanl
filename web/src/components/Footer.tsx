@@ -2,7 +2,7 @@ import { useLang } from "~/lib/i18n";
 
 /** Rendered once in app.tsx's root layout, like Navbar - shared across every page, not just the landing page. */
 export function Footer() {
-  const { lang, t } = useLang();
+  const { t } = useLang();
 
   return (
     <footer class="mt-0 border-t border-zinc-200 bg-white/70">

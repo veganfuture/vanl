@@ -204,7 +204,9 @@ const ORGANIZER_RULES: ReadonlyArray<{
   {
     organizer: "Animal Save",
     test: (title, description) =>
-      /save square/i.test(title) || /pig save/i.test(title) || /savemovement\.nl/i.test(description),
+      /save square/i.test(title) ||
+      /pig save/i.test(title) ||
+      /savemovement\.nl/i.test(description),
   },
   { organizer: "Partij voor de Dieren", test: (title) => /\bpvdd\b/i.test(title) },
   {

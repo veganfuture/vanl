@@ -15,7 +15,7 @@ export default function SignupHelpPage() {
       <h1 class="mb-4 text-2xl font-semibold">{t("Zo maak je een account", "How to sign up")}</h1>
       <p class="mb-6 text-zinc-700">
         {t(
-          "Neem contact op met een beheerder van een van de VeganActivists.nl Signal-groepen. Die kan je verder helpen met het aanmaken van een account.",
+          "Neem contact op met een beheerder van een van de VeganActivists.nl Signal-groepen. Die kan je verder helpen met het maken van een account.",
           "Contact an admin of one of the VeganActivists.nl Signal groups. They'll give you further instructions on how to create an account.",
         )}
       </p>

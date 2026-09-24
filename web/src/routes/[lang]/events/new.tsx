@@ -174,8 +174,8 @@ export default function NewEventPage() {
   return (
     <main class="mx-auto max-w-2xl px-6 py-12">
       <LocaleCookieSync lang={lang()} />
-      <Title>{t("Evenement aanmaken", "Create event")} — Vegan Activists NL</Title>
-      <h1 class="mb-6 text-2xl font-semibold">{t("Evenement aanmaken", "Create event")}</h1>
+      <Title>{t("Maak evenement", "Create event")} — Vegan Activists NL</Title>
+      <h1 class="mb-6 text-2xl font-semibold">{t("Maak evenement", "Create event")}</h1>
 
       <Show when={!me.loading} fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
         <Show
@@ -237,8 +237,8 @@ export default function NewEventPage() {
                   prefillEndTime={data?.prefillEndTime}
                   initialFlyerFile={data?.flyerFile}
                   currentFlyerImageId={data?.currentFlyerImageId}
-                  submitLabel={t("Evenement aanmaken", "Create event")}
-                  submittingLabel={t("Bezig met aanmaken…", "Creating…")}
+                  submitLabel={t("Maak evenement", "Create event")}
+                  submittingLabel={t("Bezig met maken…", "Creating…")}
                   requireFutureStart
                   allowDraft
                   orgs={myOrgs()?.map((org) => ({ id: org.id, name: org.name }))}

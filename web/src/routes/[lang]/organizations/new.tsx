@@ -57,10 +57,8 @@ export default function NewOrganizationPage() {
   return (
     <main class="mx-auto max-w-2xl px-6 py-12">
       <LocaleCookieSync lang={lang()} />
-      <Title>{t("Organisatie aanmaken", "Create organization")} — Vegan Activists NL</Title>
-      <h1 class="mb-6 text-2xl font-semibold">
-        {t("Organisatie aanmaken", "Create organization")}
-      </h1>
+      <Title>{t("Maak organisatie", "Create organization")} — Vegan Activists NL</Title>
+      <h1 class="mb-6 text-2xl font-semibold">{t("Maak organisatie", "Create organization")}</h1>
 
       <Show when={!me.loading} fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
         <Show
@@ -84,8 +82,8 @@ export default function NewOrganizationPage() {
           <OrganizationForm
             lang={lang()}
             initial={emptyOrganizationFormValues()}
-            submitLabel={t("Organisatie aanmaken", "Create organization")}
-            submittingLabel={t("Bezig met aanmaken…", "Creating…")}
+            submitLabel={t("Maak organisatie", "Create organization")}
+            submittingLabel={t("Bezig met maken…", "Creating…")}
             onSubmit={onSubmit}
           />
         </Show>

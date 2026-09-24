@@ -41,7 +41,7 @@ export default function MyOrganizationsPage() {
             href={`/${lang()}/organizations/new`}
             class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
           >
-            {t("Organisatie aanmaken", "Create organization")}
+            {t("Maak organisatie", "Create organization")}
           </a>
         </Show>
       </div>

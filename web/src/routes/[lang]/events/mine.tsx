@@ -64,7 +64,7 @@ export default function MyEventsPage() {
             href={`/${lang()}/events/new`}
             class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
           >
-            {t("Evenement aanmaken", "Create event")}
+            {t("Maak evenement", "Create event")}
           </a>
         </Show>
       </div>

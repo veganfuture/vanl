@@ -95,7 +95,7 @@ export default function OrganizationsListPage() {
             href={`/${lang()}/organizations/new`}
             class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
           >
-            {t("Organisatie aanmaken", "Create organization")}
+            {t("Maak organisatie", "Create organization")}
           </a>
         </Show>
       </div>
@@ -203,7 +203,7 @@ export default function OrganizationsListPage() {
 
       <Show when={!me.loading && !me()}>
         <p class="mt-8 text-center text-sm text-zinc-600">
-          {t("Wil je een organisatie aanmaken? ", "Want to create an organization? ")}
+          {t("Wil je een organisatie maken? ", "Want to create an organization? ")}
           <a href={`/${lang()}/signup-help`} class="underline">
             {t("Meld je aan om een account te maken.", "Sign up to create an account.")}
           </a>
