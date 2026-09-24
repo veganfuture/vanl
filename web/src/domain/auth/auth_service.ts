@@ -409,6 +409,20 @@ export class AuthService {
     });
   }
 
+  /** Admin "Users" detail page only - site_admin gate and account-name validation live in admin_users.ts, same split as setUserDisabled. */
+  setAccountName(
+    id: UserId,
+    accountName: AccountName,
+  ): ResultAsync<User, "name_taken" | "internal_error"> {
+    return this.repository.updateAccountName(id, accountName).mapErr((dbError) => {
+      if (isUniqueViolation(dbError.cause)) {
+        return "name_taken" as const;
+      }
+      logger.error({ err: dbError }, "failed to set account name");
+      return "internal_error" as const;
+    });
+  }
+
   /** Fails closed: a DB error is treated as "not an admin", never as "is one". */
   isSiteAdmin(userId: UserId): ResultAsync<boolean, never> {
     return this.repository.isSiteAdmin(userId).orElse((dbError) => {

@@ -3,7 +3,7 @@ import { logger } from "~/lib/logger";
 import { organizationRepository } from "~/domain/organizations/organization_repository";
 import type { ActingUser } from "./acting_user";
 import { authService } from "./auth_service";
-import type { AccountName } from "./account_name";
+import { AccountName, isReservedAccountName } from "./account_name";
 import type { UserId } from "./user_id";
 import type { OrgRole } from "./roles";
 
@@ -129,5 +129,35 @@ export function setUserDisabled(
       return errAsync<void, SetUserDisabledError>("not_found");
     }
     return authService.setUserDisabled(userId, disabled).map(() => undefined);
+  });
+}
+
+export type RenameAccountError =
+  "forbidden" | "not_found" | "validation" | "reserved" | "name_taken" | "internal_error";
+
+/** site_admin only - renames a user's account_name (their unique @handle), not their display name. */
+export function renameAccount(
+  actingUser: ActingUser,
+  userId: UserId,
+  newAccountName: string,
+): ResultAsync<void, RenameAccountError> {
+  if (!actingUser.isSiteAdmin) {
+    return errAsync("forbidden");
+  }
+
+  const accountNameResult = AccountName.from_string(newAccountName);
+  if (accountNameResult.isErr()) {
+    return errAsync("validation");
+  }
+  const accountName = accountNameResult.value;
+  if (isReservedAccountName(accountName)) {
+    return errAsync("reserved");
+  }
+
+  return authService.findUserById(userId).andThen((user) => {
+    if (!user) {
+      return errAsync<void, RenameAccountError>("not_found");
+    }
+    return authService.setAccountName(userId, accountName).map(() => undefined);
   });
 }
