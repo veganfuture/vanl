@@ -5,7 +5,6 @@ import { eventToVEvent } from "./events.ics.get";
 function baseEvent(overrides: Partial<EventWithPublisherOrgName> = {}): EventWithPublisherOrgName {
   return {
     id: { value: "11111111-1111-1111-1111-111111111111" },
-    slug: "test-evenement",
     updatedAt: new Date("2026-01-01T12:00:00.000Z"),
     startAt: new Date("2026-09-19T00:00:00.000Z"),
     startTimeKnown: true,
@@ -76,14 +75,5 @@ describe("eventToVEvent", () => {
     );
 
     expect(ics).not.toContain("DTEND");
-  });
-
-  it("always emits URL as the event's own canonical page, regardless of externalEventUrl", () => {
-    const ics = eventToVEvent(
-      baseEvent({ slug: "cube-of-truth-nijmegen", externalEventUrl: "https://facebook.com/events/123" }),
-    );
-
-    expect(ics).toContain("URL:https://veganactivists.nl/nl/events/cube-of-truth-nijmegen");
-    expect(ics).not.toContain("facebook.com");
   });
 });

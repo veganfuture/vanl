@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   detectOrganizer,
   flyerUrlOf,
-  isOwnEventUrl,
   reusedFlyerUrls,
   toRealEvent,
   type RealEvent,
@@ -23,7 +22,6 @@ function baseEvent(overrides: Partial<RealEvent> = {}): RealEvent {
     location: "Somewhere",
     geo: { lat: 52, lon: 5 },
     flyerUrl: null,
-    sourceUrl: null,
     ...overrides,
   };
 }
@@ -139,69 +137,6 @@ describe("toRealEvent", () => {
     expect(result.descriptionNl).toBeNull();
     expect(result.titleEn).toBe("Street outreach");
     expect(result.descriptionEn).toBe("Join us for a street outreach event.");
-  });
-
-  it("captures the VEVENT's url as sourceUrl", () => {
-    const event = {
-      uid: "with-url",
-      url: "https://veganactivists.nl/nl/events/some-event",
-      start: new Date("2026-09-19T18:00:00.000Z") as VEvent["start"],
-      end: new Date("2026-09-19T20:00:00.000Z") as VEvent["start"],
-      geo: { lat: 52, lon: 5 },
-      location: { val: "Somewhere" },
-      summary: { val: "Street outreach" },
-      description: { val: "A description" },
-    } as unknown as VEvent;
-
-    expect(toRealEvent([event]).sourceUrl).toBe("https://veganactivists.nl/nl/events/some-event");
-  });
-
-  it("sets sourceUrl to null when no member of the group has a url", () => {
-    const event = {
-      uid: "no-url",
-      start: new Date("2026-09-19T18:00:00.000Z") as VEvent["start"],
-      end: new Date("2026-09-19T20:00:00.000Z") as VEvent["start"],
-      geo: { lat: 52, lon: 5 },
-      location: { val: "Somewhere" },
-      summary: { val: "Street outreach" },
-      description: { val: "A description" },
-    } as unknown as VEvent;
-
-    expect(toRealEvent([event]).sourceUrl).toBeNull();
-  });
-});
-
-describe("isOwnEventUrl", () => {
-  it("recognizes our own canonical event page, in either language", () => {
-    expect(isOwnEventUrl("https://veganactivists.nl/nl/events/cube-of-truth-nijmegen")).toBe(true);
-    expect(isOwnEventUrl("https://veganactivists.nl/en/events/cube-of-truth-nijmegen")).toBe(true);
-  });
-
-  it("recognizes the www subdomain and a trailing slash", () => {
-    expect(isOwnEventUrl("https://www.veganactivists.nl/nl/events/some-event")).toBe(true);
-    expect(isOwnEventUrl("https://veganactivists.nl/nl/events/some-event/")).toBe(true);
-  });
-
-  it("rejects null", () => {
-    expect(isOwnEventUrl(null)).toBe(false);
-  });
-
-  it("rejects a genuinely external ARC URL", () => {
-    expect(isOwnEventUrl("https://animalrightscalendar.com/event/abc123")).toBe(false);
-  });
-
-  it("rejects our own domain used for something other than an event page", () => {
-    expect(isOwnEventUrl("https://veganactivists.nl/nl/organizations/some-org")).toBe(false);
-    expect(isOwnEventUrl("https://veganactivists.nl/")).toBe(false);
-  });
-
-  it("rejects a URL that merely embeds our domain as a path/query, not the actual host", () => {
-    // Anchored to the start of the string on purpose - a spoofed URL like this
-    // must never be treated as ours just because the substring appears in it.
-    expect(isOwnEventUrl("https://evil.example/veganactivists.nl/nl/events/x")).toBe(false);
-    expect(isOwnEventUrl("https://evil.example/?redirect=veganactivists.nl/nl/events/x")).toBe(
-      false,
-    );
   });
 });
 

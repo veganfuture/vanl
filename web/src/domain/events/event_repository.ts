@@ -288,6 +288,34 @@ export class EventRepository {
     ).andThen((rows): Result<Event | null, DbError> => (rows[0] ? mapEventRow(rows[0]) : ok(null)));
   }
 
+  /**
+   * Case/whitespace-insensitive title match (against either language column)
+   * plus an exact start_at match - the signal import-arc-events.ts uses to
+   * recognize an ARC event as one we already have (e.g. one we ourselves
+   * published and exported to ARC, now looping back under an ARC-assigned id
+   * we've never seen), so it's never created as a duplicate. Deliberately not
+   * scoped to any particular source: the whole point is to catch it as
+   * "already exists" regardless of who created it, without ever writing to
+   * whatever it matches.
+   */
+  findEventByTitleAndStart(title: string, startAt: Date): ResultAsync<Event | null, DbError> {
+    return ResultAsync.fromPromise(
+      this.sql`
+        select * from events
+        where start_at = ${startAt}
+          and (
+            lower(trim(title_nl)) = lower(trim(${title}))
+            or lower(trim(title_en)) = lower(trim(${title}))
+          )
+        limit 1
+      `,
+      (cause): DbError => ({
+        message: "Failed to find event by title and start",
+        cause,
+      }),
+    ).andThen((rows): Result<Event | null, DbError> => (rows[0] ? mapEventRow(rows[0]) : ok(null)));
+  }
+
   findEventBySlug(slug: string): ResultAsync<Event | null, DbError> {
     return ResultAsync.fromPromise(
       this.sql`select * from events where slug = ${slug}`,
