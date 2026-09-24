@@ -288,7 +288,7 @@ export default function EventsListPage() {
 
       <div
         ref={filterBarRef}
-        class={`sticky top-[40px] z-30 mb-8 nav:static nav:mx-0 ${docked() ? "-mx-6" : ""}`}
+        class={`sticky top-[40px] z-30 mb-8 nav:relative nav:mx-0 ${docked() ? "-mx-6" : ""}`}
       >
         <div
           class={`transition-[border-radius] nav:rounded-2xl nav:border nav:border-zinc-200 nav:bg-white/90 nav:shadow-sm nav:backdrop-blur-sm ${
