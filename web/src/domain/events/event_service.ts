@@ -163,8 +163,10 @@ const EventInputSchema = z.object({
   status: z.enum(["draft", "visible"]).optional(),
 });
 
-export type CreateEventError = "validation" | "forbidden" | "internal_error";
-export type UpdateEventError = "not_found" | "forbidden" | "validation" | "internal_error";
+export type CreateEventError =
+  "validation" | "location_unresolved" | "forbidden" | "internal_error";
+export type UpdateEventError =
+  "not_found" | "forbidden" | "validation" | "location_unresolved" | "internal_error";
 export type SetEventStatusError = "not_found" | "forbidden" | "internal_error";
 export type DeleteEventError = "not_found" | "forbidden" | "internal_error";
 export type ReplaceFlyerError = "not_found" | "forbidden" | "validation" | "internal_error";
@@ -636,47 +638,62 @@ export class EventService {
    * publisher specifies a location - there's no manual place/description
    * fallback - so both placeId and the structured PDOK fields must resolve
    * together from the same lookup, or the save fails outright.
+   *
+   * Distinguishes "location_unresolved" (the chosen address can no longer be
+   * resolved - a stale PDOK suggestion id, PDOK being unreachable, or its
+   * municipality missing from our own places table) from "internal_error" (a
+   * genuine DB failure) so the client can tell the publisher something
+   * actionable ("try picking the address again") instead of the generic
+   * "check your form" it'd otherwise share with actual field-validation
+   * mistakes - see EventForm.tsx's eventFormErrorMessages.
    */
   private resolveLocationFields(
     input: z.infer<typeof EventInputSchema>,
-  ): ResultAsync<PdokFields & { placeId: Uuid }, "validation"> {
+  ): ResultAsync<PdokFields & { placeId: Uuid }, "location_unresolved" | "internal_error"> {
     if (input.locationKind !== "precise_address") {
       return okAsync({ placeId: input.placeId as Uuid, ...NULL_PDOK_FIELDS });
     }
 
     return lookupAddress(input.pdokAddressId as string)
-      .mapErr((pdokError): "validation" => {
+      .mapErr((pdokError): "location_unresolved" => {
         logger.warn(
           { err: pdokError },
           "PDOK address lookup failed; cannot resolve precise_address location",
         );
-        return "validation";
+        return "location_unresolved";
       })
       .andThen((address) =>
         this.placeRepository
           .findPlaceByName(address.woonplaatsNaam)
-          .mapErr((dbError): "validation" => {
+          .mapErr((dbError): "internal_error" => {
             logger.error({ err: dbError }, "failed to resolve place for precise_address event");
-            return "validation";
+            return "internal_error";
           })
-          .andThen((place): ResultAsync<PdokFields & { placeId: Uuid }, "validation"> => {
-            if (!place) {
-              logger.warn(
-                { woonplaatsNaam: address.woonplaatsNaam },
-                "PDOK-resolved city has no matching place row; cannot save precise_address event",
-              );
-              return errAsync("validation");
-            }
-            return okAsync({
-              placeId: place.id,
-              locationStreet: address.street,
-              locationHouseNumber: address.houseNumber,
-              locationPostcode: address.postcode,
-              locationLat: address.lat,
-              locationLng: address.lng,
-              locationPdokId: address.pdokId,
-            });
-          }),
+          .andThen(
+            (
+              place,
+            ): ResultAsync<
+              PdokFields & { placeId: Uuid },
+              "location_unresolved" | "internal_error"
+            > => {
+              if (!place) {
+                logger.warn(
+                  { woonplaatsNaam: address.woonplaatsNaam },
+                  "PDOK-resolved city has no matching place row; cannot save precise_address event",
+                );
+                return errAsync("location_unresolved");
+              }
+              return okAsync({
+                placeId: place.id,
+                locationStreet: address.street,
+                locationHouseNumber: address.houseNumber,
+                locationPostcode: address.postcode,
+                locationLat: address.lat,
+                locationLng: address.lng,
+                locationPdokId: address.pdokId,
+              });
+            },
+          ),
       );
   }
 }

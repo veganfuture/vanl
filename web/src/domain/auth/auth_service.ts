@@ -15,6 +15,7 @@ import {
   SESSION_COOKIE_NAME,
 } from "./cookies";
 import {
+  DEV_OTP_BYPASS_CODE,
   generateOtpCode,
   hashOtpCode,
   OTP_CHALLENGE_TTL_SECONDS,
@@ -286,7 +287,8 @@ export class AuthService {
           ),
       )
       .andThen((user) => {
-        const code = generateOtpCode();
+        const devOtpBypass = this.config.dev_otp_bypass;
+        const code = devOtpBypass ? DEV_OTP_BYPASS_CODE : generateOtpCode();
         return this.repository
           .insertLoginChallenge({
             userId: user.id,
@@ -298,8 +300,15 @@ export class AuthService {
             logger.error({ err: dbError }, "failed to insert login challenge");
             return "internal_error";
           })
-          .andThen((challengeId) =>
-            sendOtpViaBot(user.signalAci.value, code).orElse((sendError) => {
+          .andThen((challengeId) => {
+            if (devOtpBypass) {
+              logger.warn(
+                { accountName: user.accountName.value },
+                "dev_otp_bypass active - skipping the bot, login code is 000000",
+              );
+              return okAsync(undefined);
+            }
+            return sendOtpViaBot(user.signalAci.value, code).orElse((sendError) => {
               logger.error({ err: sendError }, "failed to send OTP via bot");
               // The insert already happened, so without this the row would
               // sit there counting against the account/IP send-rate-limit
@@ -319,8 +328,8 @@ export class AuthService {
                     sendError.kind === "rate_limited" ? "rate_limited" : "internal_error",
                   ),
                 );
-            }),
-          );
+            });
+          });
       });
   }
 

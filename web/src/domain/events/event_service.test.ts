@@ -288,7 +288,7 @@ describe("createEvent", () => {
       baseInput({ locationKind: "precise_address", placeId: null, pdokAddressId: "adr-456" }),
     );
 
-    expect(result._unsafeUnwrapErr()).toBe("validation");
+    expect(result._unsafeUnwrapErr()).toBe("location_unresolved");
   });
 
   it("fails when the PDOK-resolved city has no matching place row", async () => {
@@ -311,7 +311,7 @@ describe("createEvent", () => {
       baseInput({ locationKind: "precise_address", placeId: null, pdokAddressId: "adr-789" }),
     );
 
-    expect(result._unsafeUnwrapErr()).toBe("validation");
+    expect(result._unsafeUnwrapErr()).toBe("location_unresolved");
   });
 
   it("rejects precise_address without a pdokAddressId", async () => {

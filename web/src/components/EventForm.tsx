@@ -19,7 +19,12 @@ import { SearchPlacesResponseSchema } from "~/routes/api/places/search.schema";
 import type { Uuid } from "~/lib/uuid";
 
 export type EventFormError =
-  "unauthorized" | "not_found" | "forbidden" | "validation" | "internal_error";
+  | "unauthorized"
+  | "not_found"
+  | "forbidden"
+  | "validation"
+  | "location_unresolved"
+  | "internal_error";
 
 export function eventFormErrorMessages(lang: Locale): ErrorMessagesFor<{ error: EventFormError }> {
   const t = makeT(lang);
@@ -45,6 +50,13 @@ export function eventFormErrorMessages(lang: Locale): ErrorMessagesFor<{ error: 
         "Please check the form and try again.",
       ),
       isWarn: false,
+    },
+    location_unresolved: {
+      message: t(
+        "Het adres kon niet worden geverifieerd. Zoek en kies het opnieuw, of probeer het straks nog eens.",
+        "That address couldn't be verified. Search and pick it again, or try again shortly.",
+      ),
+      isWarn: true,
     },
     internal_error: {
       message: t(
@@ -133,6 +145,14 @@ function isoToLocalDateTime(iso: string | null): string {
   return formatInTimeZone(new Date(iso), AMSTERDAM_TZ, "yyyy-MM-dd'T'HH:mm");
 }
 
+/** Extracts just the "HH:mm" wall-clock time-of-day from a stored UTC ISO instant, in Amsterdam time - used to prefill a start/end time from a previous event without also prefilling its date (see events/new.tsx's prefill-from-previous-event picker). */
+export function isoToLocalTime(iso: string | null): string | null {
+  if (!iso) {
+    return null;
+  }
+  return formatInTimeZone(new Date(iso), AMSTERDAM_TZ, "HH:mm");
+}
+
 /** Converts a `<input type="date">` value, read as an Amsterdam calendar date, to a full UTC ISO instant at Amsterdam midnight. */
 function localDateToIso(value: string): string | null {
   if (!value) {
@@ -173,9 +193,13 @@ function toDate(iso: string | null): Date | null {
 }
 
 export function eventFormValuesFromEvent(event: EventJson, placeLabel: string): EventFormValues {
-  const addressLabel = event.locationStreet
-    ? `${event.locationStreet} ${event.locationHouseNumber ?? ""}, ${event.locationPostcode ?? ""}`.trim()
-    : "";
+  // The address search box's text has no field of its own - locationDescription
+  // *is* that text for a precise_address event (set verbatim from the picked
+  // PDOK suggestion's label, e.g. "Appelweg 5b, Moerdijk" - see the address
+  // picker below). Reconstructing it from locationStreet/locationPostcode
+  // instead would drop the woonplaats entirely, since neither of those two
+  // columns holds it.
+  const addressLabel = event.locationKind === "precise_address" ? event.locationDescription : "";
   return {
     titleNl: event.titleNl ?? "",
     titleEn: event.titleEn ?? "",
@@ -253,8 +277,22 @@ export function EventForm(props: {
   orgs?: Array<{ id: string; name: string }>;
   /** The event's current flyer, shown until a new file is picked - undefined/null on the create form (no event yet). */
   currentFlyerImageId?: string | null;
+  /** A flyer file to resubmit as-is on save, without the visitor having picked it themselves - used when prefilling from a previous event (its bytes are refetched and reuploaded under the new event). Paired with currentFlyerImageId for the preview. */
+  initialFlyerFile?: File | null;
   /** Shows "Save as draft" / "Publish" buttons instead of the single submitLabel button - only meaningful while an event is still a draft, since it can never go back once published. */
   allowDraft?: boolean;
+  /**
+   * When prefilling from a previous event, its date is deliberately left
+   * blank (a copied event shouldn't silently reuse the same date) but its
+   * time-of-day is still worth keeping visible. A single `datetime-local`
+   * input can't show a filled time next to a blank date - its `value` is
+   * only ever a complete instant or entirely empty - so when this is set,
+   * that field renders as separate date+time inputs instead (see the
+   * splitStartInput/splitEndInput render below), with the time input
+   * prefilled from this and the date input left for the visitor to fill in.
+   */
+  prefillStartTime?: string | null;
+  prefillEndTime?: string | null;
   onSubmit: (
     values: EventFormValues,
     flyerFile: File | null,
@@ -271,7 +309,26 @@ export function EventForm(props: {
   });
 
   const [values, setValues] = createSignal(props.initial);
-  const [flyerFile, setFlyerFile] = createSignal<File | null>(null);
+  const [flyerFile, setFlyerFile] = createSignal<File | null>(props.initialFlyerFile ?? null);
+  // Whether the start/end field renders as separate date+time inputs -
+  // decided once at mount from whether a prefill time was given, exactly
+  // like props.initial above (a different source event is a different
+  // EventForm mount entirely - see events/new.tsx's keyed Show).
+  // eslint-disable-next-line solid/reactivity
+  const splitStartInput = props.prefillStartTime != null;
+  // eslint-disable-next-line solid/reactivity
+  const splitEndInput = props.prefillEndTime != null;
+  // Holds the time-of-day typed into a split time input before a date has
+  // been chosen (values().startAt/endAt can't hold a time without a date -
+  // see toValidatableEvent). Once a date exists, the combined
+  // values().startAt/endAt string becomes the source of truth instead and
+  // this is only consulted as a fallback (see the time input's `value`
+  // below), so letting it go stale after that point is harmless.
+  // eslint-disable-next-line solid/reactivity
+  const [pendingStartTime, setPendingStartTime] = createSignal(props.prefillStartTime ?? "");
+  // eslint-disable-next-line solid/reactivity
+  const [pendingEndTime, setPendingEndTime] = createSignal(props.prefillEndTime ?? "");
+
   const [submitting, setSubmitting] = createSignal(false);
   const [submittingStatus, setSubmittingStatus] = createSignal<"draft" | "visible" | null>(null);
   const [error, setError] = createSignal<string | null>(null);
@@ -423,20 +480,61 @@ export function EventForm(props: {
               {t("Begint om", "Starts at")}{" "}
               <span class="font-normal text-zinc-400">{t("(NL tijd)", "(NL time)")}</span>
             </span>
-            <input
-              type={values().startTimeKnown ? "datetime-local" : "date"}
-              class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
-              required
-              min={
-                props.requireFutureStart
-                  ? values().startTimeKnown
-                    ? isoToLocalDateTime(new Date().toISOString())
-                    : isoToLocalDate(new Date().toISOString())
-                  : undefined
+            <Show
+              when={splitStartInput && values().startTimeKnown}
+              fallback={
+                <input
+                  type={values().startTimeKnown ? "datetime-local" : "date"}
+                  class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+                  required
+                  min={
+                    props.requireFutureStart
+                      ? values().startTimeKnown
+                        ? isoToLocalDateTime(new Date().toISOString())
+                        : isoToLocalDate(new Date().toISOString())
+                      : undefined
+                  }
+                  value={values().startAt}
+                  onInput={(e) => setValues({ ...values(), startAt: e.currentTarget.value })}
+                />
               }
-              value={values().startAt}
-              onInput={(e) => setValues({ ...values(), startAt: e.currentTarget.value })}
-            />
+            >
+              <div class="mt-1 flex gap-2">
+                <input
+                  type="date"
+                  class="block w-full rounded border border-zinc-300 px-3 py-2"
+                  required
+                  min={
+                    props.requireFutureStart ? isoToLocalDate(new Date().toISOString()) : undefined
+                  }
+                  value={values().startAt.slice(0, 10)}
+                  onInput={(e) => {
+                    const date = e.currentTarget.value;
+                    const time =
+                      values().startAt.length > 10
+                        ? values().startAt.slice(11, 16)
+                        : pendingStartTime() || "00:00";
+                    setValues({ ...values(), startAt: date ? `${date}T${time}` : "" });
+                  }}
+                />
+                <input
+                  type="time"
+                  class="block w-32 shrink-0 rounded border border-zinc-300 px-3 py-2"
+                  required
+                  value={
+                    values().startAt.length > 10
+                      ? values().startAt.slice(11, 16)
+                      : pendingStartTime()
+                  }
+                  onInput={(e) => {
+                    const time = e.currentTarget.value || "00:00";
+                    setPendingStartTime(time);
+                    const date = values().startAt.slice(0, 10);
+                    setValues({ ...values(), startAt: date ? `${date}T${time}` : "" });
+                  }}
+                />
+              </div>
+            </Show>
           </label>
           <label class="mt-1 flex items-center gap-1.5 text-sm text-zinc-600">
             <input
@@ -460,12 +558,46 @@ export function EventForm(props: {
               {t("Eindigt om (optioneel)", "Ends at (optional)")}{" "}
               <span class="font-normal text-zinc-400">{t("(NL tijd)", "(NL time)")}</span>
             </span>
-            <input
-              type={values().endTimeKnown ? "datetime-local" : "date"}
-              class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
-              value={values().endAt}
-              onInput={(e) => setValues({ ...values(), endAt: e.currentTarget.value })}
-            />
+            <Show
+              when={splitEndInput && values().endTimeKnown}
+              fallback={
+                <input
+                  type={values().endTimeKnown ? "datetime-local" : "date"}
+                  class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+                  value={values().endAt}
+                  onInput={(e) => setValues({ ...values(), endAt: e.currentTarget.value })}
+                />
+              }
+            >
+              <div class="mt-1 flex gap-2">
+                <input
+                  type="date"
+                  class="block w-full rounded border border-zinc-300 px-3 py-2"
+                  value={values().endAt.slice(0, 10)}
+                  onInput={(e) => {
+                    const date = e.currentTarget.value;
+                    const time =
+                      values().endAt.length > 10
+                        ? values().endAt.slice(11, 16)
+                        : pendingEndTime() || "00:00";
+                    setValues({ ...values(), endAt: date ? `${date}T${time}` : "" });
+                  }}
+                />
+                <input
+                  type="time"
+                  class="block w-32 shrink-0 rounded border border-zinc-300 px-3 py-2"
+                  value={
+                    values().endAt.length > 10 ? values().endAt.slice(11, 16) : pendingEndTime()
+                  }
+                  onInput={(e) => {
+                    const time = e.currentTarget.value || "00:00";
+                    setPendingEndTime(time);
+                    const date = values().endAt.slice(0, 10);
+                    setValues({ ...values(), endAt: date ? `${date}T${time}` : "" });
+                  }}
+                />
+              </div>
+            </Show>
           </label>
           <label class="mt-1 flex items-center gap-1.5 text-sm text-zinc-600">
             <input
