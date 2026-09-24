@@ -147,7 +147,7 @@ export default function OrganizationsListPage() {
                       </a>
                       <Show when={org.websiteUrl}>
                         {(websiteUrl) => (
-                          <p class="mt-0.5">
+                          <p class="mt-0.5 hidden sm:block">
                             <a
                               href={websiteUrl()}
                               target="_blank"
