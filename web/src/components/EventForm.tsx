@@ -133,6 +133,14 @@ function isoToLocalDateTime(iso: string | null): string {
   return formatInTimeZone(new Date(iso), AMSTERDAM_TZ, "yyyy-MM-dd'T'HH:mm");
 }
 
+/** Extracts just the "HH:mm" wall-clock time-of-day from a stored UTC ISO instant, in Amsterdam time - used to prefill a start/end time from a previous event without also prefilling its date (see events/new.tsx's prefill-from-previous-event picker). */
+export function isoToLocalTime(iso: string | null): string | null {
+  if (!iso) {
+    return null;
+  }
+  return formatInTimeZone(new Date(iso), AMSTERDAM_TZ, "HH:mm");
+}
+
 /** Converts a `<input type="date">` value, read as an Amsterdam calendar date, to a full UTC ISO instant at Amsterdam midnight. */
 function localDateToIso(value: string): string | null {
   if (!value) {
@@ -253,8 +261,19 @@ export function EventForm(props: {
   orgs?: Array<{ id: string; name: string }>;
   /** The event's current flyer, shown until a new file is picked - undefined/null on the create form (no event yet). */
   currentFlyerImageId?: string | null;
+  /** A flyer file to resubmit as-is on save, without the visitor having picked it themselves - used when prefilling from a previous event (its bytes are refetched and reuploaded under the new event). Paired with currentFlyerImageId for the preview. */
+  initialFlyerFile?: File | null;
   /** Shows "Save as draft" / "Publish" buttons instead of the single submitLabel button - only meaningful while an event is still a draft, since it can never go back once published. */
   allowDraft?: boolean;
+  /**
+   * When prefilling from a previous event, its date is deliberately left
+   * blank (a copied event shouldn't silently reuse the same date) but its
+   * time-of-day is still worth keeping. These force the time-of-day the
+   * first time the visitor picks a complete start/end date+time, then get
+   * out of the way - see the onInput handlers below.
+   */
+  prefillStartTime?: string | null;
+  prefillEndTime?: string | null;
   onSubmit: (
     values: EventFormValues,
     flyerFile: File | null,
@@ -271,7 +290,37 @@ export function EventForm(props: {
   });
 
   const [values, setValues] = createSignal(props.initial);
-  const [flyerFile, setFlyerFile] = createSignal<File | null>(null);
+  const [flyerFile, setFlyerFile] = createSignal<File | null>(props.initialFlyerFile ?? null);
+  // Snapshotted once at mount, exactly like props.initial above - a changed
+  // prefillStartTime/prefillEndTime after mount would mean a different
+  // source event, which the caller handles by remounting EventForm
+  // entirely (see events/new.tsx's keyed Show), not by reacting to it here.
+  // eslint-disable-next-line solid/reactivity
+  const [pendingStartTime, setPendingStartTime] = createSignal(props.prefillStartTime);
+  // eslint-disable-next-line solid/reactivity
+  const [pendingEndTime, setPendingEndTime] = createSignal(props.prefillEndTime);
+
+  /**
+   * Applies a pending prefill time-of-day the first time this field goes
+   * from blank to a complete date+time value, then clears it - so the
+   * visitor is forced to pick their own date, but the time they'd otherwise
+   * have to re-enter is already right. `raw.length > 10` distinguishes a
+   * complete "yyyy-MM-ddTHH:mm" from the date-only "yyyy-MM-dd" shape used
+   * when "time unknown" is checked, where there's no time part to override.
+   */
+  function applyPendingTime(
+    raw: string,
+    previous: string,
+    pending: () => string | null | undefined,
+    clearPending: () => void,
+  ): string {
+    const time = pending();
+    if (previous !== "" || !time || raw.length <= 10) {
+      return raw;
+    }
+    clearPending();
+    return `${raw.slice(0, 10)}T${time}`;
+  }
   const [submitting, setSubmitting] = createSignal(false);
   const [submittingStatus, setSubmittingStatus] = createSignal<"draft" | "visible" | null>(null);
   const [error, setError] = createSignal<string | null>(null);
@@ -435,7 +484,15 @@ export function EventForm(props: {
                   : undefined
               }
               value={values().startAt}
-              onInput={(e) => setValues({ ...values(), startAt: e.currentTarget.value })}
+              onInput={(e) => {
+                const startAt = applyPendingTime(
+                  e.currentTarget.value,
+                  values().startAt,
+                  pendingStartTime,
+                  () => setPendingStartTime(null),
+                );
+                setValues({ ...values(), startAt });
+              }}
             />
           </label>
           <label class="mt-1 flex items-center gap-1.5 text-sm text-zinc-600">
@@ -464,7 +521,15 @@ export function EventForm(props: {
               type={values().endTimeKnown ? "datetime-local" : "date"}
               class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
               value={values().endAt}
-              onInput={(e) => setValues({ ...values(), endAt: e.currentTarget.value })}
+              onInput={(e) => {
+                const endAt = applyPendingTime(
+                  e.currentTarget.value,
+                  values().endAt,
+                  pendingEndTime,
+                  () => setPendingEndTime(null),
+                );
+                setValues({ ...values(), endAt });
+              }}
             />
           </label>
           <label class="mt-1 flex items-center gap-1.5 text-sm text-zinc-600">
