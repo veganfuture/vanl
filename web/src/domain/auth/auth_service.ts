@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { loadConfig, type AppConfig } from "~/lib/config";
-import { sql, uniqueViolationConstraint } from "~/lib/db";
+import { isUniqueViolation, sql, uniqueViolationConstraint } from "~/lib/db";
 import { logger } from "~/lib/logger";
 import { AccountName, isReservedAccountName } from "./account_name";
 import type { ActingUser } from "./acting_user";
