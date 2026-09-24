@@ -21,7 +21,6 @@ function baseEvent(overrides: Partial<RealEvent> = {}): RealEvent {
     endTimeKnown: true,
     location: "Somewhere",
     geo: { lat: 52, lon: 5 },
-    externalEventUrl: null,
     flyerUrl: null,
     ...overrides,
   };
@@ -88,6 +87,56 @@ describe("toRealEvent", () => {
 
     expect(result.endAt).toBeNull();
     expect(result.endTimeKnown).toBe(true);
+  });
+
+  it("never fills titleNl/descriptionNl, only titleEn/descriptionEn", () => {
+    const event = {
+      uid: "single-event",
+      start: new Date("2026-09-19T18:00:00.000Z") as VEvent["start"],
+      end: new Date("2026-09-19T20:00:00.000Z") as VEvent["start"],
+      geo: { lat: 52, lon: 5 },
+      location: { val: "Somewhere" },
+      summary: { val: "Street outreach" },
+      description: { val: "Join us for a street outreach event." },
+    } as unknown as VEvent;
+
+    const result = toRealEvent([event]);
+
+    expect(result.titleNl).toBeNull();
+    expect(result.descriptionNl).toBeNull();
+    expect(result.titleEn).toBe("Street outreach");
+    expect(result.descriptionEn).toBe("Join us for a street outreach event.");
+  });
+
+  it("prefers real text over ARC's '(No description available)' placeholder from a paired VEVENT", () => {
+    // Real bug: ARC posts a second VEVENT for the "other" language that has
+    // no actual translation, using this literal placeholder instead of
+    // omitting the property - it must never win over the sibling's real text.
+    const real = {
+      uid: "b-real",
+      start: new Date("2026-09-19T18:00:00.000Z") as VEvent["start"],
+      end: new Date("2026-09-19T20:00:00.000Z") as VEvent["start"],
+      geo: { lat: 52, lon: 5 },
+      location: { val: "Somewhere" },
+      summary: { val: "Street outreach" },
+      description: { val: "Join us for a street outreach event." },
+    } as unknown as VEvent;
+    const placeholder = {
+      uid: "a-placeholder",
+      start: real.start,
+      end: real.end,
+      geo: { lat: 52, lon: 5 },
+      location: { val: "Somewhere" },
+      summary: { val: "(No title available)" },
+      description: { val: "(No description available)" },
+    } as unknown as VEvent;
+
+    const result = toRealEvent([placeholder, real]);
+
+    expect(result.titleNl).toBeNull();
+    expect(result.descriptionNl).toBeNull();
+    expect(result.titleEn).toBe("Street outreach");
+    expect(result.descriptionEn).toBe("Join us for a street outreach event.");
   });
 });
 
