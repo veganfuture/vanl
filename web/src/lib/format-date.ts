@@ -1,5 +1,6 @@
 import { formatInTimeZone } from "date-fns-tz";
 import type { Locale } from "~/lib/i18n";
+import { EVENT_TZ as EVENT_DISPLAY_TZ } from "~/lib/event_date";
 
 /**
  * All event date/time display is resolved in Europe/Amsterdam, not the
@@ -7,9 +8,10 @@ import type { Locale } from "~/lib/i18n";
  * Amsterdam midnight as a UTC instant, which in UTC falls on the *previous*
  * calendar day (CET/CEST is always ahead of UTC) - and even for timed
  * events, this is a Dutch events site, so Amsterdam wall-clock time is the
- * correct thing to show regardless of the viewer's own timezone.
+ * correct thing to show regardless of the viewer's own timezone. Shared with
+ * event_date.ts's write-side conversion (resolveDateOnlyInstant) so the two
+ * can't drift apart.
  */
-const EVENT_DISPLAY_TZ = "Europe/Amsterdam";
 
 function localeTag(lang: Locale): string {
   return lang === "nl" ? "nl-NL" : "en-GB";
