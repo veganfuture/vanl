@@ -114,26 +114,51 @@ export default function OrganizationsListPage() {
             <For each={organizations()}>
               {(org) => (
                 <li class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
-                  <div class="flex items-start gap-4">
-                    <Show when={org.logoThumbnailImageId}>
-                      {(id) => (
-                        <img
-                          // A JSON-API string here, not a domain Sha256 - the server already vetted it.
-                          src={imageUrl(id() as Sha256)}
-                          alt=""
-                          class="h-16 w-16 shrink-0 rounded-lg object-cover"
-                          width={64}
-                          height={64}
-                        />
-                      )}
-                    </Show>
-                    <div class="min-w-0 flex-1">
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+                    {/* On mobile this row groups the logo with the name so neither indents the
+                        content below; sm:contents dissolves it so the logo becomes a direct flex
+                        item again once there's room for the original side-by-side layout. */}
+                    <div class="flex items-center gap-3 sm:contents">
+                      <Show when={org.logoThumbnailImageId}>
+                        {(id) => (
+                          <img
+                            // A JSON-API string here, not a domain Sha256 - the server already vetted it.
+                            src={imageUrl(id() as Sha256)}
+                            alt=""
+                            class="h-16 w-16 shrink-0 rounded-lg object-cover"
+                            width={64}
+                            height={64}
+                          />
+                        )}
+                      </Show>
                       <a
                         href={`/${lang()}/organizations/${org.slug}`}
-                        class="text-lg font-semibold hover:underline"
+                        class="text-lg font-semibold hover:underline sm:hidden"
                       >
                         {org.name}
                       </a>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <a
+                        href={`/${lang()}/organizations/${org.slug}`}
+                        class="hidden text-lg font-semibold hover:underline sm:inline-block"
+                      >
+                        {org.name}
+                      </a>
+                      <Show when={org.websiteUrl}>
+                        {(websiteUrl) => (
+                          <p class="mt-0.5 hidden sm:block">
+                            <a
+                              href={websiteUrl()}
+                              target="_blank"
+                              rel="noreferrer"
+                              class="text-sm break-all text-zinc-500 underline hover:text-zinc-700"
+                            >
+                              {websiteUrl()}
+                            </a>
+                          </p>
+                        )}
+                      </Show>
                       <Show when={pickLocalized(org.descriptionNl, org.descriptionEn, lang())}>
                         {(description) => <OrgDescription text={description()} t={t} />}
                       </Show>
