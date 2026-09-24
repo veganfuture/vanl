@@ -14,8 +14,13 @@ import type { EventJson } from "~/routes/api/events/event.schema";
  * optional bits (place, org, status badge) are present. Below `sm` the meta
  * bits stack vertically instead (one per line, no dots, no truncation) since
  * there isn't enough width to keep them on one line without clipping - cards
- * there vary in height with however many bits are present. The place segment
- * always shows
+ * there vary in height with however many bits are present. Also below `sm`,
+ * the thumbnail sits next to the title in its own header row (via
+ * `sm:contents`, same trick as the organization list card) instead of
+ * indenting the whole text column, so the meta line isn't squeezed into a
+ * narrower strip than it needs on small screens; this duplicates the title
+ * (and status badge) markup once per breakpoint since the two layouts group
+ * the thumbnail with different siblings. The place segment always shows
  * when `event.municipalityName` is set (resolved server-side by GET
  * /api/events - see event.schema.ts's toEventJson) - callers never pass it
  * in separately. The thumbnail fallback (`orgLogoThumbnailImageId`) is
@@ -34,28 +39,43 @@ export function EventCard(props: {
   org?: { name: string; slug: string };
   statusLabel?: string;
 }) {
+  const title = () => pickLocalized(props.event.titleNl, props.event.titleEn, props.lang);
+
+  const statusBadge = () => (
+    <Show when={props.statusLabel}>
+      {(label) => (
+        <span class="shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+          {label()}
+          {props.event.statusReason ? ` — ${props.event.statusReason}` : ""}
+        </span>
+      )}
+    </Show>
+  );
+
   return (
-    <div class="group flex items-start gap-4 sm:items-center">
-      <EventThumbnail
-        flyerThumbnailImageId={props.event.flyerThumbnailImageId}
-        orgLogoThumbnailImageId={props.orgLogoThumbnailImageId}
-      />
+    <div class="group flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+      <div class="flex items-center gap-3 sm:contents">
+        <EventThumbnail
+          flyerThumbnailImageId={props.event.flyerThumbnailImageId}
+          orgLogoThumbnailImageId={props.orgLogoThumbnailImageId}
+        />
+        <a
+          href={props.href}
+          class="min-w-0 flex-1 truncate text-lg leading-snug font-semibold text-zinc-900 no-underline transition-colors group-hover:text-emerald-700 sm:hidden"
+        >
+          {title()}
+        </a>
+        <div class="sm:hidden">{statusBadge()}</div>
+      </div>
       <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-2">
+        <div class="hidden items-center gap-2 sm:flex">
           <a
             href={props.href}
             class="min-w-0 flex-1 truncate text-lg leading-snug font-semibold text-zinc-900 no-underline transition-colors group-hover:text-emerald-700"
           >
-            {pickLocalized(props.event.titleNl, props.event.titleEn, props.lang)}
+            {title()}
           </a>
-          <Show when={props.statusLabel}>
-            {(label) => (
-              <span class="shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-                {label()}
-                {props.event.statusReason ? ` — ${props.event.statusReason}` : ""}
-              </span>
-            )}
-          </Show>
+          {statusBadge()}
         </div>
         <div class="mt-2 flex flex-col gap-1.5 text-sm text-zinc-600 sm:mt-1 sm:flex-row sm:items-center sm:gap-0 sm:truncate">
           <span class="flex items-center">
