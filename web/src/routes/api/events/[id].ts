@@ -12,6 +12,7 @@ const ERROR_STATUS: Record<string, number> = {
   not_found: 404,
   forbidden: 403,
   validation: 400,
+  location_unresolved: 400,
   internal_error: 500,
 };
 

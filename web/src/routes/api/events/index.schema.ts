@@ -8,6 +8,14 @@ export type ListEventsResponse = z.infer<typeof ListEventsResponseSchema>;
 
 export const CreateEventResponseSchema = z.union([
   EventJsonSchema,
-  z.object({ error: z.enum(["unauthorized", "forbidden", "validation", "internal_error"]) }),
+  z.object({
+    error: z.enum([
+      "unauthorized",
+      "forbidden",
+      "validation",
+      "location_unresolved",
+      "internal_error",
+    ]),
+  }),
 ]);
 export type CreateEventResponse = z.infer<typeof CreateEventResponseSchema>;

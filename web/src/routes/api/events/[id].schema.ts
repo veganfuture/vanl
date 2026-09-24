@@ -2,7 +2,14 @@ import { z } from "zod";
 import { EventJsonSchema } from "./event.schema";
 
 const EventErrorSchema = z.object({
-  error: z.enum(["unauthorized", "not_found", "forbidden", "validation", "internal_error"]),
+  error: z.enum([
+    "unauthorized",
+    "not_found",
+    "forbidden",
+    "validation",
+    "location_unresolved",
+    "internal_error",
+  ]),
 });
 
 export const UpdateEventResponseSchema = z.union([EventJsonSchema, EventErrorSchema]);

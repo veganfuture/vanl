@@ -54,6 +54,16 @@ export default function EventDetailPage() {
       ),
       isWarn: false,
     },
+    // Never actually returned by DELETE - part of the message map only
+    // because DeleteEventResponse shares its error enum with
+    // UpdateEventResponse (see [id].schema.ts's EventErrorSchema).
+    location_unresolved: {
+      message: t(
+        "Er is iets misgegaan. Probeer het opnieuw.",
+        "Something went wrong. Please try again.",
+      ),
+      isWarn: false,
+    },
     internal_error: {
       message: t(
         "Er is iets misgegaan. Probeer het opnieuw.",
