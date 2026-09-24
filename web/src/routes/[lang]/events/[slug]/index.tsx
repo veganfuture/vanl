@@ -1,6 +1,6 @@
 import { createAsync, useParams } from "@solidjs/router";
 import { createSignal, Show, Suspense } from "solid-js";
-import { BuildingIcon, CalendarIcon, MapPinIcon } from "~/components/icons";
+import { BuildingIcon, CalendarIcon, ExternalLinkIcon, MapPinIcon } from "~/components/icons";
 import { LinkifiedText } from "~/components/LinkifiedText";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { SocialMeta } from "~/components/SocialMeta";
@@ -200,12 +200,9 @@ export default function EventDetailPage() {
           }
         >
           {(currentEvent) => {
-            // ARC ("animalrightscalendar.com") events mirror ARC's own listing
-            // exactly, so a "More info" link back to ARC would just be a
-            // duplicate of what this page already shows - it's suppressed for
-            // regular visitors. Site admins still see where the event came
-            // from (and can still reach the original), since that's useful
-            // for moderation even though it'd be redundant for everyone else.
+            // Used for the admin-only "source" badge below - the ARC importer
+            // itself no longer sets externalEventUrl (see import-arc-events.ts),
+            // so this only affects labeling, not the public "More info" link.
             const isArcImport = () =>
               (currentEvent().externalSourceName ?? "")
                 .toLowerCase()
@@ -357,6 +354,19 @@ export default function EventDetailPage() {
                           </span>
                         </div>
                       </Show>
+                      <Show when={currentEvent().externalEventUrl}>
+                        <div class="flex items-center gap-2">
+                          <ExternalLinkIcon class="h-5 w-5 shrink-0 text-emerald-500" />
+                          <a
+                            href={currentEvent().externalEventUrl!}
+                            class="text-emerald-700 underline hover:text-emerald-800"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {t("Meer info", "More info")}
+                          </a>
+                        </div>
+                      </Show>
                     </div>
 
                     <Show when={mapEmbedSrc()}>
@@ -393,16 +403,6 @@ export default function EventDetailPage() {
                           rel="noreferrer"
                         >
                           {t("Aanmelden", "Register")}
-                        </a>
-                      </Show>
-                      <Show when={currentEvent().externalEventUrl && !isArcImport()}>
-                        <a
-                          href={currentEvent().externalEventUrl!}
-                          class="rounded-lg border border-zinc-300 px-4 py-2 font-semibold transition hover:bg-zinc-50"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {t("Meer info", "More info")}
                         </a>
                       </Show>
                     </div>

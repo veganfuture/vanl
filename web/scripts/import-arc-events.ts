@@ -26,12 +26,13 @@ import { validateEvent, type ValidatableEvent } from "../src/lib/event_validatio
  * (source, external_source_id) (see migrations/0002_events.sql). Run by hand
  * (e.g. cron), not part of `bun run migrate`.
  *
- * ARC publishes each event as two separate VEVENTs, one per language,
- * sharing the same start/end/location but with different UIDs. We group by
- * (start, end, location) to recombine them into one bilingual Event; a
- * group can also be a single VEVENT (only one language given) or, rarely, a
- * true duplicate posting (two VEVENTs, same language, same everything) -
- * see detectRealEvents below.
+ * ARC sometimes publishes each event as two separate VEVENTs sharing the
+ * same start/end/location but with different UIDs (occasionally one per
+ * language, though ARC's own Dutch text is unreliable enough - see
+ * pickText below - that we no longer trust it and only ever import English).
+ * We group by (start, end, location) to recombine those into one Event; a
+ * group can also be a single VEVENT, or, rarely, a true duplicate posting
+ * (two VEVENTs, same everything) - see detectRealEvents below.
  *
  * ARC's 200km search radius (centered on Lunteren) reaches into Germany and
  * Belgium - see NL_DISTANCE_THRESHOLD_METERS below for how those get
@@ -91,16 +92,21 @@ function geoOf(event: VEvent): Geo | null {
   return { lat: geo.lat, lon: geo.lon };
 }
 
-const NL_WORDS =
-  /\b(de|het|een|van|voor|met|niet|wordt|worden|dat|dit|wij|zijn|ons|jij|bij|en|op|te|is|je)\b/gi;
-const EN_WORDS = /\b(the|and|with|from|that|this|we|are|our|you|at|is|of|to|for|will|have)\b/gi;
+/**
+ * ARC's placeholder text for a VEVENT that has no real content (e.g. the
+ * "other language" half of a pair ARC didn't actually translate) - seen
+ * literally as "(No description available)" in the feed. Never worth
+ * importing over a sibling VEVENT that has real text.
+ */
+const PLACEHOLDER_TEXT_RE = /^\(?no (?:title|description) available\)?$/i;
 
-/** Word-frequency heuristic - reliable given each event has a full paragraph of running text. */
-function detectLanguage(event: VEvent): "nl" | "en" {
-  const text = `${textOf(event.summary) ?? ""} ${textOf(event.description) ?? ""}`;
-  const nl = (text.match(NL_WORDS) ?? []).length;
-  const en = (text.match(EN_WORDS) ?? []).length;
-  return nl >= en ? "nl" : "en";
+/** First candidate with real (non-placeholder) text; falls back to the first non-null one, then null. */
+function pickText(candidates: Array<string | null>): string | null {
+  return (
+    candidates.find((text) => text !== null && !PLACEHOLDER_TEXT_RE.test(text.trim())) ??
+    candidates.find((text) => text !== null) ??
+    null
+  );
 }
 
 /**
@@ -152,7 +158,6 @@ export type RealEvent = {
   endTimeKnown: boolean;
   location: string;
   geo: Geo;
-  externalEventUrl: string | null;
   flyerUrl: string | null;
 };
 
@@ -274,51 +279,28 @@ function groupEvents(events: VEvent[]): VEvent[][] {
 /**
  * Turns one (start, end, location) group into a single real-world event.
  * Members are sorted by uid first so the canonical external id (and the
- * choice between duplicate same-language postings) is deterministic across
- * re-runs.
+ * choice between duplicate postings) is deterministic across re-runs.
+ * ARC's Dutch text is unreliable (see PLACEHOLDER_TEXT_RE) and unnecessary
+ * anyway (pickLocalized falls back to whichever language is present), so we
+ * never populate titleNl/descriptionNl - only titleEn/descriptionEn, picked
+ * from whichever member actually has real text.
  */
 export function toRealEvent(group: VEvent[]): RealEvent {
   const sorted = [...group].sort((a, b) => a.uid.localeCompare(b.uid));
   const canonical = sorted[0];
-  const shared = {
+  return {
     externalSourceId: canonical.uid,
+    titleNl: null,
+    titleEn: pickText(sorted.map((e) => textOf(e.summary))),
+    descriptionNl: null,
+    descriptionEn: pickText(sorted.map((e) => textOf(e.description))),
     startAt: canonical.start,
     startTimeKnown: !canonical.start.dateOnly,
     endAt: canonical.end ?? null,
     endTimeKnown: canonical.end ? !canonical.end.dateOnly : true,
     location: textOf(canonical.location)!,
     geo: geoOf(canonical)!,
-    externalEventUrl: canonical.url ?? null,
     flyerUrl: flyerUrlOf(canonical),
-  };
-
-  if (sorted.length === 1) {
-    // No second member to pair against, so there's nothing to detect: which
-    // field we put the text in makes no visible difference either way -
-    // pickLocalized falls back to whichever language is present, so a lone
-    // text renders identically in both locales. Call it English and skip
-    // detectLanguage entirely.
-    return {
-      ...shared,
-      titleNl: null,
-      titleEn: textOf(canonical.summary),
-      descriptionNl: null,
-      descriptionEn: textOf(canonical.description),
-    };
-  }
-
-  // Two or more members sharing (start, end, location): usually a genuine
-  // nl/en pair, occasionally ARC posting the same event twice in the same
-  // language (see the module doc comment) - here detectLanguage actually
-  // matters, since it decides which text a Dutch vs. English viewer sees.
-  const nl = sorted.find((e) => detectLanguage(e) === "nl") ?? null;
-  const en = sorted.find((e) => detectLanguage(e) === "en" && e !== nl) ?? null;
-  return {
-    ...shared,
-    titleNl: nl ? textOf(nl.summary) : null,
-    titleEn: en ? textOf(en.summary) : null,
-    descriptionNl: nl ? textOf(nl.description) : null,
-    descriptionEn: en ? textOf(en.description) : null,
   };
 }
 
@@ -687,6 +669,11 @@ async function main(): Promise<void> {
         : event.location;
 
       const mapUrl = `https://www.google.com/maps?q=${event.geo.lat},${event.geo.lon}`;
+      // externalEventUrl is never set from ARC - it's shown publicly on the
+      // event page now, and a link back to ARC's own listing would just be a
+      // duplicate of what this page already shows. Explicitly null (rather
+      // than backfill-only) so a re-import also clears it off events created
+      // before this changed.
       const validatable: ValidatableEvent = {
         titleNl: event.titleNl,
         titleEn: event.titleEn,
@@ -701,7 +688,7 @@ async function main(): Promise<void> {
         locationDescription,
         pdokAddressId: null,
         mapUrl,
-        externalEventUrl: event.externalEventUrl,
+        externalEventUrl: null,
         registrationUrl: null,
       };
       const validation = validateEvent(validatable, { lang: "en", requireFutureStart: false });
@@ -732,7 +719,7 @@ async function main(): Promise<void> {
         locationLng: null,
         locationPdokId: null,
         mapUrl,
-        externalEventUrl: event.externalEventUrl,
+        externalEventUrl: null,
         registrationUrl: null,
       };
 
