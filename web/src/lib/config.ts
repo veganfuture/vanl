@@ -30,6 +30,15 @@ const ConfigSchema = z.object({
     signup_public_key: z
       .string()
       .regex(/^[A-Za-z0-9_-]{43}$/, "must be a base64url-encoded 32-byte Ed25519 public key"),
+    /**
+     * Local-dev-only escape hatch: when true, login OTP codes are always
+     * "000000" and the bot is never contacted for them (see auth_service.ts's
+     * startLogin) - lets you log in as any account without running the bot.
+     * Only ever set in configs/dev.toml, which is why this defaults to false
+     * (configs/prod.toml and configs/test.toml both omit the key entirely,
+     * so a missing/misconfigured prod config can't accidentally enable it).
+     */
+    dev_otp_bypass: z.boolean().default(false),
   }),
 });
 

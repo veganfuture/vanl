@@ -12,6 +12,9 @@ export function generateOtpCode(): string {
   return randomInt(0, 1_000_000).toString().padStart(6, "0");
 }
 
+/** The fixed code issued instead when config.auth.dev_otp_bypass is on - see that field's comment in config.ts. */
+export const DEV_OTP_BYPASS_CODE = "000000";
+
 export function hashOtpCode(code: string): string {
   return createHash("sha256").update(code).digest("hex");
 }
