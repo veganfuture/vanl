@@ -4,6 +4,7 @@ import { loadConfig, type AppConfig } from "~/lib/config";
 import { isUniqueViolation, sql } from "~/lib/db";
 import { logger } from "~/lib/logger";
 import { AccountName, isReservedAccountName } from "./account_name";
+import type { ActingUser } from "./acting_user";
 import { AuthRepository, type ActiveLoginChallenge, type DbError } from "./auth_repository";
 import { sendOtpViaBot } from "./bot-client";
 import {
@@ -409,11 +410,21 @@ export class AuthService {
     });
   }
 
-  /** Admin "Users" detail page only - site_admin gate and account-name validation live in admin_users.ts, same split as setUserDisabled. */
+  /**
+   * site_admin, or the account's own owner (self-rename isn't wired up in
+   * any UI yet, but the service enforces the permission regardless of
+   * caller - admin_users.ts's own site_admin-only gate is on top of this,
+   * not instead of it). Account-name shape/reserved-name validation stays
+   * in admin_users.ts.
+   */
   setAccountName(
+    actingUser: ActingUser,
     id: UserId,
     accountName: AccountName,
-  ): ResultAsync<User, "name_taken" | "internal_error"> {
+  ): ResultAsync<User, "forbidden" | "name_taken" | "internal_error"> {
+    if (!actingUser.isSiteAdmin && !actingUser.id.equals(id)) {
+      return errAsync("forbidden");
+    }
     return this.repository.updateAccountName(id, accountName).mapErr((dbError) => {
       if (isUniqueViolation(dbError.cause)) {
         return "name_taken" as const;

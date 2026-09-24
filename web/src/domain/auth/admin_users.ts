@@ -158,6 +158,6 @@ export function renameAccount(
     if (!user) {
       return errAsync<void, RenameAccountError>("not_found");
     }
-    return authService.setAccountName(userId, accountName).map(() => undefined);
+    return authService.setAccountName(actingUser, userId, accountName).map(() => undefined);
   });
 }
