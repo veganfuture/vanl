@@ -75,6 +75,17 @@
     options = "--delete-older-than 30d";
   };
 
+  # Every vanl-* service (web, bot, signal-daemon, and the arc-import/daily-cleanup oneshots)
+  # sets StandardOutput/StandardError = "journal" and nothing else bounds journald's disk usage -
+  # without an explicit cap it falls back to systemd's own default (10% of the filesystem,
+  # capped at 4G), which on this single-partition disk (see disk-config.nix - root is the entire
+  # disk, no separate /var) could still be a meaningful chunk of it. Pinning it explicitly here
+  # instead of relying on that implicit default.
+  services.journald.extraConfig = ''
+    SystemMaxUse=1G
+    MaxRetentionSec=90day
+  '';
+
   # --- Postgres, for the website (web/configs/prod.toml expects 127.0.0.1:5432, db/user `vanl`) ---
   services.postgresql = {
     enable = true;
