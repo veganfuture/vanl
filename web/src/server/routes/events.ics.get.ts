@@ -3,6 +3,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import type { EventWithPublisherOrgName } from "~/domain/events/event_repository";
 import { eventService } from "~/domain/events/event_service";
 import { pickLocalized } from "~/lib/i18n";
+import { BASE_URL } from "~/lib/metadata";
 
 /**
  * Deliberately a nitro-native serverDir route (not a SolidStart
@@ -88,7 +89,16 @@ export function eventToVEvent(event: EventWithPublisherOrgName): string {
     summary ? `SUMMARY:${escapeIcsText(summary)}` : null,
     description ? `DESCRIPTION:${escapeIcsText(description)}` : null,
     locationParts.length > 0 ? `LOCATION:${escapeIcsText(locationParts.join(", "))}` : null,
-    event.externalEventUrl ? `URL:${escapeIcsText(event.externalEventUrl)}` : null,
+    /**
+     * Always our own canonical event page, not externalEventUrl (an
+     * organizer-supplied "more info" link, already shown on that same page) -
+     * this is the identifying signal import-arc-events.ts's ownEventUrl check
+     * relies on to recognize an event we published, once ARC republishes it
+     * and we later re-import their feed. Never omit this: an event without it
+     * would look, from that importer's perspective, exactly like one that
+     * genuinely originated on ARC.
+     */
+    `URL:${escapeIcsText(`${BASE_URL}/nl/events/${event.slug}`)}`,
     organizationName ? `ORG:${escapeIcsText(organizationName)}` : null,
     "END:VEVENT",
   ].filter((line): line is string => line !== null);

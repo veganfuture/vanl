@@ -159,7 +159,25 @@ export type RealEvent = {
   location: string;
   geo: Geo;
   flyerUrl: string | null;
+  /** ARC's own VEVENT URL, if it preserved the one we stamped on our own /events.ics export - see isOwnEventUrl. */
+  sourceUrl: string | null;
 };
+
+/**
+ * Whether an incoming ARC VEVENT's URL is our own canonical event page (see
+ * events.ics.get.ts's URL: field) - meaning this "ARC event" actually
+ * originated on veganactivists.nl, was exported to ARC, and is now looping
+ * back through their feed under an ARC-assigned UID we've never seen. Without
+ * this check that reflection would be indistinguishable from a genuinely new
+ * ARC event and get created as a duplicate. Relies on ARC's feed preserving
+ * the URL field from what it ingests - if that ever stops holding, this
+ * silently stops catching reflections rather than misfiring on real ones.
+ */
+const OWN_EVENT_URL_RE = /^https:\/\/(www\.)?veganactivists\.nl\/[a-z]{2}\/events\/[^/]+\/?$/;
+
+export function isOwnEventUrl(url: string | null): boolean {
+  return url !== null && OWN_EVENT_URL_RE.test(url);
+}
 
 /**
  * ARC embeds each event's flyer as a standard iCal ATTACH property
@@ -303,6 +321,7 @@ export function toRealEvent(group: VEvent[]): RealEvent {
     location: textOf(canonical.location)!,
     geo: geoOf(canonical)!,
     flyerUrl: flyerUrlOf(canonical),
+    sourceUrl: sorted.map((e) => e.url).find((url): url is string => !!url) ?? null,
   };
 }
 
@@ -617,6 +636,7 @@ async function main(): Promise<void> {
   let filteredNonNl = 0;
   let skippedNoPlace = 0;
   let skippedValidation = 0;
+  let skippedOwnEvent = 0;
   let failed = 0;
   let created = 0;
   let updated = 0;
@@ -733,6 +753,20 @@ async function main(): Promise<void> {
         failed++;
         console.error(
           `Failed to look up existing event for "${event.externalSourceId}": ${existing.error.message}`,
+        );
+        continue;
+      }
+
+      // A never-before-seen external_source_id whose URL is our own event
+      // page isn't a new ARC event - it's one we published, exported to ARC
+      // via /events.ics, and are now seeing loop back under an ARC-assigned
+      // UID. Only guards *creation*: an event ARC already legitimately owns
+      // (existing.value set) still updates exactly as before.
+      if (!existing.value && isOwnEventUrl(event.sourceUrl)) {
+        skippedOwnEvent++;
+        console.log(
+          `Skipping "${event.titleNl ?? event.titleEn}" (${event.externalSourceId}): URL ` +
+            `${event.sourceUrl} shows this originated on veganactivists.nl - not importing our own event back.`,
         );
         continue;
       }
@@ -885,8 +919,8 @@ async function main(): Promise<void> {
         `flyers (${flyersSkippedReused} skipped as a same-pull-reused image, ${flyersSkippedDuplicate} ` +
         `skipped as a cross-run content duplicate), filtered out ` +
         `${filteredNonNl} non-NL events, skipped ${skippedNoPlace} for no matching place, ` +
-        `${skippedValidation} failing validation, ${crossCheckMismatches} on a second-opinion ` +
-        `mismatch, ${failed} failed outright.`,
+        `${skippedValidation} failing validation, ${skippedOwnEvent} as our own event looping back, ` +
+        `${crossCheckMismatches} on a second-opinion mismatch, ${failed} failed outright.`,
     );
   } finally {
     await sql.end();
