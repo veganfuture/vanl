@@ -1,5 +1,6 @@
 import { createAsync, useParams } from "@solidjs/router";
 import { createSignal, Show, Suspense } from "solid-js";
+import { AddToCalendarButton } from "~/components/AddToCalendarButton";
 import { BuildingIcon, CalendarIcon, ExternalLinkIcon, MapPinIcon } from "~/components/icons";
 import { LinkifiedText } from "~/components/LinkifiedText";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
@@ -415,6 +416,7 @@ export default function EventDetailPage() {
                           {t("Aanmelden", "Register")}
                         </a>
                       </Show>
+                      <AddToCalendarButton event={currentEvent()} />
                     </div>
 
                     <Show when={currentEvent().viewerIsSiteAdmin && sourceLabel()}>
