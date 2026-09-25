@@ -229,6 +229,9 @@ export function Navbar() {
     ];
     if (me()?.isSiteAdmin) {
       base.push({ label: t("Gebruikers", "Users"), href: `/${lang()}/admin/users` });
+      // /status itself is public (see its own file comment) - only the nav
+      // link is admin-only, to keep it out of the way for ordinary visitors.
+      base.push({ label: t("Status", "Status"), href: "/status" });
     }
     return base;
   };
