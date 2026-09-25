@@ -405,7 +405,7 @@ export function EventForm(props: {
             value={values().orgId ?? ""}
             onChange={(e) => setValues({ ...values(), orgId: e.currentTarget.value || null })}
           >
-            <option value="">{t("Mezelf", "Myself")}</option>
+            <option value="">{t("Anoniem", "Anonymously")}</option>
             <For each={props.orgs}>{(org) => <option value={org.id}>{org.name}</option>}</For>
           </select>
           <p class="mt-1 text-xs text-zinc-500">
