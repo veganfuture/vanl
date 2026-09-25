@@ -96,5 +96,36 @@ class BotApiServerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.sent_contact_messages, [])
 
 
+    async def test_status_reports_signal_connected(self) -> None:
+        client = MockSignalClient([], connected=True)
+        server = _server_with_secret(client)
+
+        with TestClient(server._build_app()) as test_client:
+            response = test_client.get("/status")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                response.json(), {"status": "ok", "signalConnected": True}
+            )
+
+    async def test_status_reports_signal_disconnected(self) -> None:
+        client = MockSignalClient([], connected=False)
+        server = _server_with_secret(client)
+
+        with TestClient(server._build_app()) as test_client:
+            response = test_client.get("/status")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                response.json(), {"status": "ok", "signalConnected": False}
+            )
+
+    async def test_status_requires_no_authorization(self) -> None:
+        client = MockSignalClient([])
+        server = _server_with_secret(client)
+
+        with TestClient(server._build_app()) as test_client:
+            response = test_client.get("/status")
+            self.assertEqual(response.status_code, 200)
+
+
 if __name__ == "__main__":
     unittest.main()

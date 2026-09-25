@@ -67,7 +67,19 @@ class BotApiServer:
         """
         app = FastAPI()
         app.post("/messages/otp")(self._handle_send_otp)
+        app.get("/status")(self._handle_status)
         return app
+
+    async def _handle_status(self) -> Response:
+        """
+        Unauthenticated, read-only status for the website's monitoring page
+        to poll - no shared secret required, matching the website's own
+        /api/healthz (loopback-bound and non-sensitive, unlike the
+        message-sending endpoints above).
+
+        Returns: JSON with whether the bot is up and connected to signal-cli
+        """
+        return JSONResponse({"status": "ok", "signalConnected": self.client.is_connected()})
 
     async def _handle_send_otp(self, request: Request) -> Response:
         expected_secret = self.env.bot_api_shared_secret

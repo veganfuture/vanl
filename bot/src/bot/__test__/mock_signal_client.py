@@ -12,11 +12,13 @@ class MockSignalClient:
         groups: list[SignalGroup] | None = None,
         group_snapshots: list[list[SignalGroup]] | None = None,
         contacts: list[ContactRecipient] | None = None,
+        connected: bool = True,
     ) -> None:
         self._payload_batches = payload_batches
         self._groups = groups or []
         self._group_snapshots = group_snapshots
         self._contacts = contacts or []
+        self.connected = connected
         self.close_mock: AsyncMock = AsyncMock()
         self.sent_messages: list[tuple[str, str]] = []
         self.sent_contact_messages: list[tuple[str, str]] = []
@@ -70,3 +72,6 @@ class MockSignalClient:
 
     async def close(self) -> None:
         await self.close_mock()
+
+    def is_connected(self) -> bool:
+        return self.connected
