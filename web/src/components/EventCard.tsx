@@ -23,7 +23,10 @@ import type { EventJson } from "~/routes/api/events/event.schema";
  * different siblings. The place segment always shows
  * when `event.municipalityName` is set (resolved server-side by GET
  * /api/events - see event.schema.ts's toEventJson) - callers never pass it
- * in separately. The thumbnail fallback (`orgLogoThumbnailImageId`) is
+ * in separately, and becomes a click target (via `onCityClick`, `relative
+ * z-10` over the stretched title anchor, same trick as the org link below)
+ * only when a caller passes that prop - only the events overview page does.
+ * The thumbnail fallback (`orgLogoThumbnailImageId`) is
  * always passed by every caller now, even on org-scoped pages where the
  * org's own logo is shown elsewhere on the page too - the card is meant to
  * look identical everywhere it appears, rather than varying by surface. The
@@ -47,6 +50,8 @@ export function EventCard(props: {
   orgLogoThumbnailImageId?: string | null;
   org?: { name: string; slug: string };
   statusLabel?: string;
+  /** Only passed by the events overview page - makes the municipality text a click target that adds it to the page's own city filter, instead of plain unclickable text. */
+  onCityClick?: (city: string) => void;
 }) {
   const title = () => pickLocalized(props.event.titleNl, props.event.titleEn, props.lang);
 
@@ -96,7 +101,17 @@ export function EventCard(props: {
               <span class="flex items-center">
                 <span class="hidden text-zinc-300 sm:mx-1.5 sm:inline">·</span>
                 <MapPinIcon class="mr-1 inline-block h-4 w-4 shrink-0 align-text-bottom text-emerald-500" />
-                <span>{name()}</span>
+                <Show when={props.onCityClick} fallback={<span>{name()}</span>}>
+                  {(onCityClick) => (
+                    <button
+                      type="button"
+                      class="relative z-10 text-zinc-600 hover:text-emerald-700 hover:underline"
+                      onClick={() => onCityClick()(name())}
+                    >
+                      {name()}
+                    </button>
+                  )}
+                </Show>
               </span>
             )}
           </Show>
