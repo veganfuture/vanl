@@ -279,14 +279,14 @@ export default function EventDetailPage() {
                   locale={lang() === "nl" ? "nl_NL" : "en_US"}
                 />
 
-                <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                <div class="rounded-2xl border border-zinc-200 bg-white shadow-sm">
                   <Show when={currentEvent().flyerPreviewImageId}>
                     {(id) => (
                       <img
                         // A JSON-API string here, not a domain Sha256 - the server already vetted it.
                         src={imageUrl(id() as Sha256)}
                         alt=""
-                        class="max-h-96 w-full object-cover"
+                        class="max-h-96 w-full rounded-t-2xl object-cover"
                       />
                     )}
                   </Show>
