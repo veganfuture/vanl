@@ -43,10 +43,10 @@ export function useOrganizations() {
   return createAsync(() => getOrganizations());
 }
 
-const getEvents = query(async (province: string, orgIds: string) => {
+const getEvents = query(async (provinces: string[], orgIds: string[]) => {
   const qs = new URLSearchParams();
-  if (province) qs.set("province", province);
-  if (orgIds) qs.set("org", orgIds);
+  if (provinces.length > 0) qs.set("province", provinces.join(","));
+  if (orgIds.length > 0) qs.set("org", orgIds.join(","));
   const suffix = qs.toString();
   const result = await apiFetch(`/api/events${suffix ? `?${suffix}` : ""}`, {
     response: ListEventsResponseSchema,
@@ -57,9 +57,9 @@ const getEvents = query(async (province: string, orgIds: string) => {
   );
 }, "events");
 
-/** `province`/`orgIds` are read reactively - pass the signal accessors, not their values. */
-export function useEvents(province: () => string, orgIds: () => string) {
-  return createAsync(() => getEvents(province(), orgIds()));
+/** `provinces`/`orgIds` are read reactively - pass the signal accessors, not their values. */
+export function useEvents(provinces: () => string[], orgIds: () => string[]) {
+  return createAsync(() => getEvents(provinces(), orgIds()));
 }
 
 const getNextEventsPerOrg = query(async () => {

@@ -129,10 +129,7 @@ export default function EventsListPage() {
     if (docked()) setFiltersOpen(false);
   });
 
-  const events = useEvents(
-    () => selectedProvinces().join(","),
-    () => selectedOrgIds().join(","),
-  );
+  const events = useEvents(selectedProvinces, selectedOrgIds);
 
   // Also powers the organization filter's options - only ~12 orgs exist, so
   // the already-fetched list is filtered client-side rather than searched
