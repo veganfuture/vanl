@@ -46,6 +46,7 @@ export function AddToCalendarButton(props: { event: EventJson }) {
       startAt: new Date(ev.startAt),
       startTimeKnown: ev.startTimeKnown,
       endAt: ev.endAt ? new Date(ev.endAt) : null,
+      endTimeKnown: ev.endTimeKnown,
     };
   });
 

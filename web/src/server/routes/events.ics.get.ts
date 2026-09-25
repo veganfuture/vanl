@@ -1,7 +1,7 @@
 import { defineHandler, getQuery } from "h3";
 import type { EventWithPublisherOrgName } from "~/domain/events/event_repository";
 import { eventService } from "~/domain/events/event_service";
-import { escapeIcsText, foldLine, formatIcsDate, formatIcsDateOnly } from "~/lib/ics";
+import { escapeIcsText, foldLine, formatIcsDate, formatIcsDateTimeProperty } from "~/lib/ics";
 import { pickLocalized } from "~/lib/i18n";
 
 /**
@@ -34,14 +34,8 @@ export function eventToVEvent(event: EventWithPublisherOrgName): string {
     "BEGIN:VEVENT",
     `UID:${event.id.value}@veganactivists.nl`,
     `DTSTAMP:${formatIcsDate(event.updatedAt)}`,
-    event.startTimeKnown
-      ? `DTSTART:${formatIcsDate(event.startAt)}`
-      : `DTSTART;VALUE=DATE:${formatIcsDateOnly(event.startAt)}`,
-    event.endAt
-      ? event.endTimeKnown
-        ? `DTEND:${formatIcsDate(event.endAt)}`
-        : `DTEND;VALUE=DATE:${formatIcsDateOnly(event.endAt)}`
-      : null,
+    formatIcsDateTimeProperty("DTSTART", event.startAt, event.startTimeKnown),
+    event.endAt ? formatIcsDateTimeProperty("DTEND", event.endAt, event.endTimeKnown) : null,
     summary ? `SUMMARY:${escapeIcsText(summary)}` : null,
     description ? `DESCRIPTION:${escapeIcsText(description)}` : null,
     locationParts.length > 0 ? `LOCATION:${escapeIcsText(locationParts.join(", "))}` : null,

@@ -51,3 +51,20 @@ export function formatIcsDate(date: Date): string {
 export function formatIcsDateOnly(date: Date): string {
   return formatInTimeZone(date, EVENT_TZ, "yyyyMMdd");
 }
+
+/**
+ * A DTSTART/DTEND property line, choosing the VALUE=DATE form or a full
+ * timestamp per-field - shared so a mixed event (e.g. a known start time but
+ * an unknown end time, both independently settable in EventForm.tsx) renders
+ * identically wherever a VEVENT is built from it, rather than each producer
+ * re-deriving the same VALUE=DATE-or-not choice on its own.
+ */
+export function formatIcsDateTimeProperty(
+  name: "DTSTART" | "DTEND",
+  date: Date,
+  timeKnown: boolean,
+): string {
+  return timeKnown
+    ? `${name}:${formatIcsDate(date)}`
+    : `${name};VALUE=DATE:${formatIcsDateOnly(date)}`;
+}

@@ -1,4 +1,4 @@
-import { fromZonedTime } from "date-fns-tz";
+import { fromZonedTime, toZonedTime } from "date-fns-tz";
 
 /**
  * Every event date/time on this site is anchored to Dutch wall-clock time,
@@ -35,4 +35,19 @@ export function resolveDateOnlyInstant(calendarDate: string): Date {
 /** Same as resolveDateOnlyInstant, taking the calendar day as separate parts instead of a "yyyy-MM-dd" string. `month` is 1-indexed (January = 1), matching the calendar - not JS Date's 0-indexed getMonth(). */
 export function resolveDateOnlyInstantFromParts(year: number, month: number, day: number): Date {
   return fromZonedTime(new Date(year, month - 1, day), EVENT_TZ);
+}
+
+/**
+ * The read side of resolveDateOnlyInstantFromParts: given a stored instant,
+ * what Amsterdam calendar day is it? Returns plain numbers rather than a
+ * formatted string so callers can do further calendar-day arithmetic (e.g.
+ * "the day after") via resolveDateOnlyInstantFromParts itself - relying on
+ * the JS Date constructor's normal day/month overflow rollover - instead of
+ * formatting to a string, reparsing it, and reconstructing a Date, which
+ * just adds an unnecessary round trip. `month` is 1-indexed, matching
+ * resolveDateOnlyInstantFromParts.
+ */
+export function resolveDateOnlyParts(instant: Date): { year: number; month: number; day: number } {
+  const zoned = toZonedTime(instant, EVENT_TZ);
+  return { year: zoned.getFullYear(), month: zoned.getMonth() + 1, day: zoned.getDate() };
 }
