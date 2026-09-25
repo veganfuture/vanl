@@ -75,6 +75,8 @@ class SignalRpcClientTests(unittest.IsolatedAsyncioTestCase):
     async def test_get_group_by_id_requests_targeted_list_groups(self) -> None:
         client = SignalRpcClient(
             socket_path=Path("/tmp/signal-cli.sock"),
+            rate_limit_max_messages=20,
+            rate_limit_window_seconds=60.0,
         )
         client._request = AsyncMock(  # type: ignore[method-assign]
             return_value=[

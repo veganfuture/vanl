@@ -43,6 +43,8 @@ async def _run_bot_async(config: BotConfig, env: BotEnv) -> None:
         command_timeout_seconds=config.signal_cli_timeout_seconds,
         receive_timeout_seconds=config.signal_receive_timeout_seconds,
         daemon_socket_path=config.signal_daemon_socket_path,
+        rate_limit_max_messages=config.signal_rate_limit_max_messages,
+        rate_limit_window_seconds=config.signal_rate_limit_window_seconds,
     )
     features = _build_features(config, client, env)
     api_server = BotApiServer(config.bot_api, client, env) if config.bot_api else None

@@ -7,7 +7,7 @@
  * never pulls a page's own component code/dependencies into this module);
  * each matched file's own path mechanically determines its URL pattern.
  *
- * Kept in its own module, separate from src/http-cache-headers.ts's
+ * Kept in its own module, separate from src/http-headers.ts's
  * `createMiddleware(...)` wiring, so this pure logic is unit-testable
  * without pulling in @solidjs/start/middleware (which depends on a
  * build-time-only virtual module unavailable under plain vitest).

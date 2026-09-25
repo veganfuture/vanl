@@ -43,6 +43,18 @@ class BotConfig(BaseModel):
     which is also an event to all the features.
     """
 
+    signal_rate_limit_max_messages: int = Field(default=20, gt=0)
+    """
+    Max messages the bot will send to the same contact or group within
+    signal_rate_limit_window_seconds. Tracked in memory per recipient
+    (SignalRpcClient); a send past the cap raises RateLimitExceededError
+    instead of calling signal-cli. Protects against a bug or abuse loop
+    hammering one recipient, not a distributed/persistent rate limit.
+    """
+
+    signal_rate_limit_window_seconds: float = Field(default=60.0, gt=0)
+    """Trailing window, in seconds, signal_rate_limit_max_messages is measured over."""
+
     signal_daemon_socket_path: Path
     """
     Must match wherever signal-daemon.service's --signal-daemon-dir actually put the socket

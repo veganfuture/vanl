@@ -386,8 +386,7 @@ export default function EventDetailPage() {
                           <iframe
                             title={t("Kaart", "Map")}
                             src={src()}
-                            class="h-64 w-full"
-                            style={{ border: "0" }}
+                            class="h-64 w-full border-0"
                             loading="lazy"
                             referrerpolicy="no-referrer-when-downgrade"
                           />
