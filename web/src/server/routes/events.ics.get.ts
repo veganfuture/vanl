@@ -1,7 +1,7 @@
 import { defineHandler, getQuery } from "h3";
-import { formatInTimeZone } from "date-fns-tz";
 import type { EventWithPublisherOrgName } from "~/domain/events/event_repository";
 import { eventService } from "~/domain/events/event_service";
+import { escapeIcsText, foldLine, formatIcsDate, formatIcsDateOnly } from "~/lib/ics";
 import { pickLocalized } from "~/lib/i18n";
 
 /**
@@ -11,49 +11,6 @@ import { pickLocalized } from "~/lib/i18n";
  * response in this app: a raw text/calendar body needs to bypass
  * SolidStart's generic route handling entirely.
  */
-
-/** RFC 5545 §3.3.11 TEXT escaping - backslash first, so it doesn't double-escape the others. */
-function escapeIcsText(text: string): string {
-  return text
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\n/g, "\\n");
-}
-
-/** RFC 5545 §3.1 line folding - continuation lines start with a single space. */
-function foldLine(line: string): string {
-  const CHUNK = 75;
-  if (line.length <= CHUNK) {
-    return line;
-  }
-  const chunks: string[] = [];
-  let rest = line;
-  while (rest.length > CHUNK) {
-    chunks.push(rest.slice(0, CHUNK));
-    rest = rest.slice(CHUNK);
-  }
-  chunks.push(rest);
-  return chunks.join("\r\n ");
-}
-
-function formatIcsDate(date: Date): string {
-  return date
-    .toISOString()
-    .replace(/[-:]/g, "")
-    .replace(/\.\d{3}Z$/, "Z");
-}
-
-/**
- * RFC 5545 §3.6.1 all-day form (DTSTART/DTEND;VALUE=DATE), for when only the
- * date is meaningful (see Event.startTimeKnown/endTimeKnown) - must read the
- * calendar date in Amsterdam local time, not UTC: a date-only start/end
- * stores Amsterdam midnight as a UTC instant, which in UTC falls on the
- * *previous* calendar day.
- */
-function formatIcsDateOnly(date: Date): string {
-  return formatInTimeZone(date, "Europe/Amsterdam", "yyyyMMdd");
-}
 
 export function eventToVEvent(event: EventWithPublisherOrgName): string {
   const summary = pickLocalized(event.titleNl, event.titleEn, "nl");

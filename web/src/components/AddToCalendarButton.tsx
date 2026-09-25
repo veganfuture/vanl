@@ -41,9 +41,11 @@ export function AddToCalendarButton(props: { event: EventJson }) {
       title: pickLocalized(ev.titleNl, ev.titleEn, lang()),
       description: descriptionParts.join("\n\n"),
       location: locationParts.join(", "),
-      startAt: ev.startAt,
+      // EventJson carries dates as ISO strings (the wire format) - parsed
+      // once here so the rest of calendar-links.ts works with real Dates.
+      startAt: new Date(ev.startAt),
       startTimeKnown: ev.startTimeKnown,
-      endAt: ev.endAt,
+      endAt: ev.endAt ? new Date(ev.endAt) : null,
     };
   });
 

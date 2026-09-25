@@ -11,9 +11,9 @@ const timedEvent: CalendarEventInput = {
   title: "Vegan potluck",
   description: "Bring a dish to share",
   location: "Amsterdam",
-  startAt: "2026-10-24T18:00:00.000Z",
+  startAt: new Date("2026-10-24T18:00:00.000Z"),
   startTimeKnown: true,
-  endAt: "2026-10-24T20:00:00.000Z",
+  endAt: new Date("2026-10-24T20:00:00.000Z"),
 };
 
 const allDayEvent: CalendarEventInput = {
@@ -21,7 +21,7 @@ const allDayEvent: CalendarEventInput = {
   description: "All day demonstration",
   location: "Den Haag",
   // Amsterdam midnight on 2026-10-24 is 2026-10-23T22:00:00Z (CEST, UTC+2).
-  startAt: "2026-10-23T22:00:00.000Z",
+  startAt: new Date("2026-10-23T22:00:00.000Z"),
   startTimeKnown: false,
   endAt: null,
 };
