@@ -1,3 +1,4 @@
+import { addDays, addHours } from "date-fns";
 import { escapeIcsText, foldLine, formatIcsDate, formatIcsDateOnly } from "~/lib/ics";
 
 /**
@@ -17,16 +18,30 @@ export type CalendarEventInput = {
   endAt: Date | null;
 };
 
-function addDays(dateOnly: string, days: number): string {
+/**
+ * Adds days to an already-resolved yyyyMMdd calendar date, not to the
+ * original UTC instant - formatIcsDateOnly already collapsed that instant
+ * into "the Amsterdam calendar date" (see its comment), and date-fns'
+ * addDays operates on whatever timezone this code happens to run in, which
+ * for a UTC instant is *not* the same thing. Reading/writing the y/m/d
+ * digits directly (skipping date-fns' format/parse - format's token engine
+ * alone roughly doubles this route's JS payload, for something as simple as
+ * "yyyyMMdd") keeps addDays operating in one self-consistent local frame,
+ * so the day arithmetic is correct regardless of the runtime's ambient
+ * timezone.
+ */
+function addDaysToDateOnly(dateOnly: string, days: number): string {
   const year = Number(dateOnly.slice(0, 4));
   const month = Number(dateOnly.slice(4, 6)) - 1;
   const day = Number(dateOnly.slice(6, 8));
-  return new Date(Date.UTC(year, month, day + days)).toISOString().slice(0, 10).replace(/-/g, "");
+  const result = addDays(new Date(year, month, day), days);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${result.getFullYear()}${pad(result.getMonth() + 1)}${pad(result.getDate())}`;
 }
 
 /** A missing endAt defaults to a single day (all-day) or one hour (timed). */
 function resolveEndDate(input: CalendarEventInput): Date {
-  return input.endAt ?? new Date(input.startAt.getTime() + 60 * 60 * 1000);
+  return input.endAt ?? addHours(input.startAt, 1);
 }
 
 /**
@@ -37,8 +52,12 @@ function resolveEndDate(input: CalendarEventInput): Date {
 function resolveRange(input: CalendarEventInput): { allDay: boolean; start: string; end: string } {
   if (!input.startTimeKnown) {
     const start = formatIcsDateOnly(input.startAt);
-    const endExclusive = input.endAt ? formatIcsDateOnly(input.endAt) : addDays(start, 1);
-    return { allDay: true, start, end: endExclusive === start ? addDays(start, 1) : endExclusive };
+    const endExclusive = input.endAt ? formatIcsDateOnly(input.endAt) : addDaysToDateOnly(start, 1);
+    return {
+      allDay: true,
+      start,
+      end: endExclusive === start ? addDaysToDateOnly(start, 1) : endExclusive,
+    };
   }
   return {
     allDay: false,
