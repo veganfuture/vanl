@@ -219,6 +219,8 @@ class SignalClient(Protocol):
 
     async def close(self) -> None: ...
 
+    def is_connected(self) -> bool: ...
+
 
 class SignalRpcClient:
     def __init__(
@@ -345,6 +347,21 @@ class SignalRpcClient:
                 pass
 
         self._fail_pending("signal-cli client closed")
+
+    def is_connected(self) -> bool:
+        """
+        Whether the daemon socket is currently open and healthy - a cheap,
+        local state check (no round trip to the daemon), matching what
+        _ensure_connected already treats as "still connected" plus the read
+        loop not having failed since.
+
+        Returns: True if the socket is open and the read loop hasn't failed
+        """
+        return (
+            self._writer is not None
+            and not self._writer.is_closing()
+            and self._read_failure is None
+        )
 
     async def _ensure_connected(self) -> None:
         self._raise_if_read_failed()
