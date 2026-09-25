@@ -1,27 +1,15 @@
 import { useSearchParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
-import {
-  createEffect,
-  createMemo,
-  createResource,
-  createSignal,
-  For,
-  onCleanup,
-  onMount,
-  Show,
-} from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { EventCard } from "~/components/EventCard";
 import { ChevronDownIcon, FilterIcon } from "~/components/icons";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { MultiSelectAutocomplete } from "~/components/MultiSelectAutocomplete";
-import { apiFetch } from "~/lib/api-fetch";
 import { GROUPS } from "~/lib/groups";
 import { useLang } from "~/lib/i18n";
+import { useEvents, useMe, useOrganizations } from "~/lib/queries";
 import { PROVINCES } from "~/lib/provinces";
-import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import type { EventJson } from "~/routes/api/events/event.schema";
-import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
-import { ListOrganizationsResponseSchema } from "~/routes/api/organizations/index.schema";
 
 /** A search-param value can arrive as a single string or (in principle) an array - always take the first. */
 function firstParam(value: string | string[] | undefined): string {
@@ -65,13 +53,7 @@ const eventsSignalGroup = GROUPS.find((g) => g.id === "events");
 export default function EventsListPage() {
   const { lang, t } = useLang();
 
-  const [me] = createResource(async () => {
-    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
-    return result.match(
-      (data) => data.user,
-      () => null,
-    );
-  });
+  const me = useMe();
 
   // Only shown for site admins - listVisibleEvents-only for everyone else,
   // so a real visitor never sees a status other than "visible" here anyway.
@@ -147,35 +129,15 @@ export default function EventsListPage() {
     if (docked()) setFiltersOpen(false);
   });
 
-  const [events] = createResource(
-    () => [selectedProvinces().join(","), selectedOrgIds().join(",")] as const,
-    async ([provinces, orgIds]) => {
-      const query = new URLSearchParams();
-      if (provinces) query.set("province", provinces);
-      if (orgIds) query.set("org", orgIds);
-      const qs = query.toString();
-      const result = await apiFetch(`/api/events${qs ? `?${qs}` : ""}`, {
-        response: ListEventsResponseSchema,
-      });
-      return result.match(
-        (data) => data.events,
-        () => [],
-      );
-    },
+  const events = useEvents(
+    () => selectedProvinces().join(","),
+    () => selectedOrgIds().join(","),
   );
 
   // Also powers the organization filter's options - only ~12 orgs exist, so
   // the already-fetched list is filtered client-side rather than searched
   // server-side (unlike the much larger account-name search elsewhere).
-  const [organizations] = createResource(async () => {
-    const result = await apiFetch("/api/organizations", {
-      response: ListOrganizationsResponseSchema,
-    });
-    return result.match(
-      (data) => data.organizations,
-      () => [],
-    );
-  });
+  const organizations = useOrganizations();
 
   // EventJson only carries publisherOrgId, not the org's own name/slug/logo -
   // build a lookup for the flyer-less-event thumbnail fallback (see
@@ -443,7 +405,7 @@ export default function EventsListPage() {
       </div>
 
       <Show
-        when={!events.loading}
+        when={events() !== undefined}
         fallback={<p class="text-zinc-600">{t("Evenementen laden…", "Loading events…")}</p>}
       >
         <Show
@@ -502,7 +464,7 @@ export default function EventsListPage() {
         </Show>
       </Show>
 
-      <Show when={!me.loading && !me()}>
+      <Show when={me() !== undefined && !me()}>
         <p class="mt-8 text-center text-sm text-zinc-600">
           {t("Wil je een evenement maken? ", "Want to create an event? ")}
           <a href={`/${lang()}/signup-help`} class="underline">

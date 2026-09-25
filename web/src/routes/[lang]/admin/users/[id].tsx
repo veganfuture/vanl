@@ -4,7 +4,7 @@ import { createEffect, createMemo, createResource, createSignal, For, Show } fro
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { makeT, useLang, type Locale } from "~/lib/i18n";
-import { MeResponseSchema } from "~/routes/api/auth/me.schema";
+import { useMe, useOrganizations } from "~/lib/queries";
 import {
   GetAdminUserDetailResponseSchema,
   RenameAccountRequestSchema,
@@ -12,7 +12,6 @@ import {
   SetUserDisabledRequestSchema,
   SetUserDisabledResponseSchema,
 } from "~/routes/api/admin/users/[id].schema";
-import { ListOrganizationsResponseSchema } from "~/routes/api/organizations/index.schema";
 import {
   AddMemberRequestSchema,
   UpdateMemberRoleRequestSchema,
@@ -134,13 +133,7 @@ export default function AdminUserDetailPage() {
     });
   }
 
-  const [me] = createResource(async () => {
-    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
-    return result.match(
-      (data) => data.user,
-      () => null,
-    );
-  });
+  const me = useMe();
 
   const [detail, { refetch: refetchDetail }] = createResource(
     () => (me()?.isSiteAdmin ? params.id : undefined),
@@ -155,18 +148,7 @@ export default function AdminUserDetailPage() {
     },
   );
 
-  const [organizations] = createResource(
-    () => (me()?.isSiteAdmin ? true : undefined),
-    async () => {
-      const result = await apiFetch("/api/organizations", {
-        response: ListOrganizationsResponseSchema,
-      });
-      return result.match(
-        (data) => data.organizations,
-        () => [],
-      );
-    },
-  );
+  const organizations = useOrganizations();
 
   const availableOrgs = createMemo(() => {
     const memberOrgIds = new Set(detail()?.organizations.map((m) => m.orgId) ?? []);
@@ -291,7 +273,10 @@ export default function AdminUserDetailPage() {
   return (
     <main class="mx-auto max-w-2xl px-6 py-12">
       <LocaleCookieSync lang={lang()} />
-      <Show when={!me.loading} fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
+      <Show
+        when={me() !== undefined}
+        fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}
+      >
         <Show
           when={me()?.isSiteAdmin}
           fallback={

@@ -1,14 +1,11 @@
 import { Title } from "@solidjs/meta";
-import { createResource, createSignal, For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import { EventCard } from "~/components/EventCard";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
-import { apiFetch } from "~/lib/api-fetch";
 import { imageUrl } from "~/lib/image-url";
 import type { Sha256 } from "~/lib/sha256";
 import { pickLocalized, useLang } from "~/lib/i18n";
-import { MeResponseSchema } from "~/routes/api/auth/me.schema";
-import { ListOrganizationsResponseSchema } from "~/routes/api/organizations/index.schema";
-import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
+import { useMe, useNextEventsPerOrg, useOrganizations } from "~/lib/queries";
 import type { EventJson } from "~/routes/api/events/event.schema";
 
 /** Read by src/middleware.ts to decide this page is safe to cache publicly for anonymous visitors. */
@@ -46,33 +43,9 @@ function OrgDescription(props: { text: string; t: (nl: string, en: string) => st
 export default function OrganizationsListPage() {
   const { lang, t } = useLang();
 
-  const [me] = createResource(async () => {
-    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
-    return result.match(
-      (data) => data.user,
-      () => null,
-    );
-  });
-
-  const [organizations] = createResource(async () => {
-    const result = await apiFetch("/api/organizations", {
-      response: ListOrganizationsResponseSchema,
-    });
-    return result.match(
-      (data) => data.organizations,
-      () => [],
-    );
-  });
-
-  const [nextEvents] = createResource(async () => {
-    const result = await apiFetch("/api/events?nextPerOrg=true", {
-      response: ListEventsResponseSchema,
-    });
-    return result.match(
-      (data) => data.events,
-      () => [],
-    );
-  });
+  const me = useMe();
+  const organizations = useOrganizations();
+  const nextEvents = useNextEventsPerOrg();
 
   const nextEventByOrgId = () => {
     const map = new Map<string, EventJson>();
@@ -101,7 +74,7 @@ export default function OrganizationsListPage() {
       </div>
 
       <Show
-        when={!organizations.loading}
+        when={organizations() !== undefined}
         fallback={<p class="text-zinc-600">{t("Organisaties laden…", "Loading organizations…")}</p>}
       >
         <Show
@@ -167,7 +140,7 @@ export default function OrganizationsListPage() {
                           {t("Volgende evenement", "Next event")}
                         </p>
                         <Show
-                          when={!nextEvents.loading}
+                          when={nextEvents() !== undefined}
                           fallback={<p class="text-sm text-zinc-400">{t("Laden…", "Loading…")}</p>}
                         >
                           <Show
@@ -201,7 +174,7 @@ export default function OrganizationsListPage() {
         </Show>
       </Show>
 
-      <Show when={!me.loading && !me()}>
+      <Show when={me() !== undefined && !me()}>
         <p class="mt-8 text-center text-sm text-zinc-600">
           {t("Wil je een organisatie maken? ", "Want to create an organization? ")}
           <a href={`/${lang()}/signup-help`} class="underline">

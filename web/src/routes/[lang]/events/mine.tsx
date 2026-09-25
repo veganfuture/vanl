@@ -5,9 +5,8 @@ import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch } from "~/lib/api-fetch";
 import { formatEventDate } from "~/lib/format-date";
 import { pickLocalized, useLang } from "~/lib/i18n";
-import { MeResponseSchema } from "~/routes/api/auth/me.schema";
+import { useMe, useOrganizations } from "~/lib/queries";
 import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
-import { ListOrganizationsResponseSchema } from "~/routes/api/organizations/index.schema";
 
 export default function MyEventsPage() {
   const { lang, t } = useLang();
@@ -22,13 +21,7 @@ export default function MyEventsPage() {
     cancelled: t("Geannuleerd", "Cancelled"),
   };
 
-  const [me] = createResource(async () => {
-    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
-    return result.match(
-      (data) => data.user,
-      () => null,
-    );
-  });
+  const me = useMe();
 
   const [events] = createResource(me, async (currentUser) => {
     if (!currentUser) {
@@ -43,15 +36,9 @@ export default function MyEventsPage() {
 
   // See events/index.tsx - same org-logo lookup for the flyer-less-event
   // thumbnail fallback.
-  const [orgLogoById] = createResource(async () => {
-    const result = await apiFetch("/api/organizations", {
-      response: ListOrganizationsResponseSchema,
-    });
-    return result.match(
-      (data) => new Map(data.organizations.map((org) => [org.id, org.logoThumbnailImageId])),
-      () => new Map<string, string | null>(),
-    );
-  });
+  const organizations = useOrganizations();
+  const orgLogoById = () =>
+    new Map((organizations() ?? []).map((org) => [org.id, org.logoThumbnailImageId]));
 
   return (
     <main class="mx-auto max-w-3xl px-6 py-12">
@@ -69,7 +56,10 @@ export default function MyEventsPage() {
         </Show>
       </div>
 
-      <Show when={!me.loading} fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
+      <Show
+        when={me() !== undefined}
+        fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}
+      >
         <Show
           when={me()}
           fallback={

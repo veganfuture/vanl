@@ -11,6 +11,7 @@ import {
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError, type ErrorMessagesFor } from "~/lib/api-fetch";
 import { makeT, useLang, type Locale } from "~/lib/i18n";
+import { useMe } from "~/lib/queries";
 import { uploadImage } from "~/lib/upload-image";
 import { GetEventBySlugResponseSchema } from "~/routes/api/events/by-slug/[slug].schema";
 import { EventRequestSchema } from "~/routes/api/events/event.schema";
@@ -20,7 +21,6 @@ import {
   EventOrgResponseSchema,
 } from "~/routes/api/events/[id]/org.schema";
 import { GetPlaceResponseSchema } from "~/routes/api/places/[id].schema";
-import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { ListOrganizationsResponseSchema } from "~/routes/api/organizations/index.schema";
 import { MyOrganizationsResponseSchema } from "~/routes/api/organizations/mine.schema";
 
@@ -104,20 +104,14 @@ export default function EditEventPage() {
     },
   );
 
-  const [me] = createResource(async () => {
-    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
-    return result.match(
-      (data) => data.user,
-      () => null,
-    );
-  });
+  const me = useMe();
 
   // site_admin may attach an event to any org, so it needs the full listing -
   // everyone else can only ever attach to an org they belong to (org_editor
   // or org_admin - see event_service.ts's canLinkEventToOrg), same set as
   // "mine".
   const [orgOptions] = createResource(
-    () => (me.loading ? undefined : (me()?.isSiteAdmin ?? false)),
+    () => (me() === undefined ? undefined : (me()?.isSiteAdmin ?? false)),
     async (isSiteAdmin) => {
       const result = isSiteAdmin
         ? await apiFetch("/api/organizations", { response: ListOrganizationsResponseSchema })

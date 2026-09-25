@@ -3,7 +3,7 @@ import { createResource, For, Show } from "solid-js";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch } from "~/lib/api-fetch";
 import { useLang } from "~/lib/i18n";
-import { MeResponseSchema } from "~/routes/api/auth/me.schema";
+import { useMe } from "~/lib/queries";
 import { ListAdminUsersResponseSchema } from "~/routes/api/admin/users.schema";
 
 export default function AdminUsersPage() {
@@ -24,13 +24,7 @@ export default function AdminUsersPage() {
     });
   }
 
-  const [me] = createResource(async () => {
-    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
-    return result.match(
-      (data) => data.user,
-      () => null,
-    );
-  });
+  const me = useMe();
 
   const [users] = createResource(me, async (currentUser) => {
     if (!currentUser?.isSiteAdmin) {
@@ -49,7 +43,10 @@ export default function AdminUsersPage() {
       <Title>{t("Gebruikers", "Users")} — Vegan Activists NL</Title>
       <h1 class="mb-6 text-2xl font-semibold">{t("Gebruikers", "Users")}</h1>
 
-      <Show when={!me.loading} fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
+      <Show
+        when={me() !== undefined}
+        fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}
+      >
         <Show
           when={me()}
           fallback={
