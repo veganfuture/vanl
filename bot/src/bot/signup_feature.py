@@ -8,7 +8,7 @@ from loguru import logger
 from bot import signup_token
 from bot.bot_env import BotEnv
 from bot.config import SignupFeatureConfig
-from bot.signal_cli import SignalClient, SignalPayload
+from bot.signal_cli import SignalCliError, SignalClient, SignalPayload
 
 SIGNUP_TRIGGER_RE = re.compile(r"\bsignup\b", re.IGNORECASE)
 
@@ -83,8 +83,9 @@ class SignupFeature:
             return
 
         # Every DM gets a fresh link, regardless of how many times someone has
-        # already asked — simple and safe for now; revisit if this needs
-        # rate-limiting once real usage shows it matters.
+        # already asked - the per-recipient send cap in signal_cli.py's
+        # SignalRpcClient is what actually bounds a repeated-trigger loop, so
+        # this stays simple rather than tracking its own cooldown.
         url = signup_token.build_signup_url(
             self.config.website_signup_base_url,
             self._require_private_key(),
@@ -92,7 +93,14 @@ class SignupFeature:
         )
         message = self.config.signup_message_template.format(url=url)
         logger.debug("sending signup link to {}", aci)
-        await self.client.send_contact_message(aci, message)
+        try:
+            await self.client.send_contact_message(aci, message)
+        except SignalCliError as exc:
+            # Caught here (rather than left to bot.py's per-feature try/except)
+            # so one rate-limited or failed send doesn't abort the rest of this
+            # payload batch for every other sender who also DMed the bot.
+            logger.warning("Failed to send signup link to {}: {}", aci, exc)
+            return
         logger.info("Sent signup link to {}", aci)
 
     def _require_private_key(self) -> Ed25519PrivateKey:

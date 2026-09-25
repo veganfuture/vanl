@@ -12,5 +12,13 @@ export default createMiddleware({
     if (cacheControl) {
       event.response.headers.set("cache-control", cacheControl);
     }
+
+    // Site-wide hardening headers (see docs/threat-model.md). CSP itself is
+    // set per-document in entry-server.tsx, since it needs a per-request
+    // nonce - these three don't, so they apply uniformly to every response,
+    // API routes included.
+    event.response.headers.set("x-frame-options", "DENY");
+    event.response.headers.set("x-content-type-options", "nosniff");
+    event.response.headers.set("referrer-policy", "strict-origin-when-cross-origin");
   },
 });

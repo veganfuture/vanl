@@ -5,7 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [
-    solidStart({ middleware: "src/http-cache-headers.ts" }),
+    solidStart({ middleware: "src/http-headers.ts" }),
     tailwindcss(),
     nitro({
       serverDir: "src/server",

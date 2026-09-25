@@ -197,6 +197,59 @@ class SignalCliError(RuntimeError):
         self.result = result
 
 
+class RateLimitExceededError(SignalCliError):
+    """Raised instead of actually sending when a recipient has hit the
+    per-recipient send cap (see _RecipientMessageRateLimiter). Subclasses
+    SignalCliError so existing send-failure handling (e.g. BotApiServer
+    returning a 502) catches this without any extra code."""
+
+    def __init__(
+        self, recipient: str, max_messages: int, window_seconds: float
+    ) -> None:
+        message = (
+            f"Rate limit exceeded for recipient {recipient}: more than "
+            f"{max_messages} message(s) within {window_seconds:.0f}s"
+        )
+        super().__init__(
+            message, CommandResult(stdout="", stderr=message, returncode=-1)
+        )
+        self.recipient = recipient
+
+
+class _RecipientMessageRateLimiter:
+    """Tracks send timestamps per recipient (contact ACI or group id) in
+    memory and rejects a send once the recipient has received
+    max_messages within the trailing window_seconds. Process-local and
+    reset on restart — sufficient to catch a runaway loop or bug hammering
+    one person/group, not a distributed rate limit."""
+
+    def __init__(self, max_messages: int, window_seconds: float) -> None:
+        self.max_messages = max_messages
+        self.window_seconds = window_seconds
+        self._sent_at: dict[str, list[float]] = {}
+
+    def check_and_record(self, recipient: str) -> None:
+        now = time.monotonic()
+        cutoff = now - self.window_seconds
+        recent = [
+            sent_at for sent_at in self._sent_at.get(recipient, []) if sent_at > cutoff
+        ]
+        if len(recent) >= self.max_messages:
+            self._sent_at[recipient] = recent
+            logger.warning(
+                "signal-cli send blocked: recipient {} exceeded {} message(s) "
+                "within {:.0f}s",
+                recipient,
+                self.max_messages,
+                self.window_seconds,
+            )
+            raise RateLimitExceededError(
+                recipient, self.max_messages, self.window_seconds
+            )
+        recent.append(now)
+        self._sent_at[recipient] = recent
+
+
 class SignalClient(Protocol):
     async def list_groups(self, group_id: str | None = None) -> list[SignalGroup]: ...
 
@@ -226,6 +279,8 @@ class SignalRpcClient:
         socket_path: Path,
         command_timeout_seconds: float = 30.0,
         receive_timeout_seconds: int = 5,
+        rate_limit_max_messages: int = 5,
+        rate_limit_window_seconds: float = 60.0,
     ) -> None:
         self.command_timeout_seconds = command_timeout_seconds
         self.receive_timeout_seconds = receive_timeout_seconds
@@ -240,6 +295,9 @@ class SignalRpcClient:
         self._pending: dict[str, asyncio.Future[object]] = {}
         self._event_queue: asyncio.Queue[SignalPayload] = asyncio.Queue()
         self._read_failure: SignalCliError | None = None
+        self._rate_limiter = _RecipientMessageRateLimiter(
+            rate_limit_max_messages, rate_limit_window_seconds
+        )
 
     async def list_groups(self, group_id: str | None = None) -> list[SignalGroup]:
         params: dict[str, object] | None = None
@@ -278,6 +336,7 @@ class SignalRpcClient:
         ]
 
     async def send_group_message(self, group_id: str, message: str) -> None:
+        self._rate_limiter.check_and_record(group_id)
         await self._request(
             "send",
             {
@@ -287,6 +346,7 @@ class SignalRpcClient:
         )
 
     async def send_contact_message(self, recipient: str, message: str) -> None:
+        self._rate_limiter.check_and_record(recipient)
         await self._request(
             "send",
             {
@@ -526,6 +586,8 @@ def create_signal_client(
     command_timeout_seconds: float,
     receive_timeout_seconds: int,
     daemon_socket_path: Path,
+    rate_limit_max_messages: int = 5,
+    rate_limit_window_seconds: float = 60.0,
 ) -> SignalClient:
     """
     Create the Signal RPC client.
@@ -535,6 +597,8 @@ def create_signal_client(
     - command_timeout_seconds - timeout for request/command round-trips
     - receive_timeout_seconds - timeout when waiting for new events
     - daemon_socket_path - Unix socket path for the Signal RPC daemon
+    - rate_limit_max_messages - max messages allowed to the same recipient within rate_limit_window_seconds
+    - rate_limit_window_seconds - trailing window, in seconds, the per-recipient send cap is measured over
 
     Returns: configured Signal client
     """
@@ -542,6 +606,8 @@ def create_signal_client(
         socket_path=daemon_socket_path,
         command_timeout_seconds=command_timeout_seconds,
         receive_timeout_seconds=receive_timeout_seconds,
+        rate_limit_max_messages=rate_limit_max_messages,
+        rate_limit_window_seconds=rate_limit_window_seconds,
     )
 
 
