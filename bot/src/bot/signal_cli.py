@@ -279,7 +279,7 @@ class SignalRpcClient:
         socket_path: Path,
         command_timeout_seconds: float = 30.0,
         receive_timeout_seconds: int = 5,
-        rate_limit_max_messages: int = 5,
+        rate_limit_max_messages: int = 20,
         rate_limit_window_seconds: float = 60.0,
     ) -> None:
         self.command_timeout_seconds = command_timeout_seconds
@@ -586,7 +586,7 @@ def create_signal_client(
     command_timeout_seconds: float,
     receive_timeout_seconds: int,
     daemon_socket_path: Path,
-    rate_limit_max_messages: int = 5,
+    rate_limit_max_messages: int = 20,
     rate_limit_window_seconds: float = 60.0,
 ) -> SignalClient:
     """

@@ -43,7 +43,7 @@ class BotConfig(BaseModel):
     which is also an event to all the features.
     """
 
-    signal_rate_limit_max_messages: int = Field(default=5, gt=0)
+    signal_rate_limit_max_messages: int = Field(default=20, gt=0)
     """
     Max messages the bot will send to the same contact or group within
     signal_rate_limit_window_seconds. Tracked in memory per recipient
