@@ -53,7 +53,9 @@ export function AddToCalendarButton(props: { event: EventJson }) {
     setOpen(false);
   }
 
-  const menuItemClass = "block w-full px-4 py-2 text-left text-sm hover:bg-emerald-50";
+  /** Matches the Navbar language-switcher dropdown's item styling (no-underline is needed here, unlike most links, since these render as plain anchors, not nav-style buttons) - kept identical so every dropdown menu on the site looks the same. */
+  const menuItemClass =
+    "block w-full px-3 py-2 text-left text-sm text-zinc-800 no-underline hover:bg-emerald-50";
 
   return (
     <div class="relative inline-block">
@@ -70,7 +72,7 @@ export function AddToCalendarButton(props: { event: EventJson }) {
         <ChevronDownIcon class="h-4 w-4 text-zinc-400" />
       </button>
       <ul
-        class="absolute z-40 mt-1 w-60 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-lg"
+        class="absolute z-40 mt-2 w-60 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg"
         classList={{ hidden: !open() }}
       >
         <li>
