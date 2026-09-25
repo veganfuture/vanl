@@ -408,6 +408,17 @@ export function EventForm(props: {
             <option value="">{t("Mezelf", "Myself")}</option>
             <For each={props.orgs}>{(org) => <option value={org.id}>{org.name}</option>}</For>
           </select>
+          <p class="mt-1 text-xs text-zinc-500">
+            {values().orgId
+              ? t(
+                  "De naam van de organisatie is voor iedereen zichtbaar.",
+                  "The organization's name is visible to everyone.",
+                )
+              : t(
+                  "Je naam of contactgegevens worden nooit publiek getoond.",
+                  "Your name or contact details are never shown publicly.",
+                )}
+          </p>
         </label>
       </Show>
 
