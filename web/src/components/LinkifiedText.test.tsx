@@ -36,6 +36,24 @@ describe("<LinkifiedText />", () => {
     expect(link).toHaveAttribute("href", "https://example.com/event");
   });
 
+  it("turns a bare www. domain into a link with an https:// href", () => {
+    const { getByRole } = render(() => (
+      <LinkifiedText text="Meer info via www.stopdeuitbuiting.nl voor details." />
+    ));
+    const link = getByRole("link");
+    expect(link).toHaveAttribute("href", "https://www.stopdeuitbuiting.nl");
+    expect(link).toHaveTextContent("www.stopdeuitbuiting.nl");
+  });
+
+  it("does not swallow trailing sentence punctuation off a bare www. domain", () => {
+    const { getByRole } = render(() => (
+      <LinkifiedText text="Zie www.stopdeuitbuiting.nl, voor meer info." />
+    ));
+    const link = getByRole("link");
+    expect(link).toHaveAttribute("href", "https://www.stopdeuitbuiting.nl");
+    expect(link.nextSibling?.textContent).toBe(", voor meer info.");
+  });
+
   it("renders multiple URLs as separate links", () => {
     const { getAllByRole } = render(() => (
       <LinkifiedText text="See https://a.example.com and also https://b.example.com" />

@@ -9,7 +9,9 @@ import { ExternalLinkIcon } from "~/components/icons";
  * introduce XSS regardless of what a publisher pastes in.
  */
 
-const URL_RE = /https?:\/\/[^\s]+/g;
+// Matches either a scheme-prefixed URL, or a bare "www."-prefixed domain -
+// publishers often paste the latter without "https://" in front.
+const URL_RE = /https?:\/\/[^\s]+|\bwww\.[a-zA-Z0-9-]+\.[^\s]+/g;
 // A URL glued to trailing sentence punctuation (a period ending the
 // sentence, a closing paren wrapping it, etc.) shouldn't swallow that
 // punctuation into the link itself.
@@ -73,7 +75,12 @@ export function LinkifiedText(props: { text: string }) {
     <For each={segments()}>
       {(segment) =>
         segment.type === "link" ? (
-          <a href={segment.value} target="_blank" rel="noreferrer" class="break-words underline">
+          <a
+            href={/^https?:\/\//.test(segment.value) ? segment.value : `https://${segment.value}`}
+            target="_blank"
+            rel="noreferrer"
+            class="break-words underline"
+          >
             {segment.value}
             <ExternalLinkIcon class="ml-0.5 inline h-3.5 w-3.5 shrink-0 align-baseline" />
           </a>
