@@ -68,3 +68,8 @@ export function formatIcsDateTimeProperty(
     ? `${name}:${formatIcsDate(date)}`
     : `${name};VALUE=DATE:${formatIcsDateOnly(date)}`;
 }
+
+/** RFC 5545 §3.8.4.7 UID - one shared domain suffix so the full feed and the single-event download can't drift apart on it. */
+export function formatIcsUid(id: string): string {
+  return `UID:${id}@veganactivists.nl`;
+}

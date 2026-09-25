@@ -1,7 +1,13 @@
 import { defineHandler, getQuery } from "h3";
 import type { EventWithPublisherOrgName } from "~/domain/events/event_repository";
 import { eventService } from "~/domain/events/event_service";
-import { escapeIcsText, foldLine, formatIcsDate, formatIcsDateTimeProperty } from "~/lib/ics";
+import {
+  escapeIcsText,
+  foldLine,
+  formatIcsDate,
+  formatIcsDateTimeProperty,
+  formatIcsUid,
+} from "~/lib/ics";
 import { pickLocalized } from "~/lib/i18n";
 
 /**
@@ -32,7 +38,7 @@ export function eventToVEvent(event: EventWithPublisherOrgName): string {
 
   const lines = [
     "BEGIN:VEVENT",
-    `UID:${event.id.value}@veganactivists.nl`,
+    formatIcsUid(event.id.value),
     `DTSTAMP:${formatIcsDate(event.updatedAt)}`,
     formatIcsDateTimeProperty("DTSTART", event.startAt, event.startTimeKnown),
     event.endAt ? formatIcsDateTimeProperty("DTEND", event.endAt, event.endTimeKnown) : null,

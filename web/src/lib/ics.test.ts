@@ -5,6 +5,7 @@ import {
   formatIcsDate,
   formatIcsDateOnly,
   formatIcsDateTimeProperty,
+  formatIcsUid,
 } from "./ics";
 
 describe("escapeIcsText", () => {
@@ -54,5 +55,11 @@ describe("formatIcsDateTimeProperty", () => {
     expect(formatIcsDateTimeProperty("DTEND", new Date("2026-09-18T22:00:00.000Z"), false)).toBe(
       "DTEND;VALUE=DATE:20260919",
     );
+  });
+});
+
+describe("formatIcsUid", () => {
+  it("appends the shared domain suffix", () => {
+    expect(formatIcsUid("abc-123")).toBe("UID:abc-123@veganactivists.nl");
   });
 });

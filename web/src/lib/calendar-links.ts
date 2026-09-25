@@ -5,6 +5,7 @@ import {
   formatIcsDate,
   formatIcsDateOnly,
   formatIcsDateTimeProperty,
+  formatIcsUid,
 } from "~/lib/ics";
 
 /**
@@ -117,7 +118,7 @@ export function buildIcsFile(input: CalendarEventInput & { uid: string }): strin
     "PRODID:-//Vegan Activists NL//add-to-calendar//NL",
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
-    `UID:${input.uid}@veganactivists.nl`,
+    formatIcsUid(input.uid),
     `DTSTAMP:${formatIcsDate(new Date())}`,
     formatIcsDateTimeProperty("DTSTART", input.startAt, input.startTimeKnown),
     input.endAt ? formatIcsDateTimeProperty("DTEND", input.endAt, input.endTimeKnown) : null,
