@@ -5,6 +5,7 @@ import { EventCard } from "~/components/EventCard";
 import { ChevronDownIcon, FilterIcon } from "~/components/icons";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { MultiSelectAutocomplete } from "~/components/MultiSelectAutocomplete";
+import { Toast } from "~/components/Toast";
 import { GROUPS } from "~/lib/groups";
 import { useLang } from "~/lib/i18n";
 import { useEvents, useMe, useOrganizations } from "~/lib/queries";
@@ -67,6 +68,7 @@ export default function EventsListPage() {
   const selectedProvinces = () => parseCommaList(firstParam(searchParams.province));
   const selectedOrgIds = () => parseCommaList(firstParam(searchParams.org));
   const selectedWeekdays = () => parseCommaList(firstParam(searchParams.weekday));
+  const selectedCities = () => parseCommaList(firstParam(searchParams.city));
 
   function setProvinceFilter(values: string[]) {
     setSearchParams({ province: values.length > 0 ? values.join(",") : undefined });
@@ -77,11 +79,17 @@ export default function EventsListPage() {
   function setWeekdayFilter(values: string[]) {
     setSearchParams({ weekday: values.length > 0 ? values.join(",") : undefined });
   }
+  function setCityFilter(values: string[]) {
+    setSearchParams({ city: values.length > 0 ? values.join(",") : undefined });
+  }
   function removeProvince(value: string) {
     setProvinceFilter(selectedProvinces().filter((v) => v !== value));
   }
   function removeOrg(value: string) {
     setOrgFilter(selectedOrgIds().filter((v) => v !== value));
+  }
+  function removeCity(value: string) {
+    setCityFilter(selectedCities().filter((v) => v !== value));
   }
   function toggleWeekday(value: string) {
     const current = selectedWeekdays();
@@ -93,13 +101,28 @@ export default function EventsListPage() {
     setProvinceFilter([]);
     setOrgFilter([]);
     setWeekdayFilter([]);
+    setCityFilter([]);
+  }
+
+  // Toast shown when a city name is clicked on an event card below - purely
+  // local to this page (unlike useQueryToast's registry), since the message
+  // needs the clicked city's name interpolated in, not a static key.
+  const [cityToast, setCityToast] = createSignal<string | null>(null);
+  function handleCityClick(city: string) {
+    if (!selectedCities().includes(city)) {
+      setCityFilter([...selectedCities(), city]);
+    }
+    setCityToast(t(`Gefilterd op ${city}`, `Filtered to ${city}`));
   }
 
   // Collapsed by default to keep the page uncluttered when no filter is
   // active - but starts open if the page was loaded with filters already in
   // the URL (e.g. a shared link), so the user immediately sees what's applied.
   const [filtersOpen, setFiltersOpen] = createSignal(
-    selectedProvinces().length > 0 || selectedOrgIds().length > 0 || selectedWeekdays().length > 0,
+    selectedProvinces().length > 0 ||
+      selectedOrgIds().length > 0 ||
+      selectedWeekdays().length > 0 ||
+      selectedCities().length > 0,
   );
 
   // On mobile the filter bar is sticky (see the JSX below) and tracks the
@@ -145,27 +168,52 @@ export default function EventsListPage() {
   const organizationOptions = createMemo(
     () => organizations()?.map((org) => ({ value: org.id, label: org.name })) ?? [],
   );
+  // Derived from the province/org-filtered (but not city-filtered) event
+  // list, so picking a city never shrinks its own dropdown's options.
+  const cityOptions = createMemo(() => {
+    const names = new Set(
+      (events() ?? [])
+        .map((event) => event.municipalityName)
+        .filter((name): name is string => name !== null),
+    );
+    return [...names]
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => ({ value: name, label: name }));
+  });
   const hasActiveFilters = () =>
-    selectedProvinces().length > 0 || selectedOrgIds().length > 0 || selectedWeekdays().length > 0;
+    selectedProvinces().length > 0 ||
+    selectedOrgIds().length > 0 ||
+    selectedWeekdays().length > 0 ||
+    selectedCities().length > 0;
 
-  // Weekday filtering only depends on startAt, already present on every
-  // fetched event, so - unlike province/org - it's applied client-side
-  // rather than round-tripped through the API. Also drops events that have
-  // already ended (or, absent an end time, already started) - the same
-  // "not-yet-ended" rule the repository already applies for the org-detail
-  // and .ics listings (`coalesce(end_at, start_at) >= now()`), just not yet
-  // for this default listing, which still returns full history.
+  // Weekday and city filtering only depend on fields already present on
+  // every fetched event (startAt, municipalityName), so - unlike
+  // province/org - they're applied client-side rather than round-tripped
+  // through the API. Also drops events that have already ended (or, absent
+  // an end time, already started) - the same "not-yet-ended" rule the
+  // repository already applies for the org-detail and .ics listings
+  // (`coalesce(end_at, start_at) >= now()`), just not yet for this default
+  // listing, which still returns full history.
   const visibleEvents = createMemo(() => {
     const weekdays = selectedWeekdays();
+    const cities = selectedCities();
     const now = Date.now();
-    const upcoming = (events() ?? []).filter(
+    let result = (events() ?? []).filter(
       (event) => new Date(event.endAt ?? event.startAt).getTime() >= now,
     );
-    if (weekdays.length === 0) return upcoming;
-    const allowed = new Set(weekdays);
-    return upcoming.filter((event) =>
-      allowed.has(WEEKDAY_CODE_BY_JS_DAY[new Date(event.startAt).getDay()]),
-    );
+    if (weekdays.length > 0) {
+      const allowed = new Set(weekdays);
+      result = result.filter((event) =>
+        allowed.has(WEEKDAY_CODE_BY_JS_DAY[new Date(event.startAt).getDay()]),
+      );
+    }
+    if (cities.length > 0) {
+      const allowed = new Set(cities);
+      result = result.filter(
+        (event) => event.municipalityName !== null && allowed.has(event.municipalityName),
+      );
+    }
+    return result;
   });
 
   // Chronological, then bucketed: everything left in the current
@@ -269,7 +317,10 @@ export default function EventsListPage() {
               {t("Filters", "Filters")}
               <Show when={hasActiveFilters()}>
                 <span class="rounded-full bg-emerald-600 px-1.5 py-0.5 text-xs font-semibold text-white">
-                  {selectedProvinces().length + selectedOrgIds().length + selectedWeekdays().length}
+                  {selectedProvinces().length +
+                    selectedOrgIds().length +
+                    selectedWeekdays().length +
+                    selectedCities().length}
                 </span>
               </Show>
             </span>
@@ -330,6 +381,21 @@ export default function EventsListPage() {
                   </span>
                 )}
               </For>
+              <For each={selectedCities()}>
+                {(city) => (
+                  <span class="flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
+                    {city}
+                    <button
+                      type="button"
+                      class="text-emerald-600 hover:text-emerald-900"
+                      aria-label={`Remove ${city}`}
+                      onClick={() => removeCity(city)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                )}
+              </For>
               <button
                 type="button"
                 class="ml-1 text-xs text-zinc-500 underline hover:text-zinc-700"
@@ -352,6 +418,16 @@ export default function EventsListPage() {
                   selected={selectedProvinces()}
                   onChange={setProvinceFilter}
                   noResultsLabel={t("Geen provincies gevonden", "No provinces found")}
+                />
+              </div>
+              <div class="w-full sm:w-56">
+                <MultiSelectAutocomplete
+                  label={t("Stad", "City")}
+                  placeholder={t("Alle steden", "All cities")}
+                  options={cityOptions()}
+                  selected={selectedCities()}
+                  onChange={setCityFilter}
+                  noResultsLabel={t("Geen steden gevonden", "No cities found")}
                 />
               </div>
               <div class="w-full sm:w-56">
@@ -449,6 +525,7 @@ export default function EventsListPage() {
                                 : undefined
                             }
                             statusLabel={statusLabels[event.status]}
+                            onCityClick={handleCityClick}
                           />
                         </li>
                       )}
@@ -468,6 +545,10 @@ export default function EventsListPage() {
             {t("Meld je aan om een account te maken.", "Sign up to create an account.")}
           </a>
         </p>
+      </Show>
+
+      <Show when={cityToast()}>
+        {(message) => <Toast message={message()} onDismiss={() => setCityToast(null)} />}
       </Show>
     </main>
   );
