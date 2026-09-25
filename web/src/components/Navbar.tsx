@@ -229,7 +229,6 @@ export function Navbar() {
     ];
     if (me()?.isSiteAdmin) {
       base.push({ label: t("Gebruikers", "Users"), href: `/${lang()}/admin/users` });
-      base.push({ label: t("Status", "Status"), href: `/${lang()}/admin/status` });
     }
     return base;
   };

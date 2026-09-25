@@ -14,13 +14,10 @@ export const BotStatusComponentSchema = StatusComponentSchema.extend({
   signalConnected: z.boolean().optional(),
 });
 
-export const StatusResponseSchema = z.union([
-  z.object({
-    time: z.string(),
-    web: z.object({ ok: z.literal(true) }),
-    database: StatusComponentSchema,
-    bot: BotStatusComponentSchema,
-  }),
-  z.object({ error: z.enum(["unauthorized", "forbidden"]) }),
-]);
+export const StatusResponseSchema = z.object({
+  time: z.string(),
+  web: z.object({ ok: z.literal(true) }),
+  database: StatusComponentSchema,
+  bot: BotStatusComponentSchema,
+});
 export type StatusResponse = z.infer<typeof StatusResponseSchema>;

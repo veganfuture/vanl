@@ -1,5 +1,4 @@
 import type { APIEvent } from "@solidjs/start/server";
-import { resolveActingUser } from "~/domain/auth/acting_user";
 import { getBotStatus } from "~/domain/bot/bot_status_client";
 import { checkDatabaseConnection } from "~/lib/db";
 import type {
@@ -10,21 +9,13 @@ import type {
 import type { z } from "zod";
 
 /**
- * Site-admin-only monitoring overview (unlike /api/healthz, which is public
- * and deliberately DB-free for load-balancer-style liveness checks) - this
- * one reports real infrastructure state (DB reachability, bot reachability,
- * signal-cli connection), which isn't something to expose to anonymous
- * visitors.
+ * Public and unauthenticated, like /api/healthz - deliberately so, since
+ * this exists to be checked *during* an outage (e.g. the database being
+ * down), and login itself does a DB-backed session lookup. Gating this
+ * behind auth would mean the one time you most need it is the one time you
+ * can't reach it.
  */
-export async function GET(event: APIEvent): Promise<Response> {
-  const actingUser = await resolveActingUser(event.request);
-  if (!actingUser) {
-    return Response.json({ error: "unauthorized" } satisfies StatusResponse, { status: 401 });
-  }
-  if (!actingUser.isSiteAdmin) {
-    return Response.json({ error: "forbidden" } satisfies StatusResponse, { status: 403 });
-  }
-
+export async function GET(_event: APIEvent): Promise<Response> {
   const [database, bot] = await Promise.all([checkDatabase(), checkBot()]);
 
   return Response.json({
