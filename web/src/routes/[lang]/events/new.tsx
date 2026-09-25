@@ -15,9 +15,9 @@ import { apiUrl } from "~/lib/api-url";
 import { imageUrl } from "~/lib/image-url";
 import { pickLocalized, useLang } from "~/lib/i18n";
 import { formatEventDate } from "~/lib/format-date";
+import { useMe } from "~/lib/queries";
 import type { Sha256 } from "~/lib/sha256";
 import { uploadImage } from "~/lib/upload-image";
-import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import type { EventJson } from "~/routes/api/events/event.schema";
 import { EventRequestSchema } from "~/routes/api/events/event.schema";
 import {
@@ -90,13 +90,7 @@ async function loadPrefillData(source: EventJson): Promise<PrefillData> {
 export default function NewEventPage() {
   const { lang, t } = useLang();
 
-  const [me] = createResource(async () => {
-    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
-    return result.match(
-      (data) => data.user,
-      () => null,
-    );
-  });
+  const me = useMe();
 
   const [myOrgs] = createResource(async () => {
     const result = await apiFetch("/api/organizations/mine", {
@@ -177,7 +171,10 @@ export default function NewEventPage() {
       <Title>{t("Maak evenement", "Create event")} — Vegan Activists NL</Title>
       <h1 class="mb-6 text-2xl font-semibold">{t("Maak evenement", "Create event")}</h1>
 
-      <Show when={!me.loading} fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
+      <Show
+        when={me() !== undefined}
+        fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}
+      >
         <Show
           when={me()}
           fallback={

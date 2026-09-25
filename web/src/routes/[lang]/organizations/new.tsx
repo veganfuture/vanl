@@ -1,5 +1,5 @@
 import { Title } from "@solidjs/meta";
-import { createResource, Show } from "solid-js";
+import { Show } from "solid-js";
 import {
   OrganizationForm,
   organizationFormErrorMessages,
@@ -10,21 +10,15 @@ import {
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { apiFetch, describeApiError } from "~/lib/api-fetch";
 import { useLang } from "~/lib/i18n";
+import { useMe } from "~/lib/queries";
 import { uploadImage } from "~/lib/upload-image";
-import { MeResponseSchema } from "~/routes/api/auth/me.schema";
 import { OrganizationRequestSchema } from "~/routes/api/organizations/organization.schema";
 import { CreateOrganizationResponseSchema } from "~/routes/api/organizations/index.schema";
 
 export default function NewOrganizationPage() {
   const { lang, t } = useLang();
 
-  const [me] = createResource(async () => {
-    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
-    return result.match(
-      (data) => data.user,
-      () => null,
-    );
-  });
+  const me = useMe();
 
   async function onSubmit(values: OrganizationFormValues, logoFile: File | null) {
     const result = await apiFetch("/api/organizations", {
@@ -60,7 +54,10 @@ export default function NewOrganizationPage() {
       <Title>{t("Maak organisatie", "Create organization")} — Vegan Activists NL</Title>
       <h1 class="mb-6 text-2xl font-semibold">{t("Maak organisatie", "Create organization")}</h1>
 
-      <Show when={!me.loading} fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}>
+      <Show
+        when={me() !== undefined}
+        fallback={<p class="text-zinc-600">{t("Laden…", "Loading…")}</p>}
+      >
         <Show
           when={me()}
           fallback={

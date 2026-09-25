@@ -1,9 +1,9 @@
 import { useLocation } from "@solidjs/router";
-import { createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { AccountIcon, ChevronDownIcon, HamburgerIcon } from "~/components/icons";
 import { apiFetch } from "~/lib/api-fetch";
 import { useLang, type Locale } from "~/lib/i18n";
-import { MeResponseSchema } from "~/routes/api/auth/me.schema";
+import { useMe } from "~/lib/queries";
 
 type NavLink = { label: string; href: string };
 
@@ -207,19 +207,15 @@ export function Navbar() {
     onCleanup(() => window.removeEventListener("scroll", onScroll));
   });
 
-  const [me, { mutate: setMe }] = createResource(async () => {
-    const result = await apiFetch("/api/auth/me", { response: MeResponseSchema });
-    return result.match(
-      (data) => data.user,
-      () => null,
-    );
-  });
+  const me = useMe();
 
   async function onLogout() {
     setLoggingOut(true);
     try {
       await apiFetch("/api/auth/logout", { method: "POST" });
-      setMe(null);
+      // A hard navigation, not a client-side route change - the fresh
+      // SSR render picks up the now-cleared session cookie on its own, no
+      // local state update needed.
       window.location.href = `/${lang()}`;
     } finally {
       setLoggingOut(false);
@@ -293,9 +289,9 @@ export function Navbar() {
             ❤️ {t("Doneer", "Donate")}
           </a>
           <Show
-            when={!me.loading && me()}
+            when={me() !== undefined && me()}
             fallback={
-              <Show when={!me.loading}>
+              <Show when={me() !== undefined}>
                 <a href={`/${lang()}/login`} class={loginLinkClass}>
                   {t("Inloggen", "Log in")}
                 </a>
@@ -345,9 +341,9 @@ export function Navbar() {
             ❤️ {t("Doneer", "Donate")}
           </a>
           <Show
-            when={!me.loading && me()}
+            when={me() !== undefined && me()}
             fallback={
-              <Show when={!me.loading}>
+              <Show when={me() !== undefined}>
                 <a
                   href={`/${lang()}/login`}
                   class={`${loginLinkClass} text-center`}
