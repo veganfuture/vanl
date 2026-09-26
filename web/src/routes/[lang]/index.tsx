@@ -66,17 +66,9 @@ export default function LandingPage() {
         </section>
 
         <section class="mx-auto max-w-6xl px-6 pb-16 md:pb-24">
-          <div class="mb-4 flex items-baseline justify-between">
-            <h2 class="text-2xl font-bold tracking-tight md:text-3xl">
-              {t("Aankomende evenementen", "Upcoming events")}
-            </h2>
-            <a
-              href={`/${lang()}/events`}
-              class="shrink-0 text-sm font-semibold text-emerald-700 no-underline hover:underline"
-            >
-              {t("Bekijk alle evenementen", "View all events")}
-            </a>
-          </div>
+          <h2 class="mb-4 text-2xl font-bold tracking-tight md:text-3xl">
+            {t("Aankomende evenementen", "Upcoming events")}
+          </h2>
           <Show
             when={upcomingEvents() && upcomingEvents()!.length > 0}
             fallback={
@@ -102,6 +94,14 @@ export default function LandingPage() {
               </For>
             </ul>
           </Show>
+          <div class="mt-6 text-center">
+            <a
+              href={`/${lang()}/events`}
+              class="text-sm font-semibold text-emerald-700 no-underline hover:underline"
+            >
+              {t("Bekijk alle evenementen", "View all events")}
+            </a>
+          </div>
         </section>
 
         <section class="border-y border-emerald-100 bg-white/60">
