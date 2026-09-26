@@ -2,6 +2,7 @@ import { createSignal, For, Show } from "solid-js";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import {
   validateEvent,
+  validateEventDates,
   type ValidatableEvent,
   EVENT_TITLE_MAX_LENGTH,
   EVENT_DESCRIPTION_MAX_LENGTH,
@@ -261,6 +262,33 @@ function toValidatableEvent(values: EventFormValues): ValidatableEvent {
   };
 }
 
+/** Same start/end -> instant conversion as toValidatableEvent, but for a bare date/time pair rather than a full EventFormValues - used to validate and to compute durations for repeat occurrences (below), which only ever differ from the primary occurrence by these two fields. */
+function occurrenceStartInstant(startAt: string, startTimeKnown: boolean): Date | null {
+  return toDate(startTimeKnown ? localDateTimeToIso(startAt) : localDateToIso(startAt));
+}
+function occurrenceEndInstant(endAt: string, endTimeKnown: boolean): Date | null {
+  return toDate(
+    endTimeKnown ? localDateTimeToIso(endAt) : localDateToIso(endAt ? shiftDateOnly(endAt, 1) : ""),
+  );
+}
+
+/** Inverse of occurrenceEndInstant - undoes the exclusive-end +1 day shift applied there, same as eventFormValuesFromEvent does for endAt. */
+function instantToLocalEnd(instant: Date, endTimeKnown: boolean): string {
+  return endTimeKnown
+    ? isoToLocalDateTime(instant.toISOString())
+    : shiftDateOnly(isoToLocalDate(instant.toISOString()), -1);
+}
+
+/** One extra occurrence added via "repeat on another date" - everything about the event is shared with the primary occurrence except these two fields (see EventFormValues.startAt/endAt for their shape). */
+export type EventOccurrence = {
+  /** Stable client-side identity for the <For> below and for targeting updates - never sent to the server. */
+  key: number;
+  startAt: string;
+  endAt: string;
+  /** Once the visitor has edited endAt themselves, stop overwriting it from the start-time-derived auto-prefill (see updateOccurrenceStart). */
+  endTouched: boolean;
+};
+
 function debounced<T>(fn: (arg: T) => void, delayMs: number): (arg: T) => void {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   return (arg: T) => {
@@ -296,8 +324,16 @@ export function EventForm(props: {
    */
   prefillStartTime?: string | null;
   prefillEndTime?: string | null;
+  /**
+   * Shows a "+ Repeat on another date" control that adds extra date/time
+   * pairs below the primary one - every other field (title, location,
+   * flyer, ...) is shared. On submit, onSubmit receives one EventFormValues
+   * per date (primary first), each otherwise identical - the caller creates
+   * them as separate, fully disconnected events/drafts.
+   */
+  allowRepeat?: boolean;
   onSubmit: (
-    values: EventFormValues,
+    valuesList: EventFormValues[],
     flyerFile: File | null,
     status: "draft" | "visible" | null,
   ) => Promise<{ ok: true } | { ok: false; message: string }>;
@@ -336,6 +372,56 @@ export function EventForm(props: {
   const [submittingStatus, setSubmittingStatus] = createSignal<"draft" | "visible" | null>(null);
   const [error, setError] = createSignal<string | null>(null);
   const [validationMessages, setValidationMessages] = createSignal<string[]>([]);
+
+  // Extra dates added via "+ Repeat on another date" (see allowRepeat) -
+  // each shares startTimeKnown/endTimeKnown with the primary occurrence
+  // (values().startTimeKnown/endTimeKnown), only its own startAt/endAt
+  // differ. nextOccurrenceKey is plain mutable state (not a signal) since
+  // it's only ever read at the moment a new occurrence is minted, never
+  // rendered itself.
+  const [occurrences, setOccurrences] = createSignal<EventOccurrence[]>([]);
+  let nextOccurrenceKey = 1;
+
+  function addOccurrence() {
+    setOccurrences([
+      ...occurrences(),
+      { key: nextOccurrenceKey++, startAt: "", endAt: "", endTouched: false },
+    ]);
+  }
+  function removeOccurrence(key: number) {
+    setOccurrences(occurrences().filter((occurrence) => occurrence.key !== key));
+  }
+  function updateOccurrenceStart(key: number, startAt: string) {
+    setOccurrences(
+      occurrences().map((occurrence) => {
+        if (occurrence.key !== key) return occurrence;
+        const next = { ...occurrence, startAt };
+        if (!occurrence.endTouched) {
+          // Auto-prefill this occurrence's end from its new start plus the
+          // primary occurrence's duration, so repeating a 2-hour event five
+          // times doesn't mean typing the same 2-hour end time five times.
+          const primaryStart = occurrenceStartInstant(values().startAt, values().startTimeKnown);
+          const primaryEnd = occurrenceEndInstant(values().endAt, values().endTimeKnown);
+          const newStart = occurrenceStartInstant(startAt, values().startTimeKnown);
+          if (primaryStart && primaryEnd && newStart) {
+            const durationMs = primaryEnd.getTime() - primaryStart.getTime();
+            next.endAt = instantToLocalEnd(
+              new Date(newStart.getTime() + durationMs),
+              values().endTimeKnown,
+            );
+          }
+        }
+        return next;
+      }),
+    );
+  }
+  function updateOccurrenceEnd(key: number, endAt: string) {
+    setOccurrences(
+      occurrences().map((occurrence) =>
+        occurrence.key === key ? { ...occurrence, endAt, endTouched: true } : occurrence,
+      ),
+    );
+  }
 
   const [placeResults, setPlaceResults] = createSignal<SearchPlacesResponse["places"]>([]);
   const [placeQuery, setPlaceQuery] = createSignal(props.initial.placeLabel);
@@ -377,15 +463,41 @@ export function EventForm(props: {
       lang: props.lang,
       requireFutureStart: !!props.requireFutureStart,
     });
-    if (validation.isErr()) {
-      setValidationMessages(validation.error);
+    const messages = validation.isErr() ? [...validation.error] : [];
+
+    // Each extra occurrence shares the primary's title/location/URLs/etc.
+    // (already checked above), so only its own start/end need validating -
+    // prefixed with its label so a visitor with several occurrences open can
+    // tell which one a message belongs to.
+    occurrences().forEach((occurrence, index) => {
+      const label = t(`Herhaling ${index + 2}`, `Repeat ${index + 2}`);
+      const dateMessages = validateEventDates(
+        {
+          startAt: occurrenceStartInstant(occurrence.startAt, values().startTimeKnown),
+          endAt: occurrenceEndInstant(occurrence.endAt, values().endTimeKnown),
+        },
+        { lang: props.lang, requireFutureStart: !!props.requireFutureStart },
+      );
+      messages.push(...dateMessages.map((message) => `${label}: ${message}`));
+    });
+
+    if (messages.length > 0) {
+      setValidationMessages(messages);
       return;
     }
 
     setSubmitting(true);
     setSubmittingStatus(status);
     try {
-      const outcome = await props.onSubmit(values(), flyerFile(), status);
+      const valuesList: EventFormValues[] = [
+        values(),
+        ...occurrences().map((occurrence) => ({
+          ...values(),
+          startAt: occurrence.startAt,
+          endAt: occurrence.endAt,
+        })),
+      ];
+      const outcome = await props.onSubmit(valuesList, flyerFile(), status);
       if (!outcome.ok) {
         setError(outcome.message);
       }
@@ -630,6 +742,70 @@ export function EventForm(props: {
           </label>
         </div>
       </div>
+
+      <Show when={props.allowRepeat}>
+        <div class="space-y-3">
+          <For each={occurrences()}>
+            {(occurrence, index) => (
+              <div class="rounded-lg border border-zinc-200 p-3">
+                <div class="mb-2 flex items-center justify-between">
+                  <span class="text-sm font-medium text-zinc-600">
+                    {t(`Herhaling ${index() + 2}`, `Repeat ${index() + 2}`)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeOccurrence(occurrence.key)}
+                    class="text-sm text-red-700 hover:underline"
+                  >
+                    {t("Verwijderen", "Remove")}
+                  </button>
+                </div>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <label class="block">
+                    <span class="block text-sm font-medium">
+                      {t("Begint om", "Starts at")}{" "}
+                      <span class="font-normal text-zinc-400">{t("(NL tijd)", "(NL time)")}</span>
+                    </span>
+                    <input
+                      type={values().startTimeKnown ? "datetime-local" : "date"}
+                      class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+                      required
+                      min={
+                        props.requireFutureStart
+                          ? values().startTimeKnown
+                            ? isoToLocalDateTime(new Date().toISOString())
+                            : isoToLocalDate(new Date().toISOString())
+                          : undefined
+                      }
+                      value={occurrence.startAt}
+                      onInput={(e) => updateOccurrenceStart(occurrence.key, e.currentTarget.value)}
+                    />
+                  </label>
+                  <label class="block">
+                    <span class="block text-sm font-medium">
+                      {t("Eindigt om (optioneel)", "Ends at (optional)")}{" "}
+                      <span class="font-normal text-zinc-400">{t("(NL tijd)", "(NL time)")}</span>
+                    </span>
+                    <input
+                      type={values().endTimeKnown ? "datetime-local" : "date"}
+                      class="mt-1 block w-full rounded border border-zinc-300 px-3 py-2"
+                      value={occurrence.endAt}
+                      onInput={(e) => updateOccurrenceEnd(occurrence.key, e.currentTarget.value)}
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+          </For>
+          <button
+            type="button"
+            onClick={addOccurrence}
+            class="text-sm font-semibold text-emerald-700 hover:underline"
+          >
+            {t("+ Herhaal op een andere datum", "+ Repeat on another date")}
+          </button>
+        </div>
+      </Show>
 
       <label class="block">
         <span class="block text-sm font-medium">{t("Soort locatie", "Location kind")}</span>
