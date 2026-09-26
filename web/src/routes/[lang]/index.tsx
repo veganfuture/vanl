@@ -51,18 +51,6 @@ export default function LandingPage() {
 
           <h3 class="mb-2 text-sm font-semibold text-zinc-700">{t("Groepen", "Groups")}</h3>
           <GroupsAccordion groups={GROUPS} lang={lang()} />
-
-          <ul class="mt-6 space-y-2 text-sm text-zinc-600">
-            <li>• {t("End‑to‑end versleuteld via Signal", "End-to-end encrypted via Signal")}</li>
-            <li>• {t("Alleen voor vreedzame, legale acties", "Peaceful, legal actions only")}</li>
-            <li>
-              •{" "}
-              {t(
-                "Iedereen die zich inzet voor dierenrechten is welkom",
-                "Everyone committed to animal rights is welcome.",
-              )}
-            </li>
-          </ul>
         </section>
 
         <section class="mx-auto max-w-6xl px-6 pb-16 md:pb-24">

@@ -41,7 +41,7 @@ export function GroupsAccordion(props: {
 
               {isOpen() && (
                 <div id={panelId} role="region" aria-labelledby={btnId} class="px-4 pb-4 pt-1">
-                  <div class="mt-2 grid items-center gap-4 sm:grid-cols-[auto,1fr]">
+                  <div class="mt-2 flex flex-col items-center gap-4 text-center sm:grid sm:grid-cols-[auto_1fr] sm:items-center sm:text-left">
                     <div class="flex items-center justify-center">
                       <div class="relative h-48 w-48 sm:h-56 sm:w-56">
                         <img
@@ -52,8 +52,8 @@ export function GroupsAccordion(props: {
                       </div>
                     </div>
 
-                    <div class="flex flex-col items-start gap-3">
-                      <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <div class="flex flex-col items-center gap-3 sm:items-start">
+                      <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 sm:justify-start">
                         <a
                           href={g.url}
                           target="_blank"
