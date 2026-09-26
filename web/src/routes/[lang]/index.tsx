@@ -1,6 +1,7 @@
 import { Link } from "@solidjs/meta";
 import { useParams } from "@solidjs/router";
-import { Show } from "solid-js";
+import { For, Show } from "solid-js";
+import { EventCard } from "~/components/EventCard";
 import { GroupsAccordion } from "~/components/GroupsAccordion";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
 import { NotFound } from "~/components/NotFound";
@@ -8,6 +9,7 @@ import { SocialMeta } from "~/components/SocialMeta";
 import { GROUPS } from "~/lib/groups";
 import { useLang } from "~/lib/i18n";
 import { BASE_URL, OG_IMAGE, SITE_DESCRIPTION, withBaseUrl } from "~/lib/metadata";
+import { useUpcomingEvents } from "~/lib/queries";
 
 /** Read by src/middleware.ts to decide this page is safe to cache publicly for anonymous visitors. */
 export const route = { info: { cachePolicy: "public" } };
@@ -16,6 +18,7 @@ export default function LandingPage() {
   const params = useParams<{ lang: string }>();
   const isValidLang = () => params.lang === "nl" || params.lang === "en";
   const { lang, t } = useLang();
+  const upcomingEvents = useUpcomingEvents(3);
 
   return (
     // [lang] matches any single path segment, so a stale/garbage value here
@@ -48,18 +51,45 @@ export default function LandingPage() {
 
           <h3 class="mb-2 text-sm font-semibold text-zinc-700">{t("Groepen", "Groups")}</h3>
           <GroupsAccordion groups={GROUPS} lang={lang()} />
+        </section>
 
-          <ul class="mt-6 space-y-2 text-sm text-zinc-600">
-            <li>• {t("End‑to‑end versleuteld via Signal", "End-to-end encrypted via Signal")}</li>
-            <li>• {t("Alleen voor vreedzame, legale acties", "Peaceful, legal actions only")}</li>
-            <li>
-              •{" "}
-              {t(
-                "Iedereen die zich inzet voor dierenrechten is welkom",
-                "Everyone committed to animal rights is welcome.",
-              )}
-            </li>
-          </ul>
+        <section class="mx-auto max-w-6xl px-6 pb-16 md:pb-24">
+          <h2 class="mb-4 text-2xl font-bold tracking-tight md:text-3xl">
+            {t("Aankomende evenementen", "Upcoming events")}
+          </h2>
+          <Show
+            when={upcomingEvents() && upcomingEvents()!.length > 0}
+            fallback={
+              <p class="text-sm text-zinc-600 italic">
+                {t(
+                  "Geen bekende aankomende evenementen — dat betekent niet dat er geen gepland zijn, we weten er alleen niet van.",
+                  "No known upcoming events — that doesn't mean there aren't any planned, we just don't know of them.",
+                )}
+              </p>
+            }
+          >
+            <ul class="space-y-4">
+              <For each={upcomingEvents()}>
+                {(upcomingEvent) => (
+                  <li class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
+                    <EventCard
+                      event={upcomingEvent}
+                      lang={lang()}
+                      href={`/${lang()}/events/${upcomingEvent.slug}`}
+                    />
+                  </li>
+                )}
+              </For>
+            </ul>
+          </Show>
+          <div class="mt-6 text-center">
+            <a
+              href={`/${lang()}/events`}
+              class="text-sm font-semibold text-emerald-700 no-underline hover:underline"
+            >
+              {t("Bekijk alle evenementen", "View all events")}
+            </a>
+          </div>
         </section>
 
         <section class="border-y border-emerald-100 bg-white/60">

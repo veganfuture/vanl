@@ -44,30 +44,39 @@ function parseFilterParam(raw: string | null, isValid: (value: string) => boolea
  * included, not just visible) and so canEdit reflects reality instead of
  * always being false.
  *
- * Two optional query params select an alternate listing instead of the
+ * Three optional query params select an alternate listing instead of the
  * default "everything the viewer may see": `nextPerOrg=true` returns just
  * the soonest upcoming event per org (organizations list page's preview);
  * `orgId=<uuid>` returns every upcoming event for one org (organization
- * detail page). Both are public, visible-only listings regardless of who's
- * asking - unlike the unfiltered default, they don't expose draft/hidden/
- * cancelled events to site admins. Otherwise, the default listing may be
- * narrowed via `?province=` and/or `?org=`, each a comma-separated list
- * (multi-select filters on the events page).
+ * detail page); `limit=<n>` returns the soonest `n` upcoming events
+ * site-wide (homepage teaser), applied as a SQL `LIMIT`. All three are
+ * public, visible-only listings regardless of who's asking - unlike the
+ * unfiltered default, they don't expose draft/hidden/cancelled events to
+ * site admins. Otherwise, the default listing may be narrowed via
+ * `?province=` and/or `?org=`, each a comma-separated list (multi-select
+ * filters on the events page).
  */
 export async function GET(event: APIEvent): Promise<Response> {
   const actingUser = await resolveActingUser(event.request);
   const searchParams = new URL(event.request.url).searchParams;
   const nextPerOrg = searchParams.get("nextPerOrg") === "true";
   const orgId = searchParams.get("orgId");
+  const limitParam = Number.parseInt(searchParams.get("limit") ?? "", 10);
+  const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : undefined;
 
   const events = nextPerOrg
     ? await eventService.listNextUpcomingEventsByOrg()
     : orgId
       ? await eventService.listUpcomingVisibleEventsByOrg(orgId)
-      : await eventService.listEventsForViewer(actingUser, {
-          provinces: parseFilterParam(searchParams.get("province"), (v) => VALID_PROVINCES.has(v)),
-          orgIds: parseFilterParam(searchParams.get("org"), (v) => UUID_RE.test(v)),
-        });
+      : limit !== undefined
+        ? await eventService.listUpcomingVisibleEvents(null, limit)
+        : await eventService.listEventsForViewer(actingUser, {
+            provinces: parseFilterParam(
+              searchParams.get("province"),
+              (v) => VALID_PROVINCES.has(v),
+            ),
+            orgIds: parseFilterParam(searchParams.get("org"), (v) => UUID_RE.test(v)),
+          });
 
   if (events.isErr()) {
     return Response.json({ events: [] } satisfies ListEventsResponse);

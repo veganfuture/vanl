@@ -394,10 +394,13 @@ export class EventRepository {
    * started yet), optionally excluding one external source by name - backs
    * the public /events.ics feed. Left-joined with the publishing org's name
    * (null for events published by an individual) since the feed exposes it
-   * as an ORG field.
+   * as an ORG field. `limit` (homepage teaser) is applied as SQL `LIMIT` -
+   * `LIMIT NULL` is Postgres for "no limit", so passing `undefined` keeps
+   * the full feed behavior.
    */
   listUpcomingVisibleEvents(
     excludeExternalSource: string | null,
+    limit?: number,
   ): ResultAsync<EventWithPublisherOrgName[], DbError> {
     return ResultAsync.fromPromise(
       this.sql`
@@ -411,6 +414,7 @@ export class EventRepository {
             or e.external_source_name is distinct from ${excludeExternalSource}
           )
         order by e.start_at asc
+        limit ${limit ?? null}
       `,
       (cause): DbError => ({ message: "Failed to list upcoming visible events", cause }),
     ).andThen((rows) => {

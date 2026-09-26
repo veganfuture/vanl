@@ -294,14 +294,22 @@ export class EventService {
     return this.listVisibleEvents(filters);
   }
 
-  /** Backs the public /events.ics feed - visible, not-yet-ended events, optionally excluding one external source by name. */
+  /**
+   * Backs the public /events.ics feed - visible, not-yet-ended events,
+   * optionally excluding one external source by name. `limit`, when given,
+   * is applied in SQL (homepage teaser) rather than truncating the full
+   * result in memory.
+   */
   listUpcomingVisibleEvents(
     excludeExternalSource: string | null,
+    limit?: number,
   ): ResultAsync<EventWithPublisherOrgName[], never> {
-    return this.repository.listUpcomingVisibleEvents(excludeExternalSource).orElse((dbError) => {
-      logger.error({ err: dbError }, "failed to list upcoming visible events");
-      return okAsync([]);
-    });
+    return this.repository
+      .listUpcomingVisibleEvents(excludeExternalSource, limit)
+      .orElse((dbError) => {
+        logger.error({ err: dbError }, "failed to list upcoming visible events");
+        return okAsync([]);
+      });
   }
 
   /**
