@@ -14,12 +14,19 @@ function resolveHtmlLang(): string {
  * inline (no src), so a strict CSP with no nonce would block the app from
  * hydrating at all. Google Maps is the only cross-origin embed the site
  * uses (event location iframe); everything else is same-origin.
+ *
+ * style-src needs 'unsafe-inline' in dev only: the production build ships
+ * compiled CSS as an external same-origin <link>, satisfying 'self' on its
+ * own, but Vite's dev server injects/hot-reloads CSS via inline <style>
+ * tags with no nonce of their own - a strict 'self'-only style-src silently
+ * blocks every one of them, so `bun run dev` renders completely unstyled
+ * with no console error explaining why.
  */
 function buildCsp(nonce: string): string {
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}'`,
-    "style-src 'self'",
+    import.meta.env.DEV ? "style-src 'self' 'unsafe-inline'" : "style-src 'self'",
     "img-src 'self'",
     "font-src 'self'",
     "connect-src 'self'",
