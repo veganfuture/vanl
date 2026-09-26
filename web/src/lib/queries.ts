@@ -75,3 +75,18 @@ const getNextEventsPerOrg = query(async () => {
 export function useNextEventsPerOrg() {
   return createAsync(() => getNextEventsPerOrg());
 }
+
+const getUpcomingEvents = query(async (limit: number) => {
+  const result = await apiFetch(`/api/events?upcomingLimit=${limit}`, {
+    response: ListEventsResponseSchema,
+  });
+  return result.match(
+    (data) => data.events,
+    () => [],
+  );
+}, "events-upcoming");
+
+/** Soonest `limit` upcoming visible events site-wide - backs the homepage teaser. */
+export function useUpcomingEvents(limit: number) {
+  return createAsync(() => getUpcomingEvents(limit));
+}
