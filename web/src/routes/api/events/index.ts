@@ -48,26 +48,28 @@ function parseFilterParam(raw: string | null, isValid: (value: string) => boolea
  * default "everything the viewer may see": `nextPerOrg=true` returns just
  * the soonest upcoming event per org (organizations list page's preview);
  * `orgId=<uuid>` returns every upcoming event for one org (organization
- * detail page); `upcomingLimit=<n>` returns the soonest `n` upcoming events
- * site-wide (homepage teaser). All three are public, visible-only listings
- * regardless of who's asking - unlike the unfiltered default, they don't
- * expose draft/hidden/cancelled events to site admins. Otherwise, the
- * default listing may be narrowed via `?province=` and/or `?org=`, each a
- * comma-separated list (multi-select filters on the events page).
+ * detail page); `limit=<n>` returns the soonest `n` upcoming events
+ * site-wide (homepage teaser), applied as a SQL `LIMIT`. All three are
+ * public, visible-only listings regardless of who's asking - unlike the
+ * unfiltered default, they don't expose draft/hidden/cancelled events to
+ * site admins. Otherwise, the default listing may be narrowed via
+ * `?province=` and/or `?org=`, each a comma-separated list (multi-select
+ * filters on the events page).
  */
 export async function GET(event: APIEvent): Promise<Response> {
   const actingUser = await resolveActingUser(event.request);
   const searchParams = new URL(event.request.url).searchParams;
   const nextPerOrg = searchParams.get("nextPerOrg") === "true";
   const orgId = searchParams.get("orgId");
-  const upcomingLimit = Number.parseInt(searchParams.get("upcomingLimit") ?? "", 10);
+  const limitParam = Number.parseInt(searchParams.get("limit") ?? "", 10);
+  const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : undefined;
 
   const events = nextPerOrg
     ? await eventService.listNextUpcomingEventsByOrg()
     : orgId
       ? await eventService.listUpcomingVisibleEventsByOrg(orgId)
-      : Number.isFinite(upcomingLimit) && upcomingLimit > 0
-        ? await eventService.listUpcomingVisibleEvents(null)
+      : limit !== undefined
+        ? await eventService.listUpcomingVisibleEvents(null, limit)
         : await eventService.listEventsForViewer(actingUser, {
             provinces: parseFilterParam(
               searchParams.get("province"),
@@ -79,10 +81,7 @@ export async function GET(event: APIEvent): Promise<Response> {
   if (events.isErr()) {
     return Response.json({ events: [] } satisfies ListEventsResponse);
   }
-  const list =
-    Number.isFinite(upcomingLimit) && upcomingLimit > 0
-      ? events.value.slice(0, upcomingLimit)
-      : events.value;
+  const list = events.value;
   const municipalityByPlaceId = (await eventService.resolveMunicipalityNames(list)).unwrapOr(
     new Map<string, string>(),
   );

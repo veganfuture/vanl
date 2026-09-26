@@ -77,7 +77,7 @@ export function useNextEventsPerOrg() {
 }
 
 const getUpcomingEvents = query(async (limit: number) => {
-  const result = await apiFetch(`/api/events?upcomingLimit=${limit}`, {
+  const result = await apiFetch(`/api/events?limit=${limit}`, {
     response: ListEventsResponseSchema,
   });
   return result.match(
