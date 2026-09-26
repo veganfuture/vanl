@@ -467,10 +467,10 @@ export function EventForm(props: {
 
     // Each extra occurrence shares the primary's title/location/URLs/etc.
     // (already checked above), so only its own start/end need validating -
-    // prefixed with its label so a visitor with several occurrences open can
-    // tell which one a message belongs to.
-    occurrences().forEach((occurrence, index) => {
-      const label = t(`Herhaling ${index + 2}`, `Repeat ${index + 2}`);
+    // prefixed with "Herhaling"/"Repeat" so its messages read distinctly
+    // from the primary occurrence's own (unprefixed) validation messages.
+    occurrences().forEach((occurrence) => {
+      const label = t("Herhaling", "Repeat");
       const dateMessages = validateEventDates(
         {
           startAt: occurrenceStartInstant(occurrence.startAt, values().startTimeKnown),
@@ -746,12 +746,10 @@ export function EventForm(props: {
       <Show when={props.allowRepeat}>
         <div class="space-y-3">
           <For each={occurrences()}>
-            {(occurrence, index) => (
+            {(occurrence) => (
               <div class="rounded-lg border border-zinc-200 p-3">
                 <div class="mb-2 flex items-center justify-between">
-                  <span class="text-sm font-medium text-zinc-600">
-                    {t(`Herhaling ${index() + 2}`, `Repeat ${index() + 2}`)}
-                  </span>
+                  <span class="text-sm font-medium text-zinc-600">{t("Herhaling", "Repeat")}</span>
                   <button
                     type="button"
                     onClick={() => removeOccurrence(occurrence.key)}
