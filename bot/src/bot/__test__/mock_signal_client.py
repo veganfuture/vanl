@@ -13,12 +13,14 @@ class MockSignalClient:
         group_snapshots: list[list[SignalGroup]] | None = None,
         contacts: list[ContactRecipient] | None = None,
         connected: bool = True,
+        attachments: dict[str, bytes] | None = None,
     ) -> None:
         self._payload_batches = payload_batches
         self._groups = groups or []
         self._group_snapshots = group_snapshots
         self._contacts = contacts or []
         self.connected = connected
+        self._attachments = attachments or {}
         self.close_mock: AsyncMock = AsyncMock()
         self.sent_messages: list[tuple[str, str]] = []
         self.sent_contact_messages: list[tuple[str, str]] = []
@@ -69,6 +71,9 @@ class MockSignalClient:
         if not self._payload_batches:
             raise RuntimeError("stop test loop")
         return self._payload_batches.pop(0)
+
+    async def read_attachment_bytes(self, attachment_id: str) -> bytes:
+        return self._attachments[attachment_id]
 
     async def close(self) -> None:
         await self.close_mock()

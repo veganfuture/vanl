@@ -30,6 +30,9 @@ async def _feature_with_secrets(client: MockSignalClient) -> SignupFeature:
     env = BotEnv(
         signup_private_key=seed_b64,
         bot_api_shared_secret="unused-in-these-tests",
+        bot_website_api_token="unused-in-these-tests",
+        bot_database_password="unused-in-these-tests",
+        anthropic_api_key="unused-in-these-tests",
     )
     feature = SignupFeature(_config(), client, env)
     await feature.setup()

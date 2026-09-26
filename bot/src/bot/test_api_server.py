@@ -22,6 +22,9 @@ def _env() -> BotEnv:
     return BotEnv(
         signup_private_key="unused-in-these-tests",
         bot_api_shared_secret="test-shared-secret",
+        bot_website_api_token="unused-in-these-tests",
+        bot_database_password="unused-in-these-tests",
+        anthropic_api_key="unused-in-these-tests",
     )
 
 

@@ -51,8 +51,25 @@ export async function resolveActingUserForUser(user: User): Promise<ActingUser> 
  * Takes the whole Request (not just the cookie header) so every route
  * handler can call resolveActingUser(event.request) instead of each one
  * repeating event.request.headers.get("cookie") itself.
+ *
+ * Tries the Signal event-ingestion bot's bearer-token credential first (see
+ * AuthService.getBotUser) - a no-op unless an Authorization header is
+ * present, so the normal cookie-session path (the overwhelming majority of
+ * requests) never pays for it. Falls back to the ordinary cookie session
+ * otherwise. The bot resolves to a plain, non-admin ActingUser via
+ * resolveActingUserForUser below - same code path a human publisher gets,
+ * no special-cased permissions.
  */
 export async function resolveActingUser(request: Request): Promise<ActingUser | null> {
+  const botUserResult = await authService.getBotUser(request.headers.get("authorization"));
+  const botUser = botUserResult.match(
+    (u) => u,
+    () => null,
+  );
+  if (botUser) {
+    return resolveActingUserForUser(botUser);
+  }
+
   const sessionResult = await authService.getSessionUser(request.headers.get("cookie"));
   const user = sessionResult.match(
     (u) => u,

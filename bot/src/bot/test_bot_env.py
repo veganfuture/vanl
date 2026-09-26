@@ -8,6 +8,9 @@ from bot.bot_env import BotEnv, MissingEnvironmentVariablesError
 _ALL_VARS = {
     "VANL_SIGNUP_PRIVATE_KEY": "seed",
     "VANL_BOT_API_SHARED_SECRET": "secret",
+    "VANL_BOT_WEBSITE_API_TOKEN": "website-token",
+    "VANL_BOT_DATABASE_PASSWORD": "db-password",
+    "ANTHROPIC_API_KEY": "anthropic-key",
 }
 
 
@@ -18,6 +21,9 @@ class BotEnvTests(unittest.TestCase):
 
         self.assertEqual(env.signup_private_key, "seed")
         self.assertEqual(env.bot_api_shared_secret, "secret")
+        self.assertEqual(env.bot_website_api_token, "website-token")
+        self.assertEqual(env.bot_database_password, "db-password")
+        self.assertEqual(env.anthropic_api_key, "anthropic-key")
 
     def test_lists_every_missing_variable_with_a_description(self) -> None:
         with patch.dict("os.environ", {}, clear=True):

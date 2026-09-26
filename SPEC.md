@@ -52,7 +52,6 @@ The following are not required for the initial launch unless needed as enabling 
 
 * Event RSVP'ing. 
 * Calendar REST API
-* Signal event message ingestion (that will be part of a followup project)
 * Integrations with external event websites such as animalrightscalendar.com.
 * Scraping.
 * Advanced recommendation features.

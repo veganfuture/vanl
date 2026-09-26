@@ -548,3 +548,46 @@ describe("searchAccounts", () => {
     expect((await service.searchAccounts(""))._unsafeUnwrap()).toEqual([]);
   });
 });
+
+describe("getBotUser", () => {
+  const originalToken = process.env.VANL_BOT_WEBSITE_API_TOKEN;
+
+  beforeEach(() => {
+    process.env.VANL_BOT_WEBSITE_API_TOKEN = "test-bot-events-token";
+  });
+
+  afterAll(() => {
+    if (originalToken === undefined) {
+      delete process.env.VANL_BOT_WEBSITE_API_TOKEN;
+    } else {
+      process.env.VANL_BOT_WEBSITE_API_TOKEN = originalToken;
+    }
+  });
+
+  it("returns null with no Authorization header", async () => {
+    expect((await service.getBotUser(null))._unsafeUnwrap()).toBeNull();
+  });
+
+  it("returns null for a wrong token", async () => {
+    const result = await service.getBotUser("Bearer wrong-token");
+    expect(result._unsafeUnwrap()).toBeNull();
+  });
+
+  it("returns null when VANL_BOT_WEBSITE_API_TOKEN isn't configured, even with a matching-looking header", async () => {
+    delete process.env.VANL_BOT_WEBSITE_API_TOKEN;
+    const result = await service.getBotUser("Bearer test-bot-events-token");
+    expect(result._unsafeUnwrap()).toBeNull();
+  });
+
+  it("resolves the signal-bot account for a correct token, creating it on first use", async () => {
+    const result = await service.getBotUser("Bearer test-bot-events-token");
+    const user = result._unsafeUnwrap();
+    expect(user?.accountName.value).toBe("signal-bot");
+  });
+
+  it("reuses the same account on repeated calls instead of creating a duplicate", async () => {
+    const first = (await service.getBotUser("Bearer test-bot-events-token"))._unsafeUnwrap();
+    const second = (await service.getBotUser("Bearer test-bot-events-token"))._unsafeUnwrap();
+    expect(second?.id.value).toBe(first?.id.value);
+  });
+});

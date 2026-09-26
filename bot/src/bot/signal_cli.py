@@ -74,6 +74,23 @@ class GroupV2(BaseModel):
     group_id_v2: str | None = Field(default=None, alias="groupIdV2")
 
 
+class Attachment(BaseModel):
+    """
+    One entry of dataMessage.attachments[] - signal-cli writes the actual
+    bytes to disk (under its own data dir's attachments/ subfolder) as a
+    side effect of receiving the message; `id` is the filename there (see
+    SignalClient.read_attachment_bytes). Field presence/naming verified
+    against signal-cli's documented JSON-RPC output, not against a live
+    daemon - re-check against the actually-deployed signal-cli version
+    before relying on this in production (see bot/README.md).
+    """
+
+    content_type: str | None = Field(default=None, alias="contentType")
+    filename: str | None = None
+    id: str | None = None
+    size: int | None = None
+
+
 class DataMessage(BaseModel):
     group_info: GroupInfo | None = Field(default=None, alias="groupInfo")
     group_v2: GroupV2 | None = Field(default=None, alias="groupV2")
@@ -81,6 +98,7 @@ class DataMessage(BaseModel):
     group_id: str | None = Field(default=None, alias="groupId")
     message: str | None = None
     body: str | None = None
+    attachments: list[Attachment] = Field(default_factory=list)
 
 
 class SyncSentMessage(BaseModel):
@@ -90,6 +108,7 @@ class SyncSentMessage(BaseModel):
     group_id: str | None = Field(default=None, alias="groupId")
     message: str | None = None
     body: str | None = None
+    attachments: list[Attachment] = Field(default_factory=list)
 
 
 class SyncMessage(BaseModel):
@@ -101,6 +120,11 @@ class Envelope(BaseModel):
     source_name: str | None = Field(default=None, alias="sourceName")
     source_uuid: str | None = Field(default=None, alias="sourceUuid")
     source_number: str | None = Field(default=None, alias="sourceNumber")
+    timestamp: int | None = None
+    """
+    Signal message identity is (source, timestamp), not a separate id field -
+    used by message_archive_feature.py to build a stable message_id.
+    """
     data_message: DataMessage | None = Field(default=None, alias="dataMessage")
     sync_message: SyncMessage | None = Field(default=None, alias="syncMessage")
 
@@ -140,6 +164,18 @@ class SignalPayload(BaseModel):
             return None
         normalized = candidate.strip()
         return normalized or None
+
+    def extract_timestamp(self) -> int | None:
+        envelope = self.envelope
+        if not envelope:
+            return None
+        return envelope.timestamp
+
+    def extract_attachments(self) -> list[Attachment]:
+        message = self._group_message()
+        if message is None:
+            return []
+        return message.attachments
 
     def _group_message(self) -> DataMessage | SyncSentMessage | None:
         envelope = self.envelope
@@ -270,6 +306,8 @@ class SignalClient(Protocol):
 
     async def receive_events(self) -> list[SignalPayload]: ...
 
+    async def read_attachment_bytes(self, attachment_id: str) -> bytes: ...
+
     async def close(self) -> None: ...
 
     def is_connected(self) -> bool: ...
@@ -284,10 +322,12 @@ class SignalRpcClient:
         *,
         rate_limit_max_messages: int,
         rate_limit_window_seconds: float,
+        attachments_dir: Path | None = None,
     ) -> None:
         self.command_timeout_seconds = command_timeout_seconds
         self.receive_timeout_seconds = receive_timeout_seconds
         self.socket_path = socket_path
+        self.attachments_dir = attachments_dir
         self.connect_retry_seconds = 30.0
         self.connect_retry_interval_seconds = 0.5
         self._reader: asyncio.StreamReader | None = None
@@ -379,6 +419,31 @@ class SignalRpcClient:
                 events.append(self._event_queue.get_nowait())
             except asyncio.QueueEmpty:
                 return events
+
+    async def read_attachment_bytes(self, attachment_id: str) -> bytes:
+        """
+        Read an already-received attachment's bytes from local disk -
+        signal-cli's JSON-RPC daemon writes attachments to
+        {attachments_dir}/{attachment_id} as a side effect of receiving the
+        message, so this is a filesystem read (bot and signal-cli share a
+        host), not an RPC call. Requires attachments_dir to have been
+        configured (see BotConfig.signal_cli_attachments_dir) - unset in any
+        deployment that doesn't need to read attachments.
+
+        Args:
+        - attachment_id - the Attachment.id from the message's attachments[]
+
+        Returns: the attachment's raw bytes
+
+        Raises: RuntimeError if attachments_dir isn't configured
+        """
+        if self.attachments_dir is None:
+            raise RuntimeError(
+                "Cannot read attachment bytes: attachments_dir was not configured "
+                "for this SignalRpcClient (see BotConfig.signal_cli_attachments_dir)"
+            )
+        path = self.attachments_dir / attachment_id
+        return await asyncio.to_thread(path.read_bytes)
 
     async def close(self) -> None:
         """
@@ -606,6 +671,7 @@ def create_signal_client(
     daemon_socket_path: Path,
     rate_limit_max_messages: int,
     rate_limit_window_seconds: float,
+    attachments_dir: Path | None = None,
 ) -> SignalClient:
     """
     Create the Signal RPC client.
@@ -617,6 +683,7 @@ def create_signal_client(
     - daemon_socket_path - Unix socket path for the Signal RPC daemon
     - rate_limit_max_messages - max messages allowed to the same recipient within rate_limit_window_seconds
     - rate_limit_window_seconds - trailing window, in seconds, the per-recipient send cap is measured over
+    - attachments_dir - directory signal-cli writes received attachment bytes to, if this client needs read_attachment_bytes
 
     Returns: configured Signal client
     """
@@ -626,6 +693,7 @@ def create_signal_client(
         receive_timeout_seconds=receive_timeout_seconds,
         rate_limit_max_messages=rate_limit_max_messages,
         rate_limit_window_seconds=rate_limit_window_seconds,
+        attachments_dir=attachments_dir,
     )
 
 

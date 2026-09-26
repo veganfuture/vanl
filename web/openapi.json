@@ -1,0 +1,618 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "veganactivists.nl API (bot-consumed subset)",
+    "version": "1.0.0",
+    "description": "Only the endpoints the Signal bot calls as the signal-bot account. See scripts/generate-openapi.ts."
+  },
+  "components": {
+    "schemas": {
+      "EventId": { "type": "string", "format": "uuid" },
+      "CreateEventResponse": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "slug": { "type": "string" },
+              "titleNl": { "type": "string", "nullable": true },
+              "titleEn": { "type": "string", "nullable": true },
+              "descriptionNl": { "type": "string", "nullable": true },
+              "descriptionEn": { "type": "string", "nullable": true },
+              "startAt": { "type": "string" },
+              "startTimeKnown": { "type": "boolean" },
+              "endAt": { "type": "string", "nullable": true },
+              "endTimeKnown": { "type": "boolean" },
+              "locationKind": {
+                "type": "string",
+                "enum": ["precise_address", "meeting_point_city_only"]
+              },
+              "placeId": { "type": "string" },
+              "municipalityName": { "type": "string", "nullable": true },
+              "locationDescription": { "type": "string" },
+              "locationStreet": { "type": "string", "nullable": true },
+              "locationHouseNumber": { "type": "string", "nullable": true },
+              "locationPostcode": { "type": "string", "nullable": true },
+              "locationLat": { "type": "number", "nullable": true },
+              "locationLng": { "type": "number", "nullable": true },
+              "locationPdokId": { "type": "string", "nullable": true },
+              "mapUrl": { "type": "string", "nullable": true },
+              "externalEventUrl": { "type": "string", "nullable": true },
+              "registrationUrl": { "type": "string", "nullable": true },
+              "organizerName": { "type": "string", "nullable": true },
+              "organizerOrgSlug": { "type": "string", "nullable": true },
+              "flyerFullImageId": { "type": "string", "nullable": true },
+              "flyerPreviewImageId": { "type": "string", "nullable": true },
+              "flyerThumbnailImageId": { "type": "string", "nullable": true },
+              "publisherUserId": { "type": "string", "nullable": true },
+              "publisherOrgId": { "type": "string", "nullable": true },
+              "status": { "type": "string", "enum": ["draft", "hidden", "visible", "cancelled"] },
+              "statusReason": { "type": "string", "nullable": true },
+              "isFeatured": { "type": "boolean" },
+              "canEdit": { "type": "boolean" },
+              "canManageOrgLink": { "type": "boolean" },
+              "source": {
+                "type": "string",
+                "enum": ["manual", "signal_import", "external_import"]
+              },
+              "externalSourceName": { "type": "string", "nullable": true },
+              "viewerIsSiteAdmin": { "type": "boolean" }
+            },
+            "required": [
+              "id",
+              "slug",
+              "titleNl",
+              "titleEn",
+              "descriptionNl",
+              "descriptionEn",
+              "startAt",
+              "startTimeKnown",
+              "endAt",
+              "endTimeKnown",
+              "locationKind",
+              "placeId",
+              "municipalityName",
+              "locationDescription",
+              "locationStreet",
+              "locationHouseNumber",
+              "locationPostcode",
+              "locationLat",
+              "locationLng",
+              "locationPdokId",
+              "mapUrl",
+              "externalEventUrl",
+              "registrationUrl",
+              "organizerName",
+              "organizerOrgSlug",
+              "flyerFullImageId",
+              "flyerPreviewImageId",
+              "flyerThumbnailImageId",
+              "publisherUserId",
+              "publisherOrgId",
+              "status",
+              "statusReason",
+              "isFeatured",
+              "canEdit",
+              "canManageOrgLink",
+              "source",
+              "externalSourceName",
+              "viewerIsSiteAdmin"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string",
+                "enum": [
+                  "unauthorized",
+                  "forbidden",
+                  "validation",
+                  "location_unresolved",
+                  "internal_error"
+                ]
+              }
+            },
+            "required": ["error"]
+          }
+        ]
+      },
+      "EventRequest": {
+        "type": "object",
+        "properties": {
+          "titleNl": { "type": "string", "nullable": true },
+          "titleEn": { "type": "string", "nullable": true },
+          "descriptionNl": { "type": "string", "nullable": true },
+          "descriptionEn": { "type": "string", "nullable": true },
+          "startAt": { "type": "string", "format": "date-time" },
+          "startTimeKnown": { "type": "boolean" },
+          "endAt": { "type": "string", "nullable": true, "format": "date-time" },
+          "endTimeKnown": { "type": "boolean" },
+          "locationKind": {
+            "type": "string",
+            "enum": ["precise_address", "meeting_point_city_only"]
+          },
+          "placeId": { "type": "string", "nullable": true, "format": "uuid" },
+          "locationDescription": { "type": "string", "minLength": 1 },
+          "pdokAddressId": { "type": "string", "nullable": true },
+          "mapUrl": { "type": "string", "nullable": true },
+          "externalEventUrl": { "type": "string", "nullable": true },
+          "registrationUrl": { "type": "string", "nullable": true },
+          "orgId": { "type": "string", "nullable": true, "format": "uuid" },
+          "status": { "type": "string", "enum": ["draft", "visible"] }
+        },
+        "required": [
+          "titleNl",
+          "titleEn",
+          "descriptionNl",
+          "descriptionEn",
+          "startAt",
+          "startTimeKnown",
+          "endAt",
+          "endTimeKnown",
+          "locationKind",
+          "placeId",
+          "locationDescription",
+          "pdokAddressId",
+          "mapUrl",
+          "externalEventUrl",
+          "registrationUrl",
+          "orgId"
+        ]
+      },
+      "UpdateEventResponse": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "slug": { "type": "string" },
+              "titleNl": { "type": "string", "nullable": true },
+              "titleEn": { "type": "string", "nullable": true },
+              "descriptionNl": { "type": "string", "nullable": true },
+              "descriptionEn": { "type": "string", "nullable": true },
+              "startAt": { "type": "string" },
+              "startTimeKnown": { "type": "boolean" },
+              "endAt": { "type": "string", "nullable": true },
+              "endTimeKnown": { "type": "boolean" },
+              "locationKind": {
+                "type": "string",
+                "enum": ["precise_address", "meeting_point_city_only"]
+              },
+              "placeId": { "type": "string" },
+              "municipalityName": { "type": "string", "nullable": true },
+              "locationDescription": { "type": "string" },
+              "locationStreet": { "type": "string", "nullable": true },
+              "locationHouseNumber": { "type": "string", "nullable": true },
+              "locationPostcode": { "type": "string", "nullable": true },
+              "locationLat": { "type": "number", "nullable": true },
+              "locationLng": { "type": "number", "nullable": true },
+              "locationPdokId": { "type": "string", "nullable": true },
+              "mapUrl": { "type": "string", "nullable": true },
+              "externalEventUrl": { "type": "string", "nullable": true },
+              "registrationUrl": { "type": "string", "nullable": true },
+              "organizerName": { "type": "string", "nullable": true },
+              "organizerOrgSlug": { "type": "string", "nullable": true },
+              "flyerFullImageId": { "type": "string", "nullable": true },
+              "flyerPreviewImageId": { "type": "string", "nullable": true },
+              "flyerThumbnailImageId": { "type": "string", "nullable": true },
+              "publisherUserId": { "type": "string", "nullable": true },
+              "publisherOrgId": { "type": "string", "nullable": true },
+              "status": { "type": "string", "enum": ["draft", "hidden", "visible", "cancelled"] },
+              "statusReason": { "type": "string", "nullable": true },
+              "isFeatured": { "type": "boolean" },
+              "canEdit": { "type": "boolean" },
+              "canManageOrgLink": { "type": "boolean" },
+              "source": {
+                "type": "string",
+                "enum": ["manual", "signal_import", "external_import"]
+              },
+              "externalSourceName": { "type": "string", "nullable": true },
+              "viewerIsSiteAdmin": { "type": "boolean" }
+            },
+            "required": [
+              "id",
+              "slug",
+              "titleNl",
+              "titleEn",
+              "descriptionNl",
+              "descriptionEn",
+              "startAt",
+              "startTimeKnown",
+              "endAt",
+              "endTimeKnown",
+              "locationKind",
+              "placeId",
+              "municipalityName",
+              "locationDescription",
+              "locationStreet",
+              "locationHouseNumber",
+              "locationPostcode",
+              "locationLat",
+              "locationLng",
+              "locationPdokId",
+              "mapUrl",
+              "externalEventUrl",
+              "registrationUrl",
+              "organizerName",
+              "organizerOrgSlug",
+              "flyerFullImageId",
+              "flyerPreviewImageId",
+              "flyerThumbnailImageId",
+              "publisherUserId",
+              "publisherOrgId",
+              "status",
+              "statusReason",
+              "isFeatured",
+              "canEdit",
+              "canManageOrgLink",
+              "source",
+              "externalSourceName",
+              "viewerIsSiteAdmin"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string",
+                "enum": [
+                  "unauthorized",
+                  "not_found",
+                  "forbidden",
+                  "validation",
+                  "location_unresolved",
+                  "internal_error"
+                ]
+              }
+            },
+            "required": ["error"]
+          }
+        ]
+      },
+      "UploadFlyerResponse": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "slug": { "type": "string" },
+              "titleNl": { "type": "string", "nullable": true },
+              "titleEn": { "type": "string", "nullable": true },
+              "descriptionNl": { "type": "string", "nullable": true },
+              "descriptionEn": { "type": "string", "nullable": true },
+              "startAt": { "type": "string" },
+              "startTimeKnown": { "type": "boolean" },
+              "endAt": { "type": "string", "nullable": true },
+              "endTimeKnown": { "type": "boolean" },
+              "locationKind": {
+                "type": "string",
+                "enum": ["precise_address", "meeting_point_city_only"]
+              },
+              "placeId": { "type": "string" },
+              "municipalityName": { "type": "string", "nullable": true },
+              "locationDescription": { "type": "string" },
+              "locationStreet": { "type": "string", "nullable": true },
+              "locationHouseNumber": { "type": "string", "nullable": true },
+              "locationPostcode": { "type": "string", "nullable": true },
+              "locationLat": { "type": "number", "nullable": true },
+              "locationLng": { "type": "number", "nullable": true },
+              "locationPdokId": { "type": "string", "nullable": true },
+              "mapUrl": { "type": "string", "nullable": true },
+              "externalEventUrl": { "type": "string", "nullable": true },
+              "registrationUrl": { "type": "string", "nullable": true },
+              "organizerName": { "type": "string", "nullable": true },
+              "organizerOrgSlug": { "type": "string", "nullable": true },
+              "flyerFullImageId": { "type": "string", "nullable": true },
+              "flyerPreviewImageId": { "type": "string", "nullable": true },
+              "flyerThumbnailImageId": { "type": "string", "nullable": true },
+              "publisherUserId": { "type": "string", "nullable": true },
+              "publisherOrgId": { "type": "string", "nullable": true },
+              "status": { "type": "string", "enum": ["draft", "hidden", "visible", "cancelled"] },
+              "statusReason": { "type": "string", "nullable": true },
+              "isFeatured": { "type": "boolean" },
+              "canEdit": { "type": "boolean" },
+              "canManageOrgLink": { "type": "boolean" },
+              "source": {
+                "type": "string",
+                "enum": ["manual", "signal_import", "external_import"]
+              },
+              "externalSourceName": { "type": "string", "nullable": true },
+              "viewerIsSiteAdmin": { "type": "boolean" }
+            },
+            "required": [
+              "id",
+              "slug",
+              "titleNl",
+              "titleEn",
+              "descriptionNl",
+              "descriptionEn",
+              "startAt",
+              "startTimeKnown",
+              "endAt",
+              "endTimeKnown",
+              "locationKind",
+              "placeId",
+              "municipalityName",
+              "locationDescription",
+              "locationStreet",
+              "locationHouseNumber",
+              "locationPostcode",
+              "locationLat",
+              "locationLng",
+              "locationPdokId",
+              "mapUrl",
+              "externalEventUrl",
+              "registrationUrl",
+              "organizerName",
+              "organizerOrgSlug",
+              "flyerFullImageId",
+              "flyerPreviewImageId",
+              "flyerThumbnailImageId",
+              "publisherUserId",
+              "publisherOrgId",
+              "status",
+              "statusReason",
+              "isFeatured",
+              "canEdit",
+              "canManageOrgLink",
+              "source",
+              "externalSourceName",
+              "viewerIsSiteAdmin"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string",
+                "enum": ["unauthorized", "not_found", "forbidden", "validation", "internal_error"]
+              }
+            },
+            "required": ["error"]
+          }
+        ]
+      },
+      "ListEventsResponse": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "slug": { "type": "string" },
+                "titleNl": { "type": "string", "nullable": true },
+                "titleEn": { "type": "string", "nullable": true },
+                "descriptionNl": { "type": "string", "nullable": true },
+                "descriptionEn": { "type": "string", "nullable": true },
+                "startAt": { "type": "string" },
+                "startTimeKnown": { "type": "boolean" },
+                "endAt": { "type": "string", "nullable": true },
+                "endTimeKnown": { "type": "boolean" },
+                "locationKind": {
+                  "type": "string",
+                  "enum": ["precise_address", "meeting_point_city_only"]
+                },
+                "placeId": { "type": "string" },
+                "municipalityName": { "type": "string", "nullable": true },
+                "locationDescription": { "type": "string" },
+                "locationStreet": { "type": "string", "nullable": true },
+                "locationHouseNumber": { "type": "string", "nullable": true },
+                "locationPostcode": { "type": "string", "nullable": true },
+                "locationLat": { "type": "number", "nullable": true },
+                "locationLng": { "type": "number", "nullable": true },
+                "locationPdokId": { "type": "string", "nullable": true },
+                "mapUrl": { "type": "string", "nullable": true },
+                "externalEventUrl": { "type": "string", "nullable": true },
+                "registrationUrl": { "type": "string", "nullable": true },
+                "organizerName": { "type": "string", "nullable": true },
+                "organizerOrgSlug": { "type": "string", "nullable": true },
+                "flyerFullImageId": { "type": "string", "nullable": true },
+                "flyerPreviewImageId": { "type": "string", "nullable": true },
+                "flyerThumbnailImageId": { "type": "string", "nullable": true },
+                "publisherUserId": { "type": "string", "nullable": true },
+                "publisherOrgId": { "type": "string", "nullable": true },
+                "status": { "type": "string", "enum": ["draft", "hidden", "visible", "cancelled"] },
+                "statusReason": { "type": "string", "nullable": true },
+                "isFeatured": { "type": "boolean" },
+                "canEdit": { "type": "boolean" },
+                "canManageOrgLink": { "type": "boolean" },
+                "source": {
+                  "type": "string",
+                  "enum": ["manual", "signal_import", "external_import"]
+                },
+                "externalSourceName": { "type": "string", "nullable": true },
+                "viewerIsSiteAdmin": { "type": "boolean" }
+              },
+              "required": [
+                "id",
+                "slug",
+                "titleNl",
+                "titleEn",
+                "descriptionNl",
+                "descriptionEn",
+                "startAt",
+                "startTimeKnown",
+                "endAt",
+                "endTimeKnown",
+                "locationKind",
+                "placeId",
+                "municipalityName",
+                "locationDescription",
+                "locationStreet",
+                "locationHouseNumber",
+                "locationPostcode",
+                "locationLat",
+                "locationLng",
+                "locationPdokId",
+                "mapUrl",
+                "externalEventUrl",
+                "registrationUrl",
+                "organizerName",
+                "organizerOrgSlug",
+                "flyerFullImageId",
+                "flyerPreviewImageId",
+                "flyerThumbnailImageId",
+                "publisherUserId",
+                "publisherOrgId",
+                "status",
+                "statusReason",
+                "isFeatured",
+                "canEdit",
+                "canManageOrgLink",
+                "source",
+                "externalSourceName",
+                "viewerIsSiteAdmin"
+              ]
+            }
+          }
+        },
+        "required": ["events"]
+      },
+      "SearchPlacesResponse": {
+        "type": "object",
+        "properties": {
+          "places": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "municipalityName": { "type": "string" },
+                "province": { "type": "string" }
+              },
+              "required": ["id", "name", "municipalityName", "province"]
+            }
+          }
+        },
+        "required": ["places"]
+      }
+    },
+    "parameters": {
+      "EventId": {
+        "schema": { "$ref": "#/components/schemas/EventId" },
+        "required": true,
+        "name": "id",
+        "in": "path"
+      }
+    }
+  },
+  "paths": {
+    "/api/events": {
+      "post": {
+        "summary": "Create an event, published as the caller (the signal-bot account, for bot-created drafts).",
+        "requestBody": {
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/EventRequest" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateEventResponse" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Every visible event regardless of publisher - matching the bot's own drafts (mine) alone isn't enough to avoid duplicates, since a human may already have manually published the same event, or it may already exist via the ARC feed import.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ListEventsResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events/{id}": {
+      "patch": {
+        "summary": "Update an event the caller may modify (site_admin, or the event's own publisher).",
+        "parameters": [{ "$ref": "#/components/parameters/EventId" }],
+        "requestBody": {
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/EventRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UpdateEventResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events/{id}/flyer": {
+      "post": {
+        "summary": "Replace an event's flyer image. Body is the raw image bytes (not JSON/multipart).",
+        "parameters": [{ "$ref": "#/components/parameters/EventId" }],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": { "schema": { "type": "string", "format": "binary" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UploadFlyerResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events/mine": {
+      "get": {
+        "summary": "Every event published by the caller, any status - used for update-matching against the bot's own past drafts.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ListEventsResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/places/search": {
+      "get": {
+        "summary": "Resolve a free-text city name to a placeId.",
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 2 },
+            "required": true,
+            "name": "q",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SearchPlacesResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

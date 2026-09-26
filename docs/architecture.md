@@ -141,6 +141,16 @@ All checks are backend-enforced at the repository/domain-service boundary; front
   exposed to the internet, authenticated with a shared secret passed via environment variable, and
   scoped to a narrow set of message-sending operations (OTP, signup confirmation) — not a general
   "send arbitrary message" endpoint.
+- The reverse direction (bot → website, for Signal event ingestion) is not a parallel internal API:
+  the bot authenticates as a real, deliberately non-admin `signal-bot` website account
+  (`VANL_BOT_WEBSITE_API_TOKEN`, a bearer token `resolveActingUser` accepts alongside the ordinary
+  session cookie) and calls the *same public* `/api/events*`/`/api/places/search` routes a human
+  publisher's browser would, subject to the same `EventService` validation/authorization — no
+  bypass. The bot's own Signal message archive (`bot_archived_messages`/`bot_archived_attachments`/
+  `bot_event_notifications`) lives in the same Postgres database as everything else (one backup
+  covers both), but is reached through a separate, narrowly-scoped `vanl_bot` Postgres role granted
+  only on those three tables — the bot never touches `events`/`users` directly, only through the API
+  above.
 - Single TOML config file per service (`bot`/`web`'s own `configs/prod.toml`); secrets via plain
   `EnvironmentFile=`s pointing at admin-managed, never-committed paths on the host
   (`/etc/vanl/{bot,web}.env`, `/etc/vanl/cloudflared-credentials.json`) — no sops-nix/agenix.

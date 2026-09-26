@@ -35,6 +35,16 @@ import type { UserId } from "./user_id";
 
 export type AuthConfig = AppConfig["auth"];
 
+/**
+ * Fixed, well-known system account the Signal event-ingestion bot
+ * authenticates as (see getBotUser below) - same lazily-created-system-user
+ * pattern as scripts/import-arc-events.ts's arc-import account, reserved in
+ * account_name.ts so a real signup can never claim it. A distinct UUID from
+ * that script's IMPORT_BOT_SIGNAL_ACI - two different system identities.
+ */
+const SIGNAL_BOT_ACCOUNT_NAME = "signal-bot";
+const SIGNAL_BOT_SIGNAL_ACI = "0f5c9e2a-6b3d-4e91-9c7a-1d8b6f4a2c53";
+
 export type CompleteSignupInput = {
   token: string;
   accountName: string;
@@ -423,6 +433,45 @@ export class AuthService {
     );
   }
 
+  /**
+   * Authenticates the Signal event-ingestion bot as a real (non-admin) user
+   * account via a machine credential instead of a browser session cookie -
+   * resolveActingUser (acting_user.ts) tries this before falling back to
+   * getSessionUser. No session-table row, no expiry: this is a long-lived
+   * secret rotated by redeploying with a new VANL_BOT_WEBSITE_API_TOKEN, not
+   * a login. Fails closed (null) on a missing/mismatched token or a missing
+   * secret, exactly like getSessionUser fails closed on a bad cookie.
+   */
+  getBotUser(authorizationHeader: string | null): ResultAsync<User | null, never> {
+    const token = parseBearerToken(authorizationHeader);
+    const expected = process.env.VANL_BOT_WEBSITE_API_TOKEN;
+    if (!token || !expected || !hashesEqual(token, expected)) {
+      return okAsync(null);
+    }
+    return this.ensureSignalBotUser().orElse((dbError) => {
+      logger.error({ err: dbError }, "failed to resolve signal-bot user");
+      return okAsync(null);
+    });
+  }
+
+  /** Find-or-create, mirroring scripts/import-arc-events.ts's ensureImportBotUser - idempotent, only ever hit on the bearer-token auth path above, not on every request. */
+  private ensureSignalBotUser(): ResultAsync<User, DbError> {
+    return this.repository
+      .findUserByAccountName(SIGNAL_BOT_ACCOUNT_NAME)
+      .andThen((existing): ResultAsync<User, DbError> => {
+        if (existing) {
+          return okAsync(existing);
+        }
+        return this.repository.createUser({
+          signalAci: SignalAci.from_string(SIGNAL_BOT_SIGNAL_ACI)._unsafeUnwrap(),
+          accountName: AccountName.from_string(SIGNAL_BOT_ACCOUNT_NAME)._unsafeUnwrap(),
+          email: "imports@veganactivists.nl",
+          displayName: "Signal Events Bot (import)",
+          affiliationsNote: null,
+        });
+      });
+  }
+
   /** Account-picker autocomplete - fails closed to an empty list on a DB error, same reasoning as isSiteAdmin/listAllUsers. */
   searchAccounts(query: string): ResultAsync<User[], never> {
     const trimmed = query.trim();
@@ -596,6 +645,17 @@ function hashesEqual(a: string, b: string): boolean {
     return false;
   }
   return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
+function parseBearerToken(authorizationHeader: string | null): string | null {
+  if (!authorizationHeader) {
+    return null;
+  }
+  const [scheme, token] = authorizationHeader.split(" ", 2);
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    return null;
+  }
+  return token;
 }
 
 export const authService = new AuthService(new AuthRepository(sql), loadConfig().auth);
