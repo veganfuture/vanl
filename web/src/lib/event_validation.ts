@@ -56,6 +56,41 @@ function isValidUrl(value: string): boolean {
   }
 }
 
+export type ValidatableEventDates = {
+  startAt: Date | null;
+  endAt: Date | null;
+};
+
+/**
+ * Just the start/end date rules out of validateEvent, split out so a form
+ * that collects multiple date/time pairs for otherwise-identical events
+ * (EventForm's "repeat on another date" occurrences) can validate each pair
+ * without re-running (and re-reporting) the shared title/location/URL checks
+ * once per date.
+ */
+export function validateEventDates(
+  input: ValidatableEventDates,
+  options: ValidateEventOptions,
+): string[] {
+  const t = (nl: string, en: string) => (options.lang === "nl" ? nl : en);
+  const messages: string[] = [];
+
+  if (!input.startAt) {
+    messages.push(t("Kies een startdatum en -tijd.", "Choose a start date and time."));
+  } else if (options.requireFutureStart && input.startAt <= new Date()) {
+    messages.push(
+      t("De startdatum mag niet in het verleden liggen.", "The start date can't be in the past."),
+    );
+  }
+  if (input.startAt && input.endAt && input.endAt <= input.startAt) {
+    messages.push(
+      t("De einddatum moet na de startdatum liggen.", "The end date must be after the start date."),
+    );
+  }
+
+  return messages;
+}
+
 /** Validates an event, returning every reason it can't be saved yet (not just the first). */
 export function validateEvent(
   input: ValidatableEvent,
@@ -123,18 +158,7 @@ export function validateEvent(
     }
   }
 
-  if (!input.startAt) {
-    messages.push(t("Kies een startdatum en -tijd.", "Choose a start date and time."));
-  } else if (options.requireFutureStart && input.startAt <= new Date()) {
-    messages.push(
-      t("De startdatum mag niet in het verleden liggen.", "The start date can't be in the past."),
-    );
-  }
-  if (input.startAt && input.endAt && input.endAt <= input.startAt) {
-    messages.push(
-      t("De einddatum moet na de startdatum liggen.", "The end date must be after the start date."),
-    );
-  }
+  messages.push(...validateEventDates({ startAt: input.startAt, endAt: input.endAt }, options));
 
   if (input.locationKind === "precise_address") {
     if (!input.pdokAddressId) {

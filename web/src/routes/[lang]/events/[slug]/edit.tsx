@@ -193,7 +193,8 @@ export default function EditEventPage() {
     }
   }
 
-  async function onSubmit(values: EventFormValues, flyerFile: File | null) {
+  async function onSubmit(valuesList: EventFormValues[], flyerFile: File | null) {
+    const [values] = valuesList;
     const currentEvent = event();
     if (!currentEvent) {
       return {

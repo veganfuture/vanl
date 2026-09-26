@@ -134,35 +134,55 @@ export default function NewEventPage() {
   });
 
   async function onSubmit(
-    values: EventFormValues,
+    valuesList: EventFormValues[],
     flyerFile: File | null,
     status: "draft" | "visible" | null,
   ) {
-    const result = await apiFetch("/api/events", {
-      request: EventRequestSchema,
-      body: toEventRequestBody(values, status ?? "visible"),
-      response: CreateEventResponseSchema,
-    });
-    return result.match(
-      async (created) => {
-        // The flyer upload needs the event's id, so it can only happen
-        // after creation succeeds - if it fails, land on the edit page
-        // (rather than the detail page) so retrying is one click away
-        // instead of a dead end.
-        const uploaded = flyerFile
-          ? await uploadImage(`/api/events/${created.id}/flyer`, flyerFile)
-          : true;
-        window.location.href = uploaded
-          ? `/${lang()}/events/${created.slug}?toast=event_published`
-          : `/${lang()}/events/${created.slug}/edit`;
-        return { ok: true as const };
-      },
-      (error) =>
-        Promise.resolve({
+    const created: EventJson[] = [];
+    for (const values of valuesList) {
+      const result = await apiFetch("/api/events", {
+        request: EventRequestSchema,
+        body: toEventRequestBody(values, status ?? "visible"),
+        response: CreateEventResponseSchema,
+      });
+      if (result.isErr()) {
+        const message = describeApiError(result.error, eventFormErrorMessages(lang()));
+        // Events already created (from earlier dates in this batch) stay
+        // created - they're fully disconnected rows, so there's nothing to
+        // roll back - but the visitor needs to know that happened instead
+        // of assuming nothing was saved.
+        return {
           ok: false as const,
-          message: describeApiError(error, eventFormErrorMessages(lang())),
-        }),
-    );
+          message:
+            created.length > 0
+              ? t(
+                  `${created.length} van de ${valuesList.length} evenementen zijn al aangemaakt voordat er een fout optrad: ${message}`,
+                  `${created.length} of ${valuesList.length} events were already created before an error occurred: ${message}`,
+                )
+              : message,
+        };
+      }
+      created.push(result.value);
+    }
+
+    // The flyer upload needs each event's id, so it can only happen after
+    // creation succeeds.
+    const uploadResults = flyerFile
+      ? await Promise.all(created.map((e) => uploadImage(`/api/events/${e.id}/flyer`, flyerFile)))
+      : created.map(() => true);
+
+    if (created.length === 1) {
+      // If the (only) flyer upload failed, land on the edit page (rather
+      // than the detail page) so retrying is one click away instead of a
+      // dead end - not worth replicating per-event for a multi-date batch
+      // below, so those just land on "my events" regardless.
+      window.location.href = uploadResults[0]
+        ? `/${lang()}/events/${created[0].slug}?toast=event_published`
+        : `/${lang()}/events/${created[0].slug}/edit`;
+    } else {
+      window.location.href = `/${lang()}/events/mine?toast=events_published_multi`;
+    }
+    return { ok: true as const };
   }
 
   return (
@@ -238,6 +258,7 @@ export default function NewEventPage() {
                   submittingLabel={t("Bezig met maken…", "Creating…")}
                   requireFutureStart
                   allowDraft
+                  allowRepeat
                   orgs={myOrgs()?.map((org) => ({ id: org.id, name: org.name }))}
                   onSubmit={onSubmit}
                 />

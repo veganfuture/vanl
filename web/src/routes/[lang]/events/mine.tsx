@@ -2,14 +2,17 @@ import { Title } from "@solidjs/meta";
 import { createResource, For, Show } from "solid-js";
 import { EventThumbnail } from "~/components/EventThumbnail";
 import { LocaleCookieSync } from "~/components/LocaleCookieSync";
+import { Toast } from "~/components/Toast";
 import { apiFetch } from "~/lib/api-fetch";
 import { formatEventDate } from "~/lib/format-date";
 import { pickLocalized, useLang } from "~/lib/i18n";
 import { useMe, useOrganizations } from "~/lib/queries";
+import { useQueryToast } from "~/lib/toast";
 import { ListEventsResponseSchema } from "~/routes/api/events/index.schema";
 
 export default function MyEventsPage() {
   const { lang, t } = useLang();
+  const [toastMessage, dismissToast] = useQueryToast(lang);
 
   const locationKindLabels: Record<string, string> = {
     precise_address: t("Exact adres", "Precise address"),
@@ -43,6 +46,9 @@ export default function MyEventsPage() {
   return (
     <main class="mx-auto max-w-3xl px-6 py-12">
       <LocaleCookieSync lang={lang()} />
+      <Show when={toastMessage()}>
+        {(message) => <Toast message={message()} onDismiss={dismissToast} />}
+      </Show>
       <Title>{t("Mijn evenementen", "My events")} — Vegan Activists NL</Title>
       <div class="mb-6 flex items-center justify-between">
         <h1 class="text-2xl font-semibold">{t("Mijn evenementen", "My events")}</h1>
