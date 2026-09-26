@@ -80,7 +80,7 @@ export default function LandingPage() {
               </p>
             }
           >
-            <ul class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <ul class="space-y-4">
               <For each={upcomingEvents()}>
                 {(upcomingEvent) => (
                   <li class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
