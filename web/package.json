@@ -17,6 +17,8 @@
     "seed-organizations": "bun run scripts/seed-organizations.ts",
     "import-arc-events": "bun run scripts/import-arc-events.ts",
     "daily-cleanup": "bun run scripts/daily-cleanup.ts",
+    "generate-openapi": "bun run scripts/generate-openapi.ts",
+    "check-openapi-fresh": "bun run scripts/generate-openapi.ts --check",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write '**/*.{ts,tsx,css,json,js}' '!.output/**' '!.nitro/**' '!.vinxi/**' '!.direnv/**' '!.devdb/**' '!dist/**'",
@@ -41,6 +43,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@asteasolutions/zod-to-openapi": "^7.3.0",
     "@solidjs/testing-library": "^0.8.10",
     "@tailwindcss/vite": "^4.0.7",
     "@testing-library/jest-dom": "^6.6.2",

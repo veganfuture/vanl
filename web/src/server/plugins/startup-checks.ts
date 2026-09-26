@@ -9,6 +9,13 @@ const REQUIRED_ENV_VARS = [
       "Shared secret sent as a Bearer token when calling the bot's local HTTP API to relay " +
       "OTP login codes over Signal.",
   },
+  {
+    name: "VANL_BOT_WEBSITE_API_TOKEN",
+    description:
+      "Bearer token the Signal bot sends to authenticate as the signal-bot account " +
+      "when calling the website's public API (see AuthService.getBotUser). Separate " +
+      "from VANL_BOT_API_SHARED_SECRET - a different capability, rotatable independently.",
+  },
 ];
 
 /**

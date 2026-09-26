@@ -23,11 +23,11 @@ Lower-stakes defaults, recorded so they don't need to be re-litigated per milest
 - Images are stored as Postgres `bytea` for MVP (see architecture.md §6 for why); moving to S3-backed object storage later is a bounded, self-contained migration since images already live in their own content-addressed table.
 - Concrete rate-limit numbers are chosen and documented as an ADR when Milestone 7 (caching/crawler protection) is implemented, not pre-specified here.
 - Moderation for MVP is site-admin manual hide/delete only; no report/flag feature.
+- Signal event-message ingestion (bot/src/bot/message_archive_feature.py + event_review_feature.py): a periodic Claude tool-use pass over the "Events" Signal group drafts/updates events (as the `signal-bot` website account, via the same public API a human publisher uses) and posts a review link to the "Admins" group. v1 scope only: admin-notify, never the original poster; every bot-created event is `status: "draft"`, publish stays a human admin action; no "claim this event" flow yet for the original poster (their Signal ACI is already captured per-message, a natural join key for that later).
 
 ## Explicit MVP non-goals
 
 - Event RSVP'ing.
-- Signal event-message ingestion (LLM-parsed prefill from the events group) — a followup project.
 - Bidirectional feed with animalrightscalendar.com.
 - Scraping any external source.
 - Recommendation features.

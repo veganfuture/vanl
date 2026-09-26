@@ -27,6 +27,29 @@ _ENV_VAR_SPECS: list[_EnvVarSpec] = [
             '"Environment variables" for how to generate one.'
         ),
     ),
+    _EnvVarSpec(
+        name="VANL_BOT_WEBSITE_API_TOKEN",
+        description=(
+            "Bearer token the bot presents to authenticate as the signal-bot "
+            "account when calling the website's public API (event drafts, "
+            "flyer uploads, ...). See README.md."
+        ),
+    ),
+    _EnvVarSpec(
+        name="VANL_BOT_DATABASE_PASSWORD",
+        description=(
+            "Password for the vanl_bot Postgres role - the bot's own message "
+            "archive/notification tables, no access to events/users/etc. "
+            "See README.md."
+        ),
+    ),
+    _EnvVarSpec(
+        name="ANTHROPIC_API_KEY",
+        description=(
+            "API key for the Claude tool-use pass that reviews newly "
+            "archived Signal messages and drafts/updates events."
+        ),
+    ),
 ]
 
 
@@ -52,6 +75,9 @@ class BotEnv:
 
     signup_private_key: str
     bot_api_shared_secret: str
+    bot_website_api_token: str
+    bot_database_password: str
+    anthropic_api_key: str
 
     @staticmethod
     def load() -> BotEnv:
@@ -79,4 +105,7 @@ class BotEnv:
         return BotEnv(
             signup_private_key=values["VANL_SIGNUP_PRIVATE_KEY"],
             bot_api_shared_secret=values["VANL_BOT_API_SHARED_SECRET"],
+            bot_website_api_token=values["VANL_BOT_WEBSITE_API_TOKEN"],
+            bot_database_password=values["VANL_BOT_DATABASE_PASSWORD"],
+            anthropic_api_key=values["ANTHROPIC_API_KEY"],
         )

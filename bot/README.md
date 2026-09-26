@@ -70,6 +70,8 @@ failing later with a confusing error.
 | --- | --- |
 | `VANL_SIGNUP_PRIVATE_KEY` | Signs the signup links the bot sends over Signal. |
 | `VANL_BOT_API_SHARED_SECRET` | Authenticates the website's calls into the bot's local HTTP API. |
+| `VANL_BOT_WEBSITE_API_TOKEN` | Sent as a Bearer token when the bot calls the website's public API as the `signal-bot` account - used for event ingestion today, and any other website API the bot calls as itself going forward. |
+| `VANL_BOT_DATABASE_PASSWORD` | Password for the `vanl_bot` Postgres role the bot uses for its own Signal message archive tables (`bot_archived_*`, `bot_event_notifications`) - no access to `events`/`users`/etc. |
 
 Set them in your shell (e.g. via `.envrc`/`.env` for local development), or
 as `Environment=` entries in the `bot.service` systemd unit in production.
@@ -190,6 +192,61 @@ Then run the bot from a nix dev shell:
 ```sh
 bot --config configs/dev.toml
 ```
+
+---
+
+# Signal Event Ingestion
+
+Periodically reviews new messages in the configured Signal "events" group,
+drafts/updates events on the website (as the `signal-bot` account, through
+the same public API a human publisher uses — never a bypass) using a Claude
+tool-use pass, and posts a review link to the configured admin group. See
+`src/bot/message_archive_feature.py` (always-on capture), `src/bot/event_review_feature.py`
+(periodic review), and `src/bot/event_mcp_server.py` (the tool surface both
+of those, and Claude Desktop/Code, can drive).
+
+Three config sections, all optional (disabled unless present):
+
+- `[archive_db]` — connection details for the bot's own Postgres tables
+  (`bot_archived_messages`/`bot_archived_attachments`/`bot_event_notifications`,
+  `web/migrations/0012_bot_archive.sql`), reached via a narrowly-scoped
+  `vanl_bot` Postgres role with no access to `events`/`users`/etc.
+- `[message_archive_feature]` — `archived_groups`, the Signal group name(s)
+  to watch.
+- `[event_review_feature]` — `events_group_name`, `admin_group_name`,
+  `website_base_url`, `anthropic_model`, and the review-timing knobs
+  (`review_interval_seconds`, `message_action_delay_seconds`).
+
+**Disabled in `configs/dev.toml` on purpose** — running this locally posts
+real messages to whatever Signal group you point it at and calls a real
+Anthropic API (real cost). To test it locally, add the three sections above
+to a local copy of `configs/dev.toml` (not committed) pointing at scratch
+Signal groups, and set `VANL_BOT_WEBSITE_API_TOKEN` (matching the website's
+own env var of the same name), `VANL_BOT_DATABASE_PASSWORD` (matching the
+`vanl_bot` Postgres role's password), and `ANTHROPIC_API_KEY`.
+
+To manually trigger one review pass without waiting for the timer (useful
+when testing), call `EventReviewFeature.run_review()` directly from a
+throwaway script, or reduce `review_interval_seconds` for a dev run.
+
+## Standalone MCP server
+
+`event-mcp-server --config configs/prod.toml` runs the exact same tool
+surface `event_review_feature.py` drives in-process, but standalone over
+stdio — point Claude Desktop/Code at it for ad hoc queries over the
+archive (e.g. "summarize last week's events chat"). Needs the same
+signal-cli daemon, Postgres, and website API access as the bot itself.
+
+## Typed website client
+
+`src/bot/event_web_client.py` is a hand-written typed client for the subset
+of the website's public API this feature calls, mirroring the Zod schemas
+`web/scripts/generate-openapi.ts` derives `web/openapi.json` from. Wiring
+`openapi-python-client generate --url ../web/openapi.json` into the dev
+shell to replace it with a genuinely generated client — and keep both sides
+honestly in sync via a CI/precommit check (`bun run check-openapi-fresh` on
+the website side already exists for the spec itself) — is a documented
+fast-follow, not required for this to work correctly now.
 
 ---
 
